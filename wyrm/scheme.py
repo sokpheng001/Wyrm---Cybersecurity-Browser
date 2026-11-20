@@ -96,4 +96,8 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
         buf = QBuffer(job)
         buf.setData(QByteArray(content.encode("utf-8") if isinstance(content, str) else content))
         buf.open(QIODevice.OpenModeFlag.ReadOnly)
+        try:  # wyrm:// pages are dynamic (theme/mode/feed) — never cache them
+            job.setAdditionalResponseHeaders({QByteArray(b"Cache-Control"): QByteArray(b"no-store")})
+        except (TypeError, AttributeError):
+            pass
         job.reply(QByteArray(ctype), buf)

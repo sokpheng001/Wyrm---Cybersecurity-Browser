@@ -79,7 +79,7 @@ QTabBar#MainTabs::close-button:hover { background: $shell_active; }
 QTabBar#MainTabs { background: transparent; }
 QTabBar#MainTabs::tab {
     background: transparent; color: $shell_muted; padding: 0 8px 0 16px; height: 38px; margin: 3px 2px 0 2px;
-    border: none; border-top-left-radius: 11px; border-top-right-radius: 11px;
+    border: none; border-radius: 0;
     min-width: 140px; max-width: 220px; font-size: 13px;
 }
 QTabBar#MainTabs::tab:hover:!selected { background: $shell_hover; color: $shell_text; }
@@ -87,18 +87,18 @@ QTabBar#MainTabs::tab:selected { background: $layer; color: $text; border-top: 3
 
 /* ---------- navigation bar (soft, rounded, pill address bar) ---------- */
 #NavBar { background: $layer; border-bottom: 1px solid $border; }
-#NavBar QToolButton { border: none; border-radius: 10px; padding: 0; background: transparent; min-width: 36px; min-height: 36px; margin: 2px; }
+#NavBar QToolButton { border: none; border-radius: 0; padding: 0; background: transparent; min-width: 36px; min-height: 36px; margin: 2px; }
 #NavBar QToolButton:hover { background: $hover; }
 #NavBar QToolButton:checked { background: $selected; }
 #NavBar QToolButton:focus { border: 2px solid $focus; }
 QLineEdit#UrlBar {
-    background: $field; border: 1px solid transparent; border-radius: 19px; padding: 0 18px;
+    background: $field; border: 1px solid transparent; border-radius: 0; padding: 0 18px;
     min-height: 38px; font-size: 14px; color: $text; selection-background-color: $interactive;
 }
 QLineEdit#UrlBar:hover { background: $hover; }
 QLineEdit#UrlBar:focus { background: $bg; border: 2px solid $interactive; padding: 0 17px; }
 QComboBox#Engine, QComboBox#Engagement {
-    background: $field; border: 1px solid transparent; border-radius: 18px; padding: 0 14px;
+    background: $field; border: 1px solid transparent; border-radius: 0; padding: 0 14px;
     min-height: 36px; color: $text; font-size: 13px;
 }
 QComboBox#Engagement { font-weight: 600; }
@@ -114,30 +114,30 @@ LoadingBar { background: $layer; }
 QDockWidget { color: $text; font-size: 14px; }
 #DockTitle { background: $bg; border-bottom: 1px solid $border; }
 #DockTitleLabel { font-size: 14px; font-weight: 600; color: $text; }
-#DockTitle QToolButton { background: transparent; border: none; border-radius: 8px; }
+#DockTitle QToolButton { background: transparent; border: none; border-radius: 0; }
 #DockTitle QToolButton:hover { background: $hover; }
 #DockTitle QToolButton#DockClose:hover { background: #da1e28; }
 QDockWidget > QWidget, QDialog, QMessageBox { background: $bg; }
 QTabWidget::pane { border: none; background: $bg; }
 QTabWidget > QTabBar::tab {
-    background: transparent; color: $muted; padding: 9px 18px; border: none; border-radius: 16px;
-    margin: 2px; font-size: 13px;
+    background: transparent; color: $muted; padding: 10px 16px; border: none; border-radius: 0;
+    border-bottom: 2px solid $border; font-size: 13px;
 }
-QTabWidget > QTabBar::tab:selected { color: #ffffff; font-weight: 600; background: $interactive; }
-QTabWidget > QTabBar::tab:hover:!selected { color: $text; background: $hover; }
+QTabWidget > QTabBar::tab:selected { color: $text; font-weight: 600; border-bottom: 2px solid $interactive; }
+QTabWidget > QTabBar::tab:hover:!selected { color: $text; border-bottom: 2px solid $strong; }
 
 /* ---------- form controls (rounded, soft) ---------- */
 QLineEdit, QPlainTextEdit, QTextBrowser, QSpinBox, QComboBox {
-    background: $field; border: 1px solid $border; border-radius: 10px; padding: 7px 12px;
+    background: $field; border: 1px solid $border; border-radius: 0; padding: 7px 12px;
     color: $text; selection-background-color: $interactive; selection-color: #ffffff;
 }
 QLineEdit:focus, QPlainTextEdit:focus, QSpinBox:focus, QComboBox:focus { border: 1px solid $focus; }
 QComboBox::drop-down { border: none; width: 24px; }
 QComboBox::down-arrow { image: url("$chevron"); width: 12px; height: 12px; }
-QComboBox QAbstractItemView { background: $layer; border: 1px solid $border; border-radius: 10px;
+QComboBox QAbstractItemView { background: $layer; border: 1px solid $border; border-radius: 0;
     selection-background-color: $hover; selection-color: $text; outline: none; padding: 4px; }
 QPushButton {
-    background: $secondary; color: #ffffff; border: none; border-radius: 10px; padding: 9px 18px; min-height: 15px;
+    background: $secondary; color: #ffffff; border: none; border-radius: 0; padding: 9px 18px; min-height: 15px;
     text-align: center; font-weight: 500;
 }
 QPushButton:hover { background: $secondary_hover; }
@@ -147,16 +147,16 @@ QPushButton#Primary { background: $button; color: #ffffff; font-weight: 600; }
 QPushButton#Primary:hover { background: $button_hover; }
 QPushButton#Primary:disabled { background: $layer2; color: $placeholder; }
 QCheckBox { spacing: 8px; }
-QCheckBox::indicator { width: 16px; height: 16px; border: 1.5px solid $strong; border-radius: 5px; background: transparent; }
+QCheckBox::indicator { width: 16px; height: 16px; border: 1.5px solid $strong; border-radius: 0; background: transparent; }
 QCheckBox::indicator:checked { background: $interactive; border-color: $interactive; image: url("$check"); }
 QCheckBox::indicator:focus { border: 2px solid $focus; }
 
 /* ---------- data tables / lists (soft rounded surfaces) ---------- */
 QTreeWidget, QTableView, QListWidget {
-    background: $layer; alternate-background-color: $layer; border: 1px solid $border; border-radius: 12px;
+    background: $layer; alternate-background-color: $layer; border: 1px solid $border; border-radius: 0;
     selection-background-color: $selected; selection-color: $text; outline: none; padding: 4px;
 }
-QTreeWidget::item, QListWidget::item { padding: 6px 6px; border-radius: 7px; }
+QTreeWidget::item, QListWidget::item { padding: 6px 6px; border-radius: 0; }
 QTableView::item { padding: 3px 4px; }
 QTreeWidget::item:hover, QListWidget::item:hover, QTableView::item:hover { background: $hover; }
 QTreeWidget::item:selected, QListWidget::item:selected, QTableView::item:selected { background: $selected; color: $text; }
@@ -164,17 +164,17 @@ QHeaderView { background: transparent; }
 QHeaderView::section { background: transparent; color: $muted; border: none; padding: 8px; font-weight: 600; font-size: 12px; }
 
 /* ---------- misc ---------- */
-QLabel#LinkBubble { background: $layer; color: $text; border: 1px solid $border; border-radius: 8px; padding: 5px 10px; font-size: 12px; }
+QLabel#LinkBubble { background: $layer; color: $text; border: 1px solid $border; border-radius: 0; padding: 5px 10px; font-size: 12px; }
 QLabel#Muted { color: $muted; font-size: 12px; }
-QMenu { background: $layer; border: 1px solid $border; border-radius: 12px; padding: 6px; }
-QMenu::item { padding: 8px 18px; border-radius: 8px; }
+QMenu { background: $layer; border: 1px solid $border; border-radius: 0; padding: 6px; }
+QMenu::item { padding: 8px 18px; border-radius: 0; }
 QMenu::item:selected { background: $hover; }
 QMenu::separator { height: 1px; background: $border; margin: 6px 8px; }
-QToolTip { background: $text; color: $bg; border: none; padding: 5px 9px; border-radius: 6px; }
+QToolTip { background: $text; color: $bg; border: none; padding: 5px 9px; border-radius: 0; }
 QScrollBar:vertical { background: transparent; width: 10px; margin: 2px; }
-QScrollBar::handle:vertical { background: $strong; min-height: 32px; border-radius: 5px; }
+QScrollBar::handle:vertical { background: $strong; min-height: 32px; border-radius: 0; }
 QScrollBar:horizontal { background: transparent; height: 10px; margin: 2px; }
-QScrollBar::handle:horizontal { background: $strong; min-width: 32px; border-radius: 5px; }
+QScrollBar::handle:horizontal { background: $strong; min-width: 32px; border-radius: 0; }
 QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }
 QScrollBar::add-page, QScrollBar::sub-page { background: none; }
 QSplitter::handle { background: $border; height: 1px; }

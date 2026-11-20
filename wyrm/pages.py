@@ -81,14 +81,12 @@ main.home{max-width:760px;padding-top:7vh;text-align:center}
 .modeline b{color:var(--btn);font-weight:600;letter-spacing:.3px}
 .modeline.red b{color:#da1e28}
 form.big{max-width:620px;margin:0 auto;position:relative;display:block}
-.big input{width:100%;height:54px;font-size:16px;padding:0 118px 0 48px;text-align:left;
-  border:1px solid var(--border);border-radius:27px;background:var(--field);color:var(--fg);
-  box-shadow:0 1px 3px rgba(0,0,0,.06);transition:border-color .15s,box-shadow .15s}
-.big input:hover{box-shadow:0 2px 8px rgba(0,0,0,.10)}
-.big input:focus{outline:none;border-color:var(--focus);box-shadow:0 2px 10px rgba(15,98,254,.18)}
+.big input{width:100%;height:54px;font-size:16px;padding:0 112px 0 48px;text-align:left;
+  border:1px solid var(--border);border-radius:0;background:var(--field);color:var(--fg);transition:border-color .15s}
+.big input:focus{outline:none;border:2px solid var(--focus)}
 .big input::placeholder{color:var(--helper)}
 .big .mag{position:absolute;left:18px;top:0;height:54px;display:flex;align-items:center;color:var(--muted)}
-.big button{position:absolute;right:5px;top:5px;height:44px;width:96px;padding:0;text-align:center;border-radius:22px}
+.big button{position:absolute;right:0;top:0;height:54px;width:100px;padding:0;text-align:center;border-radius:0}
 .ex{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:16px 0 0}
 .ex a{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:5px 12px;border-radius:16px;background:var(--layer);color:var(--fg)}
 .ex a:hover{background:var(--hover);text-decoration:none}
@@ -100,8 +98,8 @@ form.big{max-width:620px;margin:0 auto;position:relative;display:block}
 .pill.eng{background:transparent;border:1px solid var(--btn);color:var(--fg)}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:40px 0 0;text-align:left}
 .tile{display:block;padding:20px 18px;background:var(--layer);color:var(--fg);border:1px solid var(--line);
-  border-radius:16px;transition:transform .14s,box-shadow .14s,border-color .14s}
-.tile:hover{text-decoration:none;transform:translateY(-3px);border-color:var(--btn);box-shadow:0 8px 24px rgba(0,0,0,.12)}
+  border-radius:0;border-top:2px solid transparent;transition:border-color .14s,background .14s}
+.tile:hover{text-decoration:none;background:var(--hover);border-top-color:var(--btn)}
 .tile .ico{color:var(--link);height:28px}
 .tile .ico svg{width:28px;height:28px}
 .tile .t{font-size:15px;font-weight:600;margin:10px 0 2px}
@@ -111,7 +109,7 @@ form.big{max-width:620px;margin:0 auto;position:relative;display:block}
 .feed h2 .live{width:7px;height:7px;border-radius:50%;background:#da1e28;box-shadow:0 0 0 0 rgba(218,30,40,.5);animation:pulse 2s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(218,30,40,.5)}70%{box-shadow:0 0 0 6px rgba(218,30,40,0)}100%{box-shadow:0 0 0 0 rgba(218,30,40,0)}}
 .feed a.cve{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--layer);border:1px solid var(--line);
-  border-radius:12px;margin-bottom:8px;color:var(--fg)}
+  border-radius:0;margin-bottom:8px;color:var(--fg)}
 .feed a.cve:hover{text-decoration:none;border-color:var(--btn);background:var(--hover)}
 .feed .id{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:var(--link);white-space:nowrap}
 .feed .nm{flex:1;font-size:13px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
