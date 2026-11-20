@@ -1,0 +1,6 @@
+PySide6>=6.7
+requests>=2.31
+adblock>=0.6
+stem>=1.8
+PySocks>=1.7
+pillow>=10
