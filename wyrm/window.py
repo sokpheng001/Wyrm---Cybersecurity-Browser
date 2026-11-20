@@ -39,6 +39,7 @@ HOME = "wyrm://home"
 APP = "Wyrm"
 CITESEE_JS = (Path(__file__).with_name("citesee.js")).read_text(encoding="utf-8")
 YOUTUBE_JS = (Path(__file__).with_name("youtube.js")).read_text(encoding="utf-8")
+FINGERPRINT_JS = (Path(__file__).with_name("fingerprint.js")).read_text(encoding="utf-8")
 COLLECT_JS = """JSON.stringify((function(){const c=new Set(),i=new Set();
 document.querySelectorAll('[class],[id]').forEach((e,n)=>{if(n>4000)return;
 if(e.id)i.add(e.id);if(typeof e.className==='string')e.className.split(/\\s+/).forEach(x=>x&&c.add(x));});
@@ -434,14 +435,18 @@ class MainWindow(QMainWindow):
             prof = QWebEngineProfile(f"Wyrm-{key}", self)
             prof.setPersistentStoragePath(str(self.data_dir / "profiles" / key))
             prof.setCachePath(str(self.data_dir / "cache" / key))
-        yt = QWebEngineScript()
-        yt.setName("hackpi-youtube")
-        yt.setSourceCode(YOUTUBE_JS)
-        yt.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentCreation)
-        yt.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)
-        yt.setRunsOnSubFrames(False)
+        def inject(name, source, subframes=False):
+            sc = QWebEngineScript()
+            sc.setName(name)
+            sc.setSourceCode(source)
+            sc.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentCreation)
+            sc.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)
+            sc.setRunsOnSubFrames(subframes)
+            prof.scripts().insert(sc)
         if self.shields.enabled("youtube"):
-            prof.scripts().insert(yt)
+            inject("wyrm-youtube", YOUTUBE_JS)
+        if self.shields.enabled("antifp"):  # anti-fingerprinting (PriVaricator-style), runs in all frames
+            inject("wyrm-antifp", FINGERPRINT_JS, subframes=True)
         s = prof.settings()
         for attr in (QWebEngineSettings.WebAttribute.PluginsEnabled, QWebEngineSettings.WebAttribute.PdfViewerEnabled,
                      QWebEngineSettings.WebAttribute.FullScreenSupportEnabled,
@@ -609,8 +614,8 @@ class MainWindow(QMainWindow):
             group.addAction(act)
             self._theme_actions[mode] = act
         m.addSeparator()
-        m.addAction("Shields && privacy", lambda: self.security.show_tab("Shields"))
-        m.addAction("Proxy (Burp / ZAP)…", self._open_settings)
+        m.addAction("Settings…", self._open_settings, QKeySequence("Ctrl+,"))
+        m.addAction("Shields && privacy panel", lambda: self.security.show_tab("Shields"))
         m.addSeparator()
         m.addAction("About Wyrm", self._about)
         return m
@@ -640,13 +645,14 @@ class MainWindow(QMainWindow):
             self.toast(f"Couldn't get a new identity: {e}")
 
     def _open_settings(self):
-        before = (self.proxies(), self.verify_tls())
-        if SettingsDialog(self.settings, self).exec() and (self.proxies(), self.verify_tls()) != before:
-            if QMessageBox.question(self, "Restart required",
-                                    "Proxy settings apply after a restart. Restart now?") == QMessageBox.StandardButton.Yes:
-                args = sys.argv[1:] if getattr(sys, "frozen", False) else sys.argv
-                QProcess.startDetached(sys.executable, args)
-                self.close()
+        SettingsDialog(self).exec()
+
+    def prompt_restart_for_proxy(self):
+        if QMessageBox.question(self, "Restart required",
+                                "Proxy settings apply after a restart. Restart now?") == QMessageBox.StandardButton.Yes:
+            args = sys.argv[1:] if getattr(sys, "frozen", False) else sys.argv
+            QProcess.startDetached(sys.executable, args)
+            self.close()
 
     # ================================================================ chrome
     def _tool(self, icon: str, tip: str, fn=None, keys=()) -> QToolButton:

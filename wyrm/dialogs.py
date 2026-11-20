@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit,
-    QSpinBox, QVBoxLayout,
+    QSpinBox, QVBoxLayout, QWidget,
 )
 
 from .security.store import SEVERITIES, Engagement
@@ -99,38 +99,126 @@ class FindingDialog(QDialog):
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, settings, parent=None):
-        super().__init__(parent)
-        self.settings = settings
-        self.setWindowTitle("Settings: proxy")
-        self.setMinimumWidth(460)
-        f = QFormLayout(self)
-        info = QLabel("Route all browser traffic through an intercepting proxy such as Burp Suite or OWASP ZAP. "
-                      "The browser restarts to apply changes.")
-        info.setWordWrap(True)
-        f.addRow(info)
-        self.enabled = QCheckBox("Use proxy")
-        self.enabled.setChecked(settings.value("proxy/enabled", False, type=bool))
-        f.addRow(self.enabled)
-        self.host = QLineEdit(settings.value("proxy/host", "127.0.0.1"))
-        f.addRow("Host", self.host)
-        self.port = QSpinBox()
-        self.port.setRange(1, 65535)
-        self.port.setValue(settings.value("proxy/port", 8080, type=int))
-        f.addRow("Port", self.port)
-        self.insecure = QCheckBox("Trust the proxy's CA (ignore certificate errors while proxied)")
-        self.insecure.setToolTip("Needed for Burp/ZAP HTTPS interception unless you install their CA certificate.")
-        self.insecure.setChecked(settings.value("proxy/insecure", True, type=bool))
-        f.addRow(self.insecure)
+    """Full browser settings: General, Privacy & Security, Network (proxy)."""
+
+    def __init__(self, win, parent=None):
+        super().__init__(parent or win)
+        self.win = win
+        self.settings = win.settings
+        self.setWindowTitle("Settings")
+        self.setMinimumSize(560, 520)
+        from PySide6.QtWidgets import QTabWidget
+        root = QVBoxLayout(self)
+        tabs = QTabWidget()
+        tabs.addTab(self._general(), "General")
+        tabs.addTab(self._privacy(), "Privacy & Security")
+        tabs.addTab(self._network(), "Network")
+        root.addWidget(tabs)
         bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         bb.accepted.connect(self._save)
         bb.rejected.connect(self.reject)
-        f.addRow(bb)
+        root.addWidget(bb)
+
+    # ----------------------------------------------------- General
+    def _general(self):
+        from . import engines
+        w = QWidget()
+        f = QFormLayout(w)
+        self.engine = QComboBox()
+        for key, e in engines.ENGINES.items():
+            self.engine.addItem(e.name, key)
+        self.engine.setCurrentIndex(max(0, self.engine.findData(self.settings.value("search/engine", engines.DEFAULT_ENGINE))))
+        f.addRow("Default search engine", self.engine)
+        self.theme = QComboBox()
+        for key, label in (("system", "Follow system"), ("dark", "Dark"), ("light", "Light")):
+            self.theme.addItem(label, key)
+        self.theme.setCurrentIndex(max(0, self.theme.findData(self.settings.value("theme", "system"))))
+        f.addRow("Theme", self.theme)
+        self.restore_tabs = QCheckBox("Reopen last session's tabs on startup")
+        self.restore_tabs.setChecked(self.settings.value("general/restore_tabs", False, type=bool))
+        f.addRow("", self.restore_tabs)
+        self.autoanalyze = QCheckBox("Auto-analyze in-scope pages (security grade)")
+        self.autoanalyze.setChecked(self.settings.value("sec/auto", True, type=bool))
+        f.addRow("", self.autoanalyze)
+        note = QLabel("Downloads are saved to your system Downloads folder.")
+        note.setObjectName("Muted")
+        f.addRow("", note)
+        return w
+
+    # ----------------------------------------------------- Privacy & Security
+    def _privacy(self):
+        w = QWidget()
+        f = QFormLayout(w)
+        self.https_only = QCheckBox("HTTPS-Only mode — upgrade every connection to HTTPS")
+        self.https_only.setChecked(self.settings.value("privacy/https_only", True, type=bool))
+        f.addRow("Encryption", self.https_only)
+        self.doh_mode = QComboBox()
+        for key, label in (("secure", "On (fallback to system DNS)"), ("strict", "Strict (encrypted only)"), ("off", "Off")):
+            self.doh_mode.addItem(label, key)
+        self.doh_mode.setCurrentIndex(max(0, self.doh_mode.findData(self.settings.value("privacy/doh_mode", "secure"))))
+        f.addRow("Encrypted DNS (DoH)", self.doh_mode)
+        self.doh_prov = QComboBox()
+        for key, (label, _u) in self.win.DOH.items():
+            self.doh_prov.addItem(label, key)
+        self.doh_prov.setCurrentIndex(max(0, self.doh_prov.findData(self.settings.value("privacy/doh_provider", "cloudflare"))))
+        f.addRow("DNS provider", self.doh_prov)
+        for key, label in (("ads", "Block ads"), ("trackers", "Block trackers"),
+                           ("malware", "Block malware & phishing sites"), ("linkguard", "Smart Link Check"),
+                           ("antifp", "Resist fingerprinting"), ("popups", "Block ad pop-ups"),
+                           ("params", "Strip tracking parameters"), ("youtube", "Remove YouTube ads")):
+            cb = QCheckBox(label)
+            cb.setChecked(self.settings.value(f"shields/{key}", True, type=bool))
+            setattr(self, f"sh_{key}", cb)
+            f.addRow("Shields" if key == "ads" else "", cb)
+        return w
+
+    # ----------------------------------------------------- Network (proxy)
+    def _network(self):
+        w = QWidget()
+        f = QFormLayout(w)
+        info = QLabel("Route all browser traffic through an intercepting proxy such as Burp Suite or OWASP ZAP. "
+                      "Proxy changes apply after a restart.")
+        info.setWordWrap(True)
+        info.setObjectName("Muted")
+        f.addRow(info)
+        self.proxy_enabled = QCheckBox("Use an upstream proxy")
+        self.proxy_enabled.setChecked(self.settings.value("proxy/enabled", False, type=bool))
+        f.addRow("", self.proxy_enabled)
+        self.proxy_host = QLineEdit(self.settings.value("proxy/host", "127.0.0.1"))
+        f.addRow("Host", self.proxy_host)
+        self.proxy_port = QSpinBox()
+        self.proxy_port.setRange(1, 65535)
+        self.proxy_port.setValue(self.settings.value("proxy/port", 8080, type=int))
+        f.addRow("Port", self.proxy_port)
+        self.proxy_insecure = QCheckBox("Trust the proxy's CA (ignore certificate errors while proxied)")
+        self.proxy_insecure.setChecked(self.settings.value("proxy/insecure", True, type=bool))
+        f.addRow("", self.proxy_insecure)
+        return w
 
     def _save(self):
         s = self.settings
-        s.setValue("proxy/enabled", self.enabled.isChecked())
-        s.setValue("proxy/host", self.host.text().strip() or "127.0.0.1")
-        s.setValue("proxy/port", self.port.value())
-        s.setValue("proxy/insecure", self.insecure.isChecked())
+        s.setValue("search/engine", self.engine.currentData())
+        s.setValue("general/restore_tabs", self.restore_tabs.isChecked())
+        s.setValue("sec/auto", self.autoanalyze.isChecked())
+        s.setValue("privacy/https_only", self.https_only.isChecked())
+        s.setValue("privacy/doh_mode", self.doh_mode.currentData())
+        s.setValue("privacy/doh_provider", self.doh_prov.currentData())
+        for key in ("ads", "trackers", "malware", "linkguard", "antifp", "popups", "params", "youtube"):
+            s.setValue(f"shields/{key}", getattr(self, f"sh_{key}").isChecked())
+        proxy_before = (s.value("proxy/enabled", False, type=bool), s.value("proxy/host", ""), s.value("proxy/port", 0, type=int),
+                        s.value("proxy/insecure", True, type=bool))
+        s.setValue("proxy/enabled", self.proxy_enabled.isChecked())
+        s.setValue("proxy/host", self.proxy_host.text().strip() or "127.0.0.1")
+        s.setValue("proxy/port", self.proxy_port.value())
+        s.setValue("proxy/insecure", self.proxy_insecure.isChecked())
+        proxy_after = (self.proxy_enabled.isChecked(), s.value("proxy/host", ""), self.proxy_port.value(),
+                       self.proxy_insecure.isChecked())
+        # apply live where possible
+        self.win.engine_box.setCurrentIndex(max(0, self.win.engine_box.findData(self.engine.currentData())))
+        self.win.apply_theme(self.theme.currentData())
+        self.win.apply_dns()
+        if hasattr(self.win.security, "shields"):
+            self.win.security.shields.sync_from_settings()
         self.accept()
+        if proxy_before != proxy_after:
+            self.win.prompt_restart_for_proxy()

@@ -7,7 +7,7 @@ VERSION = "1.0.0"
 a = Analysis(
     ["run.py"],
     pathex=["."],
-    datas=[("wyrm/citesee.js", "wyrm"), ("wyrm/youtube.js", "wyrm"),
+    datas=[("wyrm/citesee.js", "wyrm"), ("wyrm/youtube.js", "wyrm"), ("wyrm/fingerprint.js", "wyrm"),
            ("wyrm/security/pageinfo.js", "wyrm/security"),
            ("wyrm/assets", "wyrm/assets")],
     hiddenimports=["PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtSvg", "PySide6.QtNetwork", "adblock", "stem", "stem.process", "stem.control", "socks"],

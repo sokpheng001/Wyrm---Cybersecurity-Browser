@@ -872,7 +872,8 @@ class ShieldsTab(QWidget):
     CATS = [("ads", "Ads"), ("trackers", "Trackers"), ("malware", "Malware"), ("phishing", "Phishing"),
             ("youtube", "YouTube ads"), ("popups", "Pop-ups"), ("params", "Tracking params removed"),
             ("upgraded", "Upgraded to HTTPS")]
-    TOGGLES = [("ads", "Block ads"), ("trackers", "Block trackers (lists + HackPi beacon heuristics)"),
+    TOGGLES = [("ads", "Block ads"), ("antifp", "Resist fingerprinting (canvas/WebGL/audio noise — applies to new tabs)"),
+               ("trackers", "Block trackers (lists + HackPi beacon heuristics)"),
                ("malware", "Block malware and phishing sites"), ("linkguard", "Smart link check (phishing heuristics)"),
                ("popups", "Block ad pop-ups"), ("params", "Remove tracking parameters from links"),
                ("youtube", "Remove YouTube ads (applies to new tabs)")]
@@ -957,6 +958,16 @@ class ShieldsTab(QWidget):
 
     def _reload_hint(self):
         self.win.toast("Shield settings changed: reload the page to apply")
+
+    def sync_from_settings(self):
+        """Reflect settings changed elsewhere (the Settings dialog) in these controls."""
+        for key, cb in self.checks.items():
+            cb.blockSignals(True)
+            cb.setChecked(self.win.shields.enabled(key))
+            cb.blockSignals(False)
+        self.https.blockSignals(True)
+        self.https.setChecked(self.win.https_only())
+        self.https.blockSignals(False)
 
     def _site_toggled(self, on):
         host = self._host()
