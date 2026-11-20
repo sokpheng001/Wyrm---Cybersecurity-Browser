@@ -69,12 +69,14 @@ main.home{max-width:760px;padding-top:7vh;text-align:center}
 .wordmark b{font-weight:600}
 .tagline{font-size:14px;color:var(--muted);margin:6px 0 30px}
 form.big{max-width:620px;margin:0 auto;position:relative;display:block}
-.big input{width:100%;height:54px;font-size:16px;padding:0 112px 0 46px;text-align:left;
-  border:1px solid var(--border);border-bottom:2px solid var(--strong);border-radius:0;background:var(--field);color:var(--fg)}
-.big input:focus{outline:none;border:2px solid var(--focus)}
+.big input{width:100%;height:54px;font-size:16px;padding:0 118px 0 48px;text-align:left;
+  border:1px solid var(--border);border-radius:27px;background:var(--field);color:var(--fg);
+  box-shadow:0 1px 3px rgba(0,0,0,.06);transition:border-color .15s,box-shadow .15s}
+.big input:hover{box-shadow:0 2px 8px rgba(0,0,0,.10)}
+.big input:focus{outline:none;border-color:var(--focus);box-shadow:0 2px 10px rgba(15,98,254,.18)}
 .big input::placeholder{color:var(--helper)}
-.big .mag{position:absolute;left:15px;top:0;height:54px;display:flex;align-items:center;color:var(--muted)}
-.big button{position:absolute;right:0;top:0;height:54px;width:100px;padding:0;text-align:center}
+.big .mag{position:absolute;left:18px;top:0;height:54px;display:flex;align-items:center;color:var(--muted)}
+.big button{position:absolute;right:5px;top:5px;height:44px;width:96px;padding:0;text-align:center;border-radius:22px}
 .ex{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:16px 0 0}
 .ex a{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:5px 12px;border-radius:16px;background:var(--layer);color:var(--fg)}
 .ex a:hover{background:var(--hover);text-decoration:none}
@@ -84,13 +86,25 @@ form.big{max-width:620px;margin:0 auto;position:relative;display:block}
 .pill b{color:var(--fg);font-weight:600}
 .pill .dot{width:7px;height:7px;border-radius:50%;background:#42be65}
 .pill.eng{background:transparent;border:1px solid var(--btn);color:var(--fg)}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:40px 0 0;text-align:left}
-.tile{display:block;padding:18px 16px;background:var(--layer);color:var(--fg);border-top:2px solid transparent;transition:border-color .12s,background .12s}
-.tile:hover{background:var(--hover);text-decoration:none;border-top-color:var(--btn)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:40px 0 0;text-align:left}
+.tile{display:block;padding:20px 18px;background:var(--layer);color:var(--fg);border:1px solid var(--line);
+  border-radius:16px;transition:transform .14s,box-shadow .14s,border-color .14s}
+.tile:hover{text-decoration:none;transform:translateY(-3px);border-color:var(--btn);box-shadow:0 8px 24px rgba(0,0,0,.12)}
 .tile .ico{color:var(--link);height:28px}
 .tile .ico svg{width:28px;height:28px}
 .tile .t{font-size:15px;font-weight:600;margin:10px 0 2px}
 .tile .d{font-size:12px;color:var(--muted);line-height:1.5}
+.feed{margin:44px 0 0;text-align:left}
+.feed h2{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.3px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+.feed h2 .live{width:7px;height:7px;border-radius:50%;background:#da1e28;box-shadow:0 0 0 0 rgba(218,30,40,.5);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(218,30,40,.5)}70%{box-shadow:0 0 0 6px rgba(218,30,40,0)}100%{box-shadow:0 0 0 0 rgba(218,30,40,0)}}
+.feed a.cve{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--layer);border:1px solid var(--line);
+  border-radius:12px;margin-bottom:8px;color:var(--fg)}
+.feed a.cve:hover{text-decoration:none;border-color:var(--btn);background:var(--hover)}
+.feed .id{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:var(--link);white-space:nowrap}
+.feed .nm{flex:1;font-size:13px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.feed .dt{font-size:12px;color:var(--muted);white-space:nowrap}
+.feed .rw{font-size:11px;font-weight:600;color:#fff;background:#da1e28;border-radius:10px;padding:1px 8px;white-space:nowrap}
 .foot{color:var(--helper);font-size:12px;margin:40px 0 0}
 .credit{color:var(--muted);font-size:12px;margin:10px 0 0;letter-spacing:.3px}
 .credit b{color:var(--fg);font-weight:600}
@@ -149,6 +163,16 @@ def render_home(ctx: dict) -> str:
                 "<a href='wyrm://sec?q=CWE-79'>CWE-79</a></div>")
     tiles = "".join(f"<a class='tile' href='{escape(u, quote=True)}'><div class='ico'>{_ico(TILE_ICONS[key])}</div>"
                     f"<div class='t'>{escape(t)}</div><div class='d'>{escape(d)}</div></a>" for key, t, d, u in TILES)
+    feed = ""
+    kev = ctx.get("kev") or []
+    if kev:
+        rows = "".join(
+            f"<a class='cve' href='wyrm://sec?q={escape(k['id'])}'><span class='id'>{escape(k['id'])}</span>"
+            f"<span class='nm'>{escape(k['vendor'])} {escape(k['product'])} — {escape(k['name'])}</span>"
+            + ("<span class='rw'>ransomware</span>" if k.get("ransomware") else "")
+            + f"<span class='dt'>{escape(k['added'])}</span></a>" for k in kev)
+        feed = ("<section class='feed'><h2><span class='live'></span>LATEST EXPLOITED-IN-THE-WILD VULNERABILITIES "
+                "· CISA KEV</h2>" + rows + "</section>")
     body = (
         f"{logo}"
         "<p class='wordmark'><b>Wyrm</b> Browser</p>"
@@ -160,6 +184,7 @@ def render_home(ctx: dict) -> str:
         "<button type='submit'>Search</button></form>"
         + examples + status
         + f"<div class='grid'>{tiles}</div>"
+        + feed
         + "<p class='foot'>Only test systems you own or are explicitly authorized to test.</p>"
         + "<p class='credit'>Built by <b>ByKh R&amp;D Group</b> · <b>HackPi</b> — Ethical Hackers Group</p>"
     )

@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QProcess, QSettings, QStandardPaths, Qt, QTimer, QUrl
+from PySide6.QtCore import QBuffer, QByteArray, QEvent, QIODevice, QProcess, QSettings, QStandardPaths, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QActionGroup, QColor, QGuiApplication, QIcon, QKeySequence, QPainter, QPixmap
 from PySide6.QtNetwork import QNetworkInformation
 from PySide6.QtSvg import QSvgRenderer
@@ -292,6 +292,9 @@ class MainWindow(QMainWindow):
         if self.shields.needs_update():  # refresh filter lists in the background (daily)
             self.runner.run(lambda: shields_mod.build_engines(shields_mod.fetch_lists(self.shields.cache)),
                             self._filters_ready)
+        self._kev_recent: list = []  # latest exploited-in-the-wild CVEs, shown on the start page
+        if not tor:
+            self.runner.run(secsearch.recent_kev, self._kev_ready)
 
         self._build_ui()
         sb = self.statusBar()
@@ -337,6 +340,15 @@ class MainWindow(QMainWindow):
                              else QWebEngineGlobalSettings.SecureDnsMode.SecureWithFallback)
             dm.serverTemplates = [self.DOH.get(prov, self.DOH["cloudflare"])[1]]
         QWebEngineGlobalSettings.setDnsMode(dm)
+
+    def _kev_ready(self, ok, result):
+        if ok and result:
+            self._kev_recent = result
+            for i in range(self.tabbar.count()):  # refresh any open start pages so the feed appears
+                v = self.tabbar.tabData(i)
+                u = v.url()
+                if u.scheme() == "wyrm" and u.host() in ("home", ""):
+                    v.reload()
 
     def _filters_ready(self, ok, engines_):
         if ok and engines_:
@@ -422,7 +434,7 @@ class MainWindow(QMainWindow):
         eng = {"name": e.name, "scope": e.scope, "block": e.block_out_of_scope} if e else None
         name = engines.ENGINES.get(self.default_engine(), engines.ENGINES[engines.DEFAULT_ENGINE]).name
         return {"engagement": eng, "counts": self.store.counts(e.id) if e else {}, "engine_name": name,
-                "saved": self.library.saved()}
+                "saved": self.library.saved(), "kev": self._kev_recent}
 
     # ================================================================ profiles / engagements
     def _profile_for(self, eng) -> QWebEngineProfile:
@@ -751,16 +763,16 @@ class MainWindow(QMainWindow):
         n.addWidget(self.eng_box)
         self.eng_box.setVisible(not self.tor)  # engagements keep persistent sessions; Tor windows never do
 
-        # lock/search icon as its own centered label beside the field (QLineEdit leading actions
-        # mis-align vertically under a heavy stylesheet, so we don't use addAction here)
-        self.url_icon = QLabel(objectName="UrlIcon")
-        self.url_icon.setFixedWidth(34)
-        self.url_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        n.addWidget(self.url_icon, 0, Qt.AlignmentFlag.AlignVCenter)
         self.urlbar = QLineEdit(objectName="UrlBar")
         self.urlbar.setPlaceholderText("Search, or type a URL, CVE-ID or domain")
         self.urlbar.setFixedHeight(38)
+        self.urlbar.setTextMargins(28, 0, 0, 0)  # reserve space for the icon inside the pill
         self.urlbar.returnPressed.connect(lambda: self.navigate(self.urlbar.text()))
+        # lock/search icon placed INSIDE the pill, vertically centered (repositioned on resize)
+        self.url_icon = QLabel(self.urlbar, objectName="UrlIcon")
+        self.url_icon.setFixedSize(20, 20)
+        self.url_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.urlbar.installEventFilter(self)
         n.addWidget(self.urlbar, 1, Qt.AlignmentFlag.AlignVCenter)
         self.scope_badge = QLabel(objectName="ScopeBadge")
         self.scope_badge.setFixedHeight(24)
@@ -1201,6 +1213,11 @@ class MainWindow(QMainWindow):
         name = dl.downloadFileName()
         self.toast(f"Downloading {name}…", 0)
         dl.isFinishedChanged.connect(lambda: self.toast(f"Downloaded {os.path.join(folder, name)}", 8000))
+
+    def eventFilter(self, obj, ev):
+        if obj is self.urlbar and ev.type() == QEvent.Type.Resize:
+            self.url_icon.move(11, (self.urlbar.height() - self.url_icon.height()) // 2)
+        return super().eventFilter(obj, ev)
 
     def keyPressEvent(self, e):
         if e.key() == Qt.Key.Key_Escape and self.current_view():

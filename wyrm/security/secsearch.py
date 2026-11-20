@@ -57,6 +57,14 @@ def kev_catalog() -> dict[str, dict]:
     return _kev_cache["data"]
 
 
+def recent_kev(n: int = 6) -> list[dict]:
+    """The most recently added CISA Known-Exploited-Vulnerabilities, newest first."""
+    rows = sorted(kev_catalog().values(), key=lambda v: v.get("dateAdded", ""), reverse=True)
+    return [{"id": v["cveID"], "vendor": v.get("vendorProject", ""), "product": v.get("product", ""),
+             "name": v.get("vulnerabilityName", ""), "added": v.get("dateAdded", ""),
+             "ransomware": (v.get("knownRansomwareCampaignUse") or "").lower() == "known"} for v in rows[:n]]
+
+
 def epss(cves: list[str]) -> dict[str, dict]:
     if not cves:
         return {}
