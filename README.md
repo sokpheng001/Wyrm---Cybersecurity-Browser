@@ -22,6 +22,22 @@ the person using it. The coiled-dragon logo comes from the same idea.
 
 Downloads are on the [Releases](../../releases) page.
 
+### "Windows protected your PC" / antivirus warning — why it shows, and that it's safe
+
+On first launch Windows may show a blue **SmartScreen** box ("Windows protected your PC"), or your antivirus
+may flag the installer. **This is expected for a new, independently-published app and does not mean the app is
+infected.** It happens because:
+
+- The installer isn't yet signed with a paid publisher certificate, so Windows can't show a known publisher name.
+- The app is packaged with PyInstaller, whose start-up stub looks similar to self-extracting installers, which
+  makes some antivirus engines raise a *false positive*.
+
+As more people download each signed release, Windows builds up "reputation" and the warning goes away on its own.
+To run it now: on the SmartScreen box click **More info → Run anyway**; on macOS right-click the app → **Open**.
+You can always verify a download yourself by uploading it to [VirusTotal](https://www.virustotal.com).
+
+A fully warning-free version (via the Microsoft Store, which re-signs the package for free) is planned.
+
 ## Use
 
 - **Search:** type anything in the address bar. The default **Security Search** understands CVEs, products, IPs,

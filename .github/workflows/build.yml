@@ -1,5 +1,5 @@
 # Builds installers for Windows (.exe setup), macOS (.dmg) and Linux (.tar.gz with install.sh).
-# Run it from the Actions tab ("Build installers"), or push a tag like v1.0.0 to also publish a GitHub Release.
+# Run it from the Actions tab ("Build installers"), or push a tag like v1.0.0 to publish a GitHub Release.
 name: Build installers
 on:
   workflow_dispatch:
@@ -31,14 +31,22 @@ jobs:
         with:
           name: Wyrm-${{ runner.os }}
           path: |
-            dist/*.exe
-            dist/*.zip
-            dist/*.dmg
-            dist/*.tar.gz
-      - if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
             dist/*Setup*.exe
             dist/*.dmg
             dist/*.tar.gz
+          if-no-files-found: error
+
+  # One release job, after all three builds, so there is no 3-way race to create the same release.
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - run: ls -R dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Wyrm ${{ github.ref_name }}
+          generate_release_notes: true
+          files: dist/*
