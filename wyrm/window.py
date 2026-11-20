@@ -745,11 +745,17 @@ class MainWindow(QMainWindow):
         n.addWidget(self.eng_box)
         self.eng_box.setVisible(not self.tor)  # engagements keep persistent sessions; Tor windows never do
 
+        # lock/search icon as its own centered label beside the field (QLineEdit leading actions
+        # mis-align vertically under a heavy stylesheet, so we don't use addAction here)
+        self.url_icon = QLabel(objectName="UrlIcon")
+        self.url_icon.setFixedWidth(34)
+        self.url_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        n.addWidget(self.url_icon, 0, Qt.AlignmentFlag.AlignVCenter)
         self.urlbar = QLineEdit(objectName="UrlBar")
         self.urlbar.setPlaceholderText("Search, or type a URL, CVE-ID or domain")
-        self.url_icon = self.urlbar.addAction(QIcon(), QLineEdit.ActionPosition.LeadingPosition)
+        self.urlbar.setFixedHeight(38)
         self.urlbar.returnPressed.connect(lambda: self.navigate(self.urlbar.text()))
-        n.addWidget(self.urlbar, 1)
+        n.addWidget(self.urlbar, 1, Qt.AlignmentFlag.AlignVCenter)
         self.scope_badge = QLabel(objectName="ScopeBadge")
         self.scope_badge.setFixedHeight(24)
         self.scope_badge.hide()
@@ -1023,7 +1029,7 @@ class MainWindow(QMainWindow):
         self.urlbar.setCursorPosition(0)
         p = theme.PALETTES[self.theme_name]
         icon = {"https": "lock", "http": "unlock"}.get(url.scheme(), "search")
-        self.url_icon.setIcon(make_icon(icon, p["error"] if icon == "unlock" else p["muted"]))
+        self.url_icon.setPixmap(make_icon(icon, p["error"] if icon == "unlock" else p["muted"]).pixmap(18, 18))
         self.url_icon.setToolTip({"lock": "Secure connection (HTTPS)", "unlock": "Not secure (plain HTTP)"}.get(icon, ""))
         h = v.history()
         self.b_back.setEnabled(h.canGoBack())

@@ -115,7 +115,7 @@ TILES = [  # curated and compact: works for pros and newcomers alike
     ("cve", "Look up a CVE", "Risk-ranked by real-world exploitation (KEV + EPSS)", "wyrm://sec?q=CVE-2021-44228"),
     ("recon", "Recon a domain", "Subdomains, archived URLs and exposed files", "wyrm://sec?q=example.com"),
     ("tor", "Tor window", "Private browsing through the Tor network", "https://www.torproject.org/about/history/"),
-    ("learn", "Learn web security", "Free hands-on labs from PortSwigger", "https://portswigger.net/web-security"),
+    ("learn", "Learn cybersecurity", "Courses and labs from ByKh", "https://learn.bykh.org/cybersecurity"),
     ("bounty", "Find bug bounties", "Programs you're authorized to test", "https://hackerone.com/directory/programs"),
 ]
 SEV_COLORS = {"critical": "#da1e28", "high": "#ff832b", "medium": "#b28600", "low": "#4589ff", "info": "#6f6f6f"}

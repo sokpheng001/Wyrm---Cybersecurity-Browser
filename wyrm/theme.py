@@ -86,6 +86,7 @@ QComboBox#Engagement { font-weight: 600; }
 QComboBox#Engine:hover, QComboBox#Engagement:hover { background: $hover; }
 QComboBox#Engine:focus, QComboBox#Engagement:focus { border: 2px solid $focus; }
 QLabel#ScopeBadge { border-radius: 12px; padding: 2px 10px; font-size: 12px; }
+QLabel#UrlIcon { background: transparent; }
 LoadingBar { background: $layer; }
 #OfflineBanner { background: $banner; border-left: 3px solid $banner_border; }
 #OfflineBanner QLabel { color: $banner_text; }
@@ -95,11 +96,12 @@ QDockWidget { color: $text; font-size: 14px;
     titlebar-close-icon: url("$dclose"); titlebar-normal-icon: url("$dfloat"); }
 QDockWidget::title { background: $bg; padding: 11px 44px 11px 16px; border-bottom: 1px solid $border; text-align: left; }
 QDockWidget::close-button, QDockWidget::float-button {
-    background: transparent; border: none; border-radius: 0; icon-size: 16px; width: 32px; height: 32px; padding: 0;
+    background: transparent; border: none; border-radius: 0; icon-size: 14px; width: 28px; height: 28px; padding: 0;
+    subcontrol-position: center right;
 }
-QDockWidget::close-button { subcontrol-position: top right; right: 4px; top: 4px; }
-QDockWidget::float-button { subcontrol-position: top right; right: 40px; top: 4px; }
-QDockWidget::close-button:hover { background: #c42b1c; }
+QDockWidget::close-button { right: 8px; }
+QDockWidget::float-button { right: 40px; }
+QDockWidget::close-button:hover { background: #da1e28; }
 QDockWidget::float-button:hover { background: $hover; }
 QDockWidget > QWidget, QDialog, QMessageBox { background: $bg; }
 QTabWidget::pane { border: none; background: $bg; }
