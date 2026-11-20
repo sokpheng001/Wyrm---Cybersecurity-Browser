@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 
 from . import theme
 from .dialogs import FindingDialog
+from .linkguard import registered_domain
 from .security import analyzer, intel, report, tools
 
 SEV_COLOR = theme.SEVERITY
@@ -319,9 +320,12 @@ class TrafficFilter(QSortFilterProxyModel):
         self.text = ""
         self.in_scope_only = False
         self.hide_static = True
+        self.focus_domain = ""   # when set, show only this registered domain (the target under test)
 
     def filterAcceptsRow(self, row, parent):
         r = self.sourceModel().rows[row]
+        if self.focus_domain and registered_domain(r["host"]) != self.focus_domain:
+            return False
         if self.in_scope_only and r["in_scope"] is not True:
             return False
         if self.hide_static and r["type"] in self.STATIC:
@@ -337,6 +341,19 @@ class TrafficTab(QWidget):
         self.proxy = TrafficFilter()
         self.proxy.setSourceModel(self.model)
         v = QVBoxLayout(self)
+        # site focus: look at one target's traffic, or all
+        site_row = QHBoxLayout()
+        site_row.addWidget(QLabel("Site"))
+        self.site_box = QComboBox()
+        self.site_box.addItem("All traffic", "")
+        self.site_box.currentIndexChanged.connect(self._refilter)
+        site_row.addWidget(self.site_box, 1)
+        self.b_focus = QPushButton("Focus current site")
+        self.b_focus.clicked.connect(self.focus_current)
+        site_row.addWidget(self.b_focus)
+        v.addLayout(site_row)
+        self._domains: set[str] = set()
+
         row = QHBoxLayout()
         self.filter = QLineEdit()
         self.filter.setPlaceholderText("Filter URL / method…")
@@ -350,7 +367,7 @@ class TrafficTab(QWidget):
         row.addWidget(self.c_scope)
         row.addWidget(self.c_static)
         clear = QPushButton("Clear")
-        clear.clicked.connect(self.model.clear)
+        clear.clicked.connect(self.clear)
         row.addWidget(clear)
         v.addLayout(row)
         self.table = mono(QTableView())
@@ -379,10 +396,30 @@ class TrafficTab(QWidget):
         self.proxy.text = self.filter.text().lower().strip()
         self.proxy.in_scope_only = self.c_scope.isChecked()
         self.proxy.hide_static = self.c_static.isChecked()
+        self.proxy.focus_domain = self.site_box.currentData() or ""
         self.proxy.invalidateFilter()
         self._update_count()
 
-    def _on_insert(self, *_):
+    def focus_current(self):
+        v = self.win.current_view() if hasattr(self.win, "tabbar") else None
+        host = v.url().host() if v and v.url().scheme().startswith("http") else ""
+        if not host:
+            self.win.toast("Open the site you're testing first, then focus it")
+            return
+        dom = registered_domain(host)
+        self._ensure_domain(dom)
+        self.site_box.setCurrentIndex(max(0, self.site_box.findData(dom)))
+
+    def _ensure_domain(self, dom: str):
+        if dom and dom not in self._domains:
+            self._domains.add(dom)
+            for d in sorted(self._domains):  # rebuild so the list stays sorted
+                if self.site_box.findData(d) < 0:
+                    self.site_box.addItem(d, d)
+
+    def _on_insert(self, first, *_):
+        for r in self.model.rows[-50:]:  # pick up new domains for the selector
+            self._ensure_domain(registered_domain(r["host"]))
         sb = self.table.verticalScrollBar()
         at_bottom = sb.value() >= sb.maximum() - 30
         self._update_count()
@@ -392,8 +429,19 @@ class TrafficTab(QWidget):
     def _update_count(self):
         rows = self.model.rows
         blocked = sum(1 for r in rows if r["blocked"])
-        out = sum(1 for r in rows if r["in_scope"] is False)
-        self.count.setText(f"{self.proxy.rowCount()} shown · {len(rows)} total · {out} out-of-scope · {blocked} blocked")
+        focus = self.proxy.focus_domain
+        shown = self.proxy.rowCount()
+        label = f"{shown} shown" + (f" · focused on {focus}" if focus else "")
+        self.count.setText(f"{label} · {len(rows)} total · {blocked} blocked")
+
+    def clear(self):
+        self.model.clear()
+        self._domains.clear()
+        self.site_box.blockSignals(True)
+        self.site_box.clear()
+        self.site_box.addItem("All traffic", "")
+        self.site_box.blockSignals(False)
+        self._update_count()
 
     def add(self, entry):
         self.model.add(entry)
