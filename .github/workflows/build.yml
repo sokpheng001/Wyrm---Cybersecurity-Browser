@@ -5,6 +5,8 @@ on:
   workflow_dispatch:
   push:
     tags: ["v*"]
+permissions:
+  contents: write   # needed to create the GitHub Release and upload the installers
 jobs:
   build:
     strategy:
