@@ -601,6 +601,7 @@ class ToolsTab(QTabWidget):
     def __init__(self, win):
         super().__init__()
         self.win = win
+        self._confirmed_hosts: set[str] = set()  # out-of-scope hosts the user already OK'd in the Repeater
         self.addTab(self._decoder(), "Decoder")
         self.addTab(self._jwt(), "JWT")
         self.addTab(self._hash(), "Hash")
@@ -812,10 +813,16 @@ class ToolsTab(QTabWidget):
         if not host:
             return
         eng = self.win.engagement
-        if not eng or not eng.in_scope(host):
-            QMessageBox.warning(self, "Repeater", "The repeater only sends to hosts in the active engagement's scope.\n"
-                                "Create or select an engagement that includes " + host + ".")
-            return
+        # allow any target; if an engagement is set and the host is out of scope, confirm once (don't hard-block)
+        if eng and eng.scope and not eng.in_scope(host) and host not in self._confirmed_hosts:
+            ok = QMessageBox.question(
+                self, "Send to out-of-scope host?",
+                f"<b>{host}</b> is not in the scope of engagement '{eng.name}'.\n\n"
+                "Only send requests to systems you are authorized to test. Send anyway?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+            if ok != QMessageBox.StandardButton.Yes:
+                return
+            self._confirmed_hosts.add(host)
         self.r_send.setEnabled(False)
         self.r_resp.setPlainText("Sending…")
         args = (self.r_method.currentText(), url, self.r_headers.toPlainText(), self.r_body.toPlainText(),

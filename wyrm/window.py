@@ -249,6 +249,9 @@ class MainWindow(QMainWindow):
         self.theme_mode = self.settings.value("theme", "system")
         if self.theme_mode not in ("dark", "light", "system"):
             self.theme_mode = "system"
+        self.mode = self.settings.value("mode", "blue")  # blue (defensive) | red (offensive)
+        if self.mode not in ("blue", "red"):
+            self.mode = "blue"
         self.theme_name = self._effective_theme()
 
         self.data_dir = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))
@@ -297,6 +300,7 @@ class MainWindow(QMainWindow):
             self.runner.run(secsearch.recent_kev, self._kev_ready)
 
         self._build_ui()
+        self._setup_dock_titlebars()
         sb = self.statusBar()
         sb.setSizeGripEnabled(False)
         sb.hide()
@@ -434,7 +438,7 @@ class MainWindow(QMainWindow):
         eng = {"name": e.name, "scope": e.scope, "block": e.block_out_of_scope} if e else None
         name = engines.ENGINES.get(self.default_engine(), engines.ENGINES[engines.DEFAULT_ENGINE]).name
         return {"engagement": eng, "counts": self.store.counts(e.id) if e else {}, "engine_name": name,
-                "saved": self.library.saved(), "kev": self._kev_recent}
+                "saved": self.library.saved(), "kev": self._kev_recent, "mode": self.mode}
 
     # ================================================================ profiles / engagements
     def _profile_for(self, eng) -> QWebEngineProfile:
@@ -590,10 +594,11 @@ class MainWindow(QMainWindow):
             act.setChecked(act.data() == mode)
         app = QApplication.instance()
         app.setStyle("Fusion")
-        app.setPalette(theme.palette(name))
-        app.setStyleSheet(theme.stylesheet(name, self.data_dir / "ui"))
-        p = theme.PALETTES[name]
+        app.setPalette(theme.palette(name, self.mode))
+        app.setStyleSheet(theme.stylesheet(name, self.data_dir / "ui", self.mode))
+        p = theme.resolve_palette(name, self.mode)
         pages.THEME = name
+        pages.MODE = self.mode
         self.loading_bar.COLOR = QColor(p["interactive"])
         ic = p["icon"]
         for btn, icon in self._icon_buttons:
@@ -601,11 +606,64 @@ class MainWindow(QMainWindow):
         for act, icon in self._dock_actions:
             act.setIcon(make_icon(icon, ic))
         winframe.set_border_color(self, p["shell"]) if getattr(self, "_frame_installed", False) else None
+        self._update_mode_chip()
         self._sync_chrome()
         for i in range(self.tabbar.count()):  # internal pages follow the theme
             view = self.tabbar.tabData(i)
             if view.url().scheme() == "wyrm":
                 view.reload()
+
+    def apply_mode(self, mode: str):
+        """Red (offensive/elite) ↔ Blue (defensive/standard): swaps the accent and start-page emphasis."""
+        self.mode = mode if mode in ("blue", "red") else "blue"
+        self.settings.setValue("mode", self.mode)
+        for act in getattr(self, "_mode_actions", {}).values():
+            act.setChecked(act.data() == self.mode)
+        # default the security panel to the mode's primary workflow
+        self.security.show_tab("Recon" if self.mode == "red" else "Shields")
+        self.apply_theme(self.theme_mode)  # re-applies palette/stylesheet with the mode accent + reloads pages
+        self.toast(f"{'Red team — offensive' if self.mode == 'red' else 'Blue team — defensive'} mode")
+
+    def _update_mode_chip(self):
+        if not hasattr(self, "mode_chip"):
+            return
+        red = self.mode == "red"
+        self.mode_chip.setText("RED TEAM" if red else "BLUE TEAM")
+        bg = "#da1e28" if red else "#0f62fe"
+        self.mode_chip.setStyleSheet(f"#ModeChip{{background:{bg};color:#fff;border-radius:11px;"
+                                     "padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:.5px}}")
+        self.mode_chip.setToolTip("Red team (offensive/elite) — click to switch" if red
+                                  else "Blue team (defensive/standard) — click to switch")
+
+    def _toggle_mode(self):
+        self.apply_mode("blue" if self.mode == "red" else "red")
+
+    def _dock_titlebar(self, dock, title: str):
+        """Custom, clearly-visible title bar for a dock (float + close), replacing Qt's tiny native buttons."""
+        bar = QWidget(objectName="DockTitle")
+        h = QHBoxLayout(bar)
+        h.setContentsMargins(14, 0, 6, 0)
+        h.setSpacing(2)
+        lbl = QLabel(title, objectName="DockTitleLabel")
+        h.addWidget(lbl, 1)
+        b_float = QToolButton()
+        b_float.setToolTip("Float / dock")
+        b_float.clicked.connect(lambda: dock.setFloating(not dock.isFloating()))
+        b_close = QToolButton(objectName="DockClose")
+        b_close.setToolTip("Close panel")
+        b_close.clicked.connect(dock.close)
+        for b, icon in ((b_float, "win_restore"), (b_close, "win_close")):
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setFixedSize(30, 30)
+            b.setIconSize(b.iconSize().scaled(18, 18, Qt.AspectRatioMode.KeepAspectRatio))
+            self._icon_buttons.append((b, icon))  # recolored by apply_theme
+            h.addWidget(b)
+        bar.setFixedHeight(42)
+        dock.setTitleBarWidget(bar)
+
+    def _setup_dock_titlebars(self):
+        self._dock_titlebar(self.security, "Security")
+        self._dock_titlebar(self.panel, "Papers")
 
     def _build_menu(self) -> QMenu:
         m = QMenu(self)
@@ -615,6 +673,16 @@ class MainWindow(QMainWindow):
         if self.tor:
             m.addAction("New Tor identity (new circuit)", self.tor_new_identity)
         m.addSeparator()
+        mm = m.addMenu("Mode")
+        mgroup = QActionGroup(self)
+        self._mode_actions = {}
+        for key, label in (("blue", "Blue team — defensive (standard)"), ("red", "Red team — offensive (elite)")):
+            act = mm.addAction(label, lambda k=key: self.apply_mode(k))
+            act.setCheckable(True)
+            act.setData(key)
+            act.setChecked(key == self.mode)
+            mgroup.addAction(act)
+            self._mode_actions[key] = act
         tm = m.addMenu("Theme")
         group = QActionGroup(self)
         self._theme_actions = {}
@@ -710,6 +778,13 @@ class MainWindow(QMainWindow):
         self.tor_tag = tor_tag
         if self.tor:
             row.addWidget(tor_tag, 0, Qt.AlignmentFlag.AlignVCenter)
+        # Red/Blue team mode chip (click to switch)
+        self.mode_chip = QLabel(objectName="ModeChip")
+        self.mode_chip.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.mode_chip.setFixedHeight(22)
+        self.mode_chip.mousePressEvent = lambda e: self._toggle_mode()
+        row.addSpacing(8)
+        row.addWidget(self.mode_chip, 0, Qt.AlignmentFlag.AlignVCenter)
         self.brand_divider = QWidget(objectName="BrandDivider")
         self.brand_divider.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.brand_divider.setFixedSize(1, 24)
@@ -893,6 +968,8 @@ class MainWindow(QMainWindow):
         self.devtools_dock = QDockWidget("Developer Tools", self)
         self.devtools_dock.setObjectName("DevToolsDock")
         self.devtools_dock.setWidget(self.devtools_view)
+        self._dock_titlebar(self.devtools_dock, "Developer Tools")
+        self.apply_theme(self.theme_mode)  # recolor the new title-bar icons
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.devtools_dock)
         self.resizeDocks([self.devtools_dock], [340], Qt.Orientation.Vertical)
 

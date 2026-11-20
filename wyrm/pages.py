@@ -7,6 +7,14 @@ from urllib.parse import urlparse
 from . import engines
 
 THEME = "dark"  # set by the window; internal pages follow the browser theme
+MODE = "blue"   # "blue" (defensive) keeps the blue accent; "red" (offensive) swaps it to red
+
+# per-mode accent override, injected after the base CSS so it recolors the internal pages
+MODE_CSS = {
+    "blue": "",
+    "red": (":root{--btn:#da1e28;--btn-hover:#ba1b23;--link:#da1e28;--focus:#da1e28}"
+            ":root[data-theme=dark]{--link:#ff8389;--focus:#fa4d56;--btn:#da1e28;--btn-hover:#ba1b23}"),
+}
 
 FONTS = "".join(
     f"@font-face{{font-family:'{fam}';src:url('wyrm://assets/fonts/{file}') format('truetype');font-weight:{w}}}"
@@ -54,7 +62,8 @@ h1{font-weight:300}
 
 def _open(title: str, extra_css: str = "") -> str:
     return (f"<!doctype html><html data-theme='{THEME}'><head><meta charset='utf-8'><title>{escape(title)}</title>"
-            f"<meta name='viewport' content='width=device-width,initial-scale=1'><style>{CSS}{extra_css}</style></head>")
+            f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
+            f"<style>{CSS}{MODE_CSS.get(MODE, '')}{extra_css}</style></head>")
 
 
 def _page(title: str, body: str, extra_css: str = "", main_class: str = "") -> str:
@@ -68,6 +77,9 @@ main.home{max-width:760px;padding-top:7vh;text-align:center}
 .wordmark{font-size:26px;font-weight:300;letter-spacing:.3px;margin:0}
 .wordmark b{font-weight:600}
 .tagline{font-size:14px;color:var(--muted);margin:6px 0 30px}
+.modeline{font-size:13px;color:var(--muted);margin:6px 0 28px}
+.modeline b{color:var(--btn);font-weight:600;letter-spacing:.3px}
+.modeline.red b{color:#da1e28}
 form.big{max-width:620px;margin:0 auto;position:relative;display:block}
 .big input{width:100%;height:54px;font-size:16px;padding:0 118px 0 48px;text-align:left;
   border:1px solid var(--border);border-radius:27px;background:var(--field);color:var(--fg);
@@ -173,11 +185,17 @@ def render_home(ctx: dict) -> str:
             + f"<span class='dt'>{escape(k['added'])}</span></a>" for k in kev)
         feed = ("<section class='feed'><h2><span class='live'></span>LATEST EXPLOITED-IN-THE-WILD VULNERABILITIES "
                 "· CISA KEV</h2>" + rows + "</section>")
+    mode = ctx.get("mode", "blue")
+    mode_line = (f"<p class='modeline {mode}'>"
+                 + ("<b>Red team</b> · offensive — recon, test and report. Authorized targets only."
+                    if mode == "red" else
+                    "<b>Blue team</b> · defensive — protect, analyze and harden.")
+                 + "</p>")
     body = (
         f"{logo}"
         "<p class='wordmark'><b>Wyrm</b> Browser</p>"
-        "<p class='tagline'>Private by default. Built for security work — simple enough for everyone.</p>"
-        "<form class='big' action='wyrm://go' method='get'>"
+        + mode_line
+        + "<form class='big' action='wyrm://go' method='get'>"
         f"<span class='mag'>{SEARCH_ICON}</span>"
         "<input type='text' name='q' autofocus autocomplete='off' "
         "placeholder='Search the web, or a CVE, IP, domain or URL'>"

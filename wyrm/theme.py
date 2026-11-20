@@ -34,6 +34,23 @@ PALETTES = {
                   banner="#fcf4d6", banner_text="#161616", banner_border="#f1c21b"),
 }
 
+# Red/Blue team modes: Blue (default, defensive) keeps the blue accent; Red (offensive) swaps it to red.
+MODE_ACCENT = {
+    "blue": {"dark": {}, "light": {}},
+    "red": {
+        "dark": dict(interactive="#fa4d56", button="#da1e28", button_hover="#ba1b23", link="#ff8389", select="#da1e28"),
+        "light": dict(interactive="#da1e28", button="#da1e28", button_hover="#ba1b23", link="#da1e28",
+                      select="#da1e28", focus="#da1e28"),
+    },
+}
+
+
+def resolve_palette(theme: str, mode: str = "blue") -> dict:
+    p = dict(PALETTES[theme])
+    p.update(MODE_ACCENT.get(mode, MODE_ACCENT["blue"]).get(theme, {}))
+    return p
+
+
 # Carbon status scale for findings / grades
 SEVERITY = {"critical": "#da1e28", "high": "#ff832b", "medium": "#b28600", "low": "#4589ff", "info": "#8d8d8d"}
 GRADE = {"A": "#24a148", "B": "#42be65", "C": "#f1c21b", "D": "#ff832b", "E": "#fa4d56", "F": "#da1e28"}
@@ -52,6 +69,7 @@ QTabBar#MainTabs::close-button { image: url("$close"); subcontrol-position: righ
 QTabBar#MainTabs::close-button:hover { background: $shell_active; }
 #TabStrip { background: $shell; border-bottom: 1px solid $shell_border; }
 #Brand { padding: 0; }
+#ModeChip { padding: 2px 10px; border-radius: 11px; font-size: 11px; font-weight: 700; }
 #TorTag { background: #8a3ffc; color: #ffffff; font-size: 12px; padding: 1px 8px; }
 #BrandDivider { background: $shell_border; }
 #TabStrip QToolButton { border: none; border-radius: 0; padding: 0; background: transparent; min-width: 40px; min-height: 40px; }
@@ -65,7 +83,7 @@ QTabBar#MainTabs::tab {
     min-width: 140px; max-width: 220px; font-size: 13px;
 }
 QTabBar#MainTabs::tab:hover:!selected { background: $shell_hover; color: $shell_text; }
-QTabBar#MainTabs::tab:selected { background: $layer; color: $text; }
+QTabBar#MainTabs::tab:selected { background: $layer; color: $text; border-top: 3px solid $interactive; }
 
 /* ---------- navigation bar (soft, rounded, pill address bar) ---------- */
 #NavBar { background: $layer; border-bottom: 1px solid $border; }
@@ -78,7 +96,7 @@ QLineEdit#UrlBar {
     min-height: 38px; font-size: 14px; color: $text; selection-background-color: $interactive;
 }
 QLineEdit#UrlBar:hover { background: $hover; }
-QLineEdit#UrlBar:focus { background: $bg; border: 1px solid $focus; padding: 0 18px; }
+QLineEdit#UrlBar:focus { background: $bg; border: 2px solid $interactive; padding: 0 17px; }
 QComboBox#Engine, QComboBox#Engagement {
     background: $field; border: 1px solid transparent; border-radius: 18px; padding: 0 14px;
     min-height: 36px; color: $text; font-size: 13px;
@@ -93,17 +111,12 @@ LoadingBar { background: $layer; }
 #OfflineBanner QLabel { color: $banner_text; }
 
 /* ---------- panels ---------- */
-QDockWidget { color: $text; font-size: 14px;
-    titlebar-close-icon: url("$dclose"); titlebar-normal-icon: url("$dfloat"); }
-QDockWidget::title { background: $bg; padding: 11px 44px 11px 16px; border-bottom: 1px solid $border; text-align: left; }
-QDockWidget::close-button, QDockWidget::float-button {
-    background: transparent; border: none; border-radius: 0; icon-size: 14px; width: 28px; height: 28px; padding: 0;
-    subcontrol-position: center right;
-}
-QDockWidget::close-button { right: 8px; }
-QDockWidget::float-button { right: 40px; }
-QDockWidget::close-button:hover { background: #da1e28; }
-QDockWidget::float-button:hover { background: $hover; }
+QDockWidget { color: $text; font-size: 14px; }
+#DockTitle { background: $bg; border-bottom: 1px solid $border; }
+#DockTitleLabel { font-size: 14px; font-weight: 600; color: $text; }
+#DockTitle QToolButton { background: transparent; border: none; border-radius: 8px; }
+#DockTitle QToolButton:hover { background: $hover; }
+#DockTitle QToolButton#DockClose:hover { background: #da1e28; }
 QDockWidget > QWidget, QDialog, QMessageBox { background: $bg; }
 QTabWidget::pane { border: none; background: $bg; }
 QTabWidget > QTabBar::tab {
@@ -190,8 +203,8 @@ def _write_svg(cache_dir: Path, name: str, body: str) -> str:
     return p.as_posix()
 
 
-def stylesheet(theme: str, cache_dir: Path) -> str:
-    p = PALETTES[theme]
+def stylesheet(theme: str, cache_dir: Path, mode: str = "blue") -> str:
+    p = resolve_palette(theme, mode)
     check = _write_svg(cache_dir, f"check-{theme}.svg",
                        f"<path d='M3.5 8.2l3 3 6-6.4' fill='none' stroke='{p['bg']}' stroke-width='1.6'/>")
     chevron = _write_svg(cache_dir, f"chevron-{theme}.svg",
@@ -206,8 +219,8 @@ def stylesheet(theme: str, cache_dir: Path) -> str:
     return QSS.substitute(p, sans=SANS, check=check, chevron=chevron, close=close, dclose=dclose, dfloat=dfloat)
 
 
-def palette(theme: str) -> QPalette:
-    p = PALETTES[theme]
+def palette(theme: str, mode: str = "blue") -> QPalette:
+    p = resolve_palette(theme, mode)
     pal = QPalette()
     R = QPalette.ColorRole
     for role, key in ((R.Window, "bg"), (R.Base, "field"), (R.AlternateBase, "layer"), (R.Button, "layer"),
