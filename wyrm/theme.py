@@ -112,7 +112,7 @@ LoadingBar { background: $layer; }
 
 /* ---------- panels ---------- */
 QDockWidget { color: $text; font-size: 14px; }
-#DockTitle { background: $bg; border-bottom: 1px solid $border; }
+#DockTitle { background: $bg; }
 #DockTitleLabel { font-size: 14px; font-weight: 600; color: $text; }
 #DockTitle QToolButton { background: transparent; border: none; border-radius: 0; }
 #DockTitle QToolButton:hover { background: $hover; }

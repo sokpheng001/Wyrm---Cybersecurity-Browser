@@ -31,7 +31,8 @@ CSS = FONTS + """
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:400 14px/1.43 'IBM Plex Sans','Helvetica Neue',Arial,sans-serif;
      letter-spacing:.16px;-webkit-font-smoothing:antialiased}
-main{max-width:1056px;margin:0 auto;padding:48px 32px 80px}
+@keyframes wyrmIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+main{max-width:1056px;margin:0 auto;padding:48px 32px 80px;animation:wyrmIn .2s cubic-bezier(.2,.7,.2,1) both}
 a{color:var(--link);text-decoration:none} a:hover{text-decoration:underline}
 a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
 code,kbd,.mono{font-family:'IBM Plex Mono',Menlo,Consolas,monospace;font-size:12px;letter-spacing:.32px}

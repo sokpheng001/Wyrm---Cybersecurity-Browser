@@ -659,6 +659,10 @@ class MainWindow(QMainWindow):
             b.setIconSize(b.iconSize().scaled(18, 18, Qt.AspectRatioMode.KeepAspectRatio))
             self._icon_buttons.append((b, icon))  # recolored by apply_theme
             h.addWidget(b)
+        # close X turns white on the red hover (otherwise a dark X on red is hard to read)
+        b_close.enterEvent = lambda e, b=b_close: b.setIcon(make_icon("win_close", "#ffffff"))
+        b_close.leaveEvent = lambda e, b=b_close: b.setIcon(
+            make_icon("win_close", theme.PALETTES[self.theme_name]["icon"]))
         bar.setFixedHeight(42)
         dock.setTitleBarWidget(bar)
 

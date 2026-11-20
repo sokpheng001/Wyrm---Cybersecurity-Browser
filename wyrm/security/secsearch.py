@@ -160,10 +160,23 @@ def pivots(kind: str, value: str) -> list[tuple[str, str]]:
     if kind == "domain":
         return [("crt.sh subdomains", f"https://crt.sh/?q=%25.{value}"), ("Wayback URLs", f"https://web.archive.org/web/*/{value}/*"),
                 ("Shodan", f"https://www.shodan.io/search?query=hostname%3A{value}"),
+                ("Censys", f"https://search.censys.io/search?resource=hosts&q={value}"),
+                ("FOFA", f"https://fofa.info/result?qbase64={value}"),
                 ("urlscan.io", f"https://urlscan.io/search/#domain%3A{value}"),
                 ("VirusTotal", f"https://www.virustotal.com/gui/domain/{value}"),
-                ("DNS records", f"https://dnsdumpster.com/"), ("security.txt", f"https://{value}/.well-known/security.txt"),
+                ("DNS / DNSDumpster", "https://dnsdumpster.com/"),
+                ("Google dorks", f"https://www.google.com/search?q={quote_plus('site:' + value + ' (inurl:admin OR ext:sql OR ext:env OR intitle:index.of)')}"),
+                ("Grep.app (code)", f"https://grep.app/search?q={value}"),
+                ("security.txt", f"https://{value}/.well-known/security.txt"),
                 ("Bug bounty program?", f"https://www.google.com/search?q={quote_plus(value + ' bug bounty OR vulnerability disclosure program')}")]
+    if kind == "bounty":
+        return [("HackerOne directory", f"https://hackerone.com/directory/programs?query={q}"),
+                ("Bugcrowd programs", f"https://bugcrowd.com/engagements?q={q}"),
+                ("Intigriti", f"https://app.intigriti.com/researcher/programs?search={q}"),
+                ("YesWeHack", f"https://yeswehack.com/programs?search={q}"),
+                ("Immunefi (web3)", f"https://immunefi.com/explore/?search={q}"),
+                ("Google VRP list", f"https://www.google.com/search?q={quote_plus(value + ' bug bounty program scope')}"),
+                ("disclose.io policies", f"https://github.com/disclose/diodb/search?q={q}")]
     if kind == "hash":
         return [("VirusTotal", f"https://www.virustotal.com/gui/file/{value}"),
                 ("MalwareBazaar", f"https://bazaar.abuse.ch/browse.php?search=sha256%3A{value}" if len(value) == 64

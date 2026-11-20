@@ -1094,6 +1094,25 @@ class SecurityPanel(QDockWidget):
                         (self.recon, "Recon"), (self.tools_tab, "Tools"), (self.findings, "Findings")):
             self.tabs.addTab(w, name)
         self.setWidget(self.tabs)
+        self.tabs.currentChanged.connect(self._fade_tab)
+
+    def _fade_tab(self, idx):
+        """Quick fade-in of the newly selected tab (animation when switching panels)."""
+        from PySide6.QtCore import QEasingCurve, QPropertyAnimation
+        from PySide6.QtWidgets import QGraphicsOpacityEffect
+        w = self.tabs.widget(idx)
+        if not w:
+            return
+        eff = QGraphicsOpacityEffect(w)
+        w.setGraphicsEffect(eff)
+        anim = QPropertyAnimation(eff, b"opacity", self)
+        anim.setDuration(160)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.finished.connect(lambda: w.setGraphicsEffect(None))  # remove effect so repaints stay cheap
+        self._tab_anim = anim  # keep a ref so it isn't GC'd
+        anim.start()
 
     def show_tab(self, name):
         self.show()
