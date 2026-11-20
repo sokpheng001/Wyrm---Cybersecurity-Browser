@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 
 from . import __version__, engines, linkguard, pages, scholar, theme, winframe
 from . import shields as shields_mod
-from .security import rewrite
+from .security import rewrite, secsearch
 from .shields import PageStats, Shields
 from .async_util import Runner
 from .dialogs import EngagementDialog, FindingDialog, SettingsDialog
