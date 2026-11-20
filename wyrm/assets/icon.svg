@@ -1,51 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-  <!-- Wyrm — original angular dragon-head emblem (blue head, red eye + flame). Not derived from the Kali logo. -->
+  <!-- Wyrm — wordmark/monogram icon: bold "W" + red terminal cursor. Blue + red, dark tile. -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0b1020"/><stop offset="1" stop-color="#161616"/>
+      <stop offset="0" stop-color="#0d1430"/><stop offset="1" stop-color="#121216"/>
     </linearGradient>
-    <linearGradient id="head" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="w" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#4f93ff"/><stop offset="1" stop-color="#0f62fe"/>
     </linearGradient>
   </defs>
-  <rect x="8" y="8" width="240" height="240" rx="52" fill="url(#bg)"/>
-
-  <!-- swept-back spiked crest (behind the head) -->
-  <path d="M120 104 L80 60 L124 92 Z" fill="#2f6fe0"/>
-  <path d="M138 98 L104 48 L150 86 Z" fill="#3f82f5"/>
-  <path d="M158 96 L140 44 L176 84 Z" fill="#4f93ff"/>
-
-  <!-- angular dragon head, facing right: brow, long snout, lower jaw -->
-  <path d="M92 118
-           L120 100
-           L150 96
-           L196 108
-           L240 120
-           L202 132
-           L210 148
-           L176 150
-           L182 176
-           L150 160
-           L156 182
-           L126 160
-           L98 152
-           L88 134 Z"
-        fill="url(#head)"/>
-
-  <!-- mouth line + teeth -->
-  <path d="M150 143 L240 120" stroke="#0b1020" stroke-width="4"/>
-  <path d="M206 132 l5 14 l7 -11 Z" fill="#e5eeff"/>
-  <path d="M182 139 l4 12 l6 -10 Z" fill="#e5eeff"/>
-
-  <!-- brow shadow over the eye (angular) -->
-  <path d="M132 110 L168 104 L160 120 L136 122 Z" fill="#0b1020" opacity="0.28"/>
-  <!-- nostril -->
-  <circle cx="222" cy="122" r="3" fill="#0b1020"/>
-  <!-- red slit eye -->
-  <path d="M138 114 L160 110 L150 124 Z" fill="#da1e28"/>
-  <circle cx="150" cy="116" r="2.4" fill="#0b1020"/>
-
-  <!-- red flame breath from the snout -->
-  <path d="M240 120 l22 -6 l-15 11 l18 1 l-20 7" fill="none" stroke="#da1e28"
-        stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="url(#bg)"/>
+  <!-- bold W -->
+  <path d="M54 78 L88 182 L128 116 L168 182 L202 78"
+        fill="none" stroke="url(#w)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- red terminal cursor -->
+  <rect x="150" y="190" width="30" height="12" rx="2" fill="#da1e28"/>
 </svg>

@@ -87,7 +87,8 @@ form.big{max-width:620px;margin:0 auto;position:relative;display:block}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:40px 0 0;text-align:left}
 .tile{display:block;padding:18px 16px;background:var(--layer);color:var(--fg);border-top:2px solid transparent;transition:border-color .12s,background .12s}
 .tile:hover{background:var(--hover);text-decoration:none;border-top-color:var(--btn)}
-.tile .ico{font-size:22px;line-height:1}
+.tile .ico{color:var(--link);height:28px}
+.tile .ico svg{width:28px;height:28px}
 .tile .t{font-size:15px;font-weight:600;margin:10px 0 2px}
 .tile .d{font-size:12px;color:var(--muted);line-height:1.5}
 .foot{color:var(--helper);font-size:12px;margin:40px 0 0}
@@ -96,13 +97,26 @@ form.big{max-width:620px;margin:0 auto;position:relative;display:block}
 @media (max-width:620px){.grid{grid-template-columns:1fr 1fr}}
 """
 
+def _ico(paths: str) -> str:
+    return ("<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.7' "
+            f"stroke-linecap='round' stroke-linejoin='round'>{paths}</svg>")
+
+TILE_ICONS = {
+    "scan": "<path d='M12 3l8 3v5c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z'/><path d='M9 12l2 2 4-4'/>",
+    "cve": "<circle cx='11' cy='11' r='7'/><path d='M21 21l-4.3-4.3'/>",
+    "recon": "<circle cx='12' cy='12' r='9'/><path d='M3 12h18'/><path d='M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z'/>",
+    "tor": "<path d='M12 2C9 6 7 9 7 13a5 5 0 0 0 10 0c0-4-2-7-5-11z'/><path d='M12 13v5'/>",
+    "learn": "<path d='M3 6l9-3 9 3-9 3z'/><path d='M7 9v5c0 1.5 2.5 3 5 3s5-1.5 5-3V9'/><path d='M21 6v6'/>",
+    "bounty": "<circle cx='12' cy='12' r='9'/><circle cx='12' cy='12' r='5'/><circle cx='12' cy='12' r='1.4' fill='currentColor'/>",
+}
+
 TILES = [  # curated and compact: works for pros and newcomers alike
-    ("\U0001F6E1", "Scan a site", "Open any page, then see its security grade in Shields", "https://portswigger.net/web-security"),
-    ("\U0001F50E", "Look up a CVE", "Risk-ranked by real-world exploitation (KEV + EPSS)", "wyrm://sec?q=CVE-2021-44228"),
-    ("\U0001F310", "Recon a domain", "Subdomains, archived URLs and exposed files", "wyrm://sec?q=example.com"),
-    ("\U0001F9C5", "Tor window", "Private browsing through the Tor network", "https://www.torproject.org/about/history/"),
-    ("\U0001F4DA", "Learn web security", "Free hands-on labs from PortSwigger", "https://portswigger.net/web-security"),
-    ("\U0001F3AF", "Find bug bounties", "Programs you're authorized to test", "https://hackerone.com/directory/programs"),
+    ("scan", "Scan a site", "Open any page, then see its security grade in Shields", "https://portswigger.net/web-security"),
+    ("cve", "Look up a CVE", "Risk-ranked by real-world exploitation (KEV + EPSS)", "wyrm://sec?q=CVE-2021-44228"),
+    ("recon", "Recon a domain", "Subdomains, archived URLs and exposed files", "wyrm://sec?q=example.com"),
+    ("tor", "Tor window", "Private browsing through the Tor network", "https://www.torproject.org/about/history/"),
+    ("learn", "Learn web security", "Free hands-on labs from PortSwigger", "https://portswigger.net/web-security"),
+    ("bounty", "Find bug bounties", "Programs you're authorized to test", "https://hackerone.com/directory/programs"),
 ]
 SEV_COLORS = {"critical": "#da1e28", "high": "#ff832b", "medium": "#b28600", "low": "#4589ff", "info": "#6f6f6f"}
 SEARCH_ICON = ("<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' "
@@ -133,8 +147,8 @@ def render_home(ctx: dict) -> str:
                 "<a href='wyrm://sec?q=log4j'>log4j</a>"
                 "<a href='wyrm://sec?q=1.1.1.1'>1.1.1.1</a>"
                 "<a href='wyrm://sec?q=CWE-79'>CWE-79</a></div>")
-    tiles = "".join(f"<a class='tile' href='{escape(u, quote=True)}'><div class='ico'>{ic}</div>"
-                    f"<div class='t'>{escape(t)}</div><div class='d'>{escape(d)}</div></a>" for ic, t, d, u in TILES)
+    tiles = "".join(f"<a class='tile' href='{escape(u, quote=True)}'><div class='ico'>{_ico(TILE_ICONS[key])}</div>"
+                    f"<div class='t'>{escape(t)}</div><div class='d'>{escape(d)}</div></a>" for key, t, d, u in TILES)
     body = (
         f"{logo}"
         "<p class='wordmark'><b>Wyrm</b> Browser</p>"

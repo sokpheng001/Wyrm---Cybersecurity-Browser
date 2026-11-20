@@ -91,8 +91,16 @@ LoadingBar { background: $layer; }
 #OfflineBanner QLabel { color: $banner_text; }
 
 /* ---------- panels ---------- */
-QDockWidget { color: $text; font-size: 14px; }
-QDockWidget::title { background: $bg; padding: 10px 16px; border-bottom: 1px solid $border; text-align: left; }
+QDockWidget { color: $text; font-size: 14px;
+    titlebar-close-icon: url("$dclose"); titlebar-normal-icon: url("$dfloat"); }
+QDockWidget::title { background: $bg; padding: 11px 44px 11px 16px; border-bottom: 1px solid $border; text-align: left; }
+QDockWidget::close-button, QDockWidget::float-button {
+    background: transparent; border: none; border-radius: 0; icon-size: 16px; width: 32px; height: 32px; padding: 0;
+}
+QDockWidget::close-button { subcontrol-position: top right; right: 4px; top: 4px; }
+QDockWidget::float-button { subcontrol-position: top right; right: 40px; top: 4px; }
+QDockWidget::close-button:hover { background: #c42b1c; }
+QDockWidget::float-button:hover { background: $hover; }
 QDockWidget > QWidget, QDialog, QMessageBox { background: $bg; }
 QTabWidget::pane { border: none; background: $bg; }
 QTabWidget > QTabBar::tab {
@@ -188,7 +196,12 @@ def stylesheet(theme: str, cache_dir: Path) -> str:
                          f"<path d='M3 6l5 5 5-5' fill='none' stroke='{p['text']}' stroke-width='1.4'/>")
     close = _write_svg(cache_dir, "close.svg",
                        "<path d='M4.5 4.5l7 7M11.5 4.5l-7 7' fill='none' stroke='#c6c6c6' stroke-width='1.3'/>")
-    return QSS.substitute(p, sans=SANS, check=check, chevron=chevron, close=close)
+    dclose = _write_svg(cache_dir, f"dclose-{theme}.svg",
+                        f"<path d='M4 4l8 8M12 4l-8 8' fill='none' stroke='{p['text']}' stroke-width='1.5'/>")
+    dfloat = _write_svg(cache_dir, f"dfloat-{theme}.svg",
+                        f"<rect x='4' y='5' width='8' height='7' fill='none' stroke='{p['text']}' stroke-width='1.3'/>"
+                        f"<path d='M6 5V3h7v7h-2' fill='none' stroke='{p['text']}' stroke-width='1.3'/>")
+    return QSS.substitute(p, sans=SANS, check=check, chevron=chevron, close=close, dclose=dclose, dfloat=dfloat)
 
 
 def palette(theme: str) -> QPalette:
