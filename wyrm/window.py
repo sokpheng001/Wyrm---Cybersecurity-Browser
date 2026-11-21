@@ -15,7 +15,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from PySide6.QtCore import (
-    QBuffer, QByteArray, QEvent, QIODevice, QProcess, QSettings, QSize, QStandardPaths, Qt, QTimer, QUrl, Signal,
+    QBuffer, QByteArray, QEvent, QIODevice, QObject, QProcess, QSettings, QSize, QStandardPaths, Qt, QTimer, QUrl,
+    Signal,
 )
 from PySide6.QtGui import (
     QAction, QActionGroup, QColor, QGuiApplication, QIcon, QImageReader, QKeySequence, QPainter, QPixmap,
@@ -274,93 +275,43 @@ class BrowserView(QWebEngineView):
         menu.exec(event.globalPos())
 
 
-class UpdateDialog(QDialog):
-    """Shows an available release and installs it in place (download → silent installer → relaunch)."""
-    _progress = Signal(int)
-    _finished = Signal(bool, str)
+class Updater(QObject):
+    """One-click update (no dialog, no links): download the installer for this OS, then install in place
+    (Windows: silent installer; macOS: replace the app and relaunch) and quit. Progress drives the toolbar pill."""
+    progress = Signal(int)
+    finished = Signal(bool, str)
 
     def __init__(self, win, info: dict):
         super().__init__(win)
-        self.win = win
-        self.info = info
-        self.setWindowTitle("Update Wyrm")
-        self.setMinimumWidth(460)
-        v = QVBoxLayout(self)
-        v.setContentsMargins(22, 20, 22, 18)
-        from . import __version__
-        head = QLabel(f"<b style='font-size:16px'>Wyrm {escape(info.get('version',''))} is available</b>"
-                      f"<br><span style='color:gray'>You have {__version__}.</span>")
-        head.setWordWrap(True)
-        v.addWidget(head)
-        notes = QTextBrowser()
-        notes.setOpenExternalLinks(True)
-        notes.setPlainText((info.get("notes") or "No release notes provided.")[:4000])
-        notes.setFixedHeight(180)
-        v.addWidget(notes)
-        self.status = QLabel("")
-        self.status.setObjectName("Muted")
-        v.addWidget(self.status)
-        self.bar = QProgressBar()
-        self.bar.setTextVisible(True)
-        self.bar.hide()
-        v.addWidget(self.bar)
-        row = QHBoxLayout()
-        self.b_page = QPushButton("Release page")
-        self.b_page.clicked.connect(lambda: (win.open_url(info.get("html_url"), new_tab=True), self.reject()))
-        self.b_later = QPushButton("Later")
-        self.b_later.clicked.connect(self.reject)
-        self.b_go = QPushButton("Download && install")
-        self.b_go.setObjectName("Primary")
-        self.b_go.setDefault(True)
-        self.b_go.clicked.connect(self._install)
-        row.addWidget(self.b_page)
-        row.addStretch(1)
-        row.addWidget(self.b_later)
-        row.addWidget(self.b_go)
-        v.addLayout(row)
-        self._progress.connect(self.bar.setValue)
-        self._finished.connect(self._on_finished)
+        self.win, self.info = win, info
+        self.finished.connect(self._on_finished)
 
-    def _install(self):
+    def start(self) -> bool:
         from . import updater
         url = self.info.get("asset_url")
-        if not url:  # no installer asset for this OS — send them to the web page
-            self.win.open_url(self.info.get("html_url"), new_tab=True)
-            self.reject()
-            return
-        self.b_go.setEnabled(False)
-        self.b_page.setEnabled(False)
-        self.bar.show()
-        self.status.setText("Downloading update…")
+        if not url:
+            return False
         tmp = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.TempLocation))
         dest = tmp / (self.info.get("asset_name") or "wyrm-update.bin")
         px, verify = self.win.proxies(), self.win.verify_tls()
 
         def work():
-            updater.download(url, dest, px, verify, progress=lambda pct, *_: self._progress.emit(pct))
+            updater.download(url, dest, px, verify, progress=lambda pct, *_: self.progress.emit(pct))
             return str(dest)
-
-        def done(ok, res):
-            if ok:
-                self._finished.emit(True, res)
-            else:
-                self._finished.emit(False, str(res))
-        self.win.runner.run(work, done)
+        self.win.runner.run(work, lambda ok, res: self.finished.emit(bool(ok), str(res)))
+        return True
 
     def _on_finished(self, ok, res):
         from . import updater
         if not ok:
-            self.status.setText(f"Download failed: {res}")
-            self.b_go.setEnabled(True)
-            self.b_page.setEnabled(True)
+            self.win._update_failed(f"Download failed: {res}")
             return
-        self.status.setText("Installing — Wyrm Browser will close and reopen on the new version…")
         try:
             updater.run_installer(Path(res))
         except Exception as e:  # noqa: BLE001
-            self.status.setText(f"Could not start the installer: {e}")
-            self.b_page.setEnabled(True)
+            self.win._update_failed(f"Could not start the installer: {e}")
             return
+        self.win._update_restarting()
         for w in QApplication.topLevelWidgets():  # the installer needs us gone: no "Close Wyrm?" prompt
             w._force_close = True
         QTimer.singleShot(800, QApplication.instance().quit)
@@ -420,6 +371,9 @@ class MainWindow(QMainWindow):
 
         # docks: security (main) + research (tabbed behind it)
         self.security = SecurityPanel(self)
+        self._panel_ratio_timer = QTimer(self, singleShot=True, interval=400)
+        self._panel_ratio_timer.timeout.connect(self._panel_resized)
+        self.security.installEventFilter(self)  # remember the width the user drags the panel to
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.security)
         self.panel = ResearchPanel(self.library, self)
         self.panel.setWindowTitle("Papers")
@@ -695,9 +649,22 @@ class MainWindow(QMainWindow):
         box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         box.view().setMinimumWidth(max(hi, 260))
 
+    PANEL_MIN, PANEL_MAX, PANEL_RATIO = 360, 760, 0.36
+
     def _panel_width(self) -> int:
-        """Security panel width that leaves the page at least ~55% of the window."""
-        return max(360, min(500, int(self.width() * 0.42)))
+        """Side-panel width that follows the window: the user's share of the window (default 36%),
+        360-760 px, and never more than half, so the page always keeps most of the space."""
+        ratio = getattr(self, "_panel_ratio", None) or self.settings.value("ui/panel_ratio", self.PANEL_RATIO, type=float)
+        ratio = min(0.5, max(0.2, ratio))
+        return int(max(self.PANEL_MIN, min(self.PANEL_MAX, self.width() * ratio, self.width() * 0.5)))
+
+    def _panel_resized(self):
+        """User dragged the panel edge: remember the new share of the window."""
+        sec = self.security
+        if getattr(self, "_window_resizing", False) or sec.isFloating() or not sec.isVisible() or self.width() < 600:
+            return
+        self._panel_ratio = sec.width() / self.width()
+        self.settings.setValue("ui/panel_ratio", round(self._panel_ratio, 3))
 
     def resizeEvent(self, ev):
         super().resizeEvent(ev)
@@ -708,9 +675,11 @@ class MainWindow(QMainWindow):
                 lo, hi = box.property("wyrm_w")
                 box.setFixedWidth(lo if narrow else hi)
         sec = getattr(self, "security", None)
-        # window got narrow: don't let the docked panel crowd out the page
-        if sec is not None and sec.isVisible() and not sec.isFloating() and sec.width() > self.width() * 0.5:
+        # the docked side panel grows / shrinks with the window, keeping its share of the width
+        if sec is not None and sec.isVisible() and not sec.isFloating() and ev.oldSize().width() != self.width():
+            self._window_resizing = True
             self.resizeDocks([sec], [self._panel_width()], Qt.Orientation.Horizontal)
+            QTimer.singleShot(0, lambda: setattr(self, "_window_resizing", False))
 
     def default_engine(self) -> str:
         return self.engine_box.currentData() if hasattr(self, "engine_box") else engines.DEFAULT_ENGINE
@@ -1078,15 +1047,44 @@ class MainWindow(QMainWindow):
             if manual:
                 QMessageBox.information(self, "Updates", f"You're on the latest version ({__version__}).")
             return
+        if getattr(self, "_updater", None):  # already updating
+            return
         self._update_info = info
-        self.b_update.setToolTip(f"Wyrm {info.get('version')} is available — you have {__version__}. Click to update.")
+        self.b_update.setText("  Update")
+        self.b_update.setEnabled(True)
+        from . import updater
+        changes = updater.whats_new(info.get("notes", ""))
+        tip = (f"<b>Wyrm Browser {escape(info.get('version', ''))}</b> is available (you have {__version__}).<br>"
+               "Click to update — it installs and restarts automatically.")
+        if changes:
+            tip += "<br><br><b>What's new</b><ul style='margin:4px 0 0 -18px'>" + \
+                   "".join(f"<li>{escape(c)}</li>" for c in changes) + "</ul>"
+        self.b_update.setToolTip(tip)
         self.b_update.show()
         if manual:
-            self._open_update()
+            self.toast(f"Wyrm Browser {info.get('version')} is available — click Update at the top right.", 6000)
 
     def _open_update(self):
-        if self._update_info:
-            UpdateDialog(self, self._update_info).exec()
+        """Update pill clicked: download + install right away, progress shown on the pill."""
+        if not self._update_info or getattr(self, "_updater", None):
+            return
+        self._updater = Updater(self, self._update_info)
+        if not self._updater.start():
+            self._updater = None
+            self.toast("This update has no installer for your system yet.", 5000)
+            return
+        self.b_update.setEnabled(False)
+        self.b_update.setText("  Updating 0%")
+        self._updater.progress.connect(lambda pct: self.b_update.setText(f"  Updating {pct}%"))
+
+    def _update_failed(self, msg: str):
+        self._updater = None
+        self.b_update.setEnabled(True)
+        self.b_update.setText("  Update failed — retry")
+        self.toast(msg, 6000)
+
+    def _update_restarting(self):
+        self.b_update.setText("  Restarting…")
 
     def _clear_history_confirm(self):
         if QMessageBox.question(self, "Clear history", "Clear the saved search & address-bar history?") \
@@ -2029,6 +2027,9 @@ class MainWindow(QMainWindow):
     def eventFilter(self, obj, ev):
         if obj is getattr(self, "urlbar", None) and ev.type() == QEvent.Type.Resize:
             self.url_icon.move(11, (self.urlbar.height() - self.url_icon.height()) // 2)
+        elif obj is getattr(self, "security", None) and ev.type() == QEvent.Type.Resize:
+            if not getattr(self, "_window_resizing", False):
+                self._panel_ratio_timer.start()
         elif obj is getattr(self, "strip", None) and sys.platform == "darwin":
             # macOS (no title bar): the empty tab strip behaves like one — drag to move, double-click to zoom
             t = ev.type()
