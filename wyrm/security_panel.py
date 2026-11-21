@@ -2166,23 +2166,27 @@ class SecurityPanel(QDockWidget):
         self._page_index: dict[str, int] = {}  # name -> stack index
         from PySide6.QtCore import QSize
         for gi, (title, items) in enumerate(groups):
-            head = QListWidgetItem()
+            # plain text item (not setItemWidget) so it renders reliably regardless of font metrics timing
+            head = QListWidgetItem(title)
             head.setFlags(Qt.ItemFlag.NoItemFlags)  # non-selectable, non-hoverable group caption
-            cap = QLabel(title, objectName="NavGroup")
-            cap.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-            f = cap.font()
-            f.setBold(True)
-            f.setPointSizeF(max(7.0, f.pointSizeF() - 2.5))  # small caption, set in code so metrics are exact
-            cap.setFont(f)
-            cap.setContentsMargins(10, 14 if gi else 6, 10, 4)  # less top padding on the very first caption
-            head.setSizeHint(QSize(0, cap.sizeHint().height() + 2))  # label includes its margins; +2 avoids any clip
+            hf = head.font()
+            hf.setBold(True)
+            hf.setPointSizeF(max(7.5, hf.pointSizeF() - 2))
+            head.setFont(hf)
+            head.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
+            head.setSizeHint(QSize(0, 34 if gi else 24))  # generous height; extra space sits above the text
             self.nav.addItem(head)
-            self.nav.setItemWidget(head, cap)
             for name, widget in items:
                 it = QListWidgetItem(name)
                 self.nav.addItem(it)
                 self._nav_rows[name] = self.nav.row(it)
                 self._page_index[name] = self.stack.addWidget(widget)
+        # one consistent outer margin + row spacing for every panel page (alignment & rhythm across tabs)
+        for idx in self._page_index.values():
+            lay = self.stack.widget(idx).layout()
+            if lay is not None:
+                lay.setContentsMargins(16, 14, 16, 12)
+                lay.setSpacing(10)
         self.nav.currentRowChanged.connect(self._on_nav)
         h.addWidget(self.nav)
         h.addWidget(self.stack, 1)

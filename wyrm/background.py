@@ -13,8 +13,12 @@ from pathlib import Path
 
 import requests
 
-# Picsum serves a random photo at a fixed size with no API key or tracking account.
-SOURCE = "https://picsum.photos/1920/1080"
+# Random Cambodia photos (Angkor, temples, Phnom Penh, landscapes) with no API key, via LoremFlickr,
+# which returns a random Flickr photo matching the tags. Picsum is a neutral fallback if it's unreachable.
+SOURCES = [
+    "https://loremflickr.com/1920/1080/cambodia,angkor,temple,phnompenh,landscape",
+    "https://picsum.photos/1920/1080",
+]
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Wyrm/1.0"
 
 
@@ -34,15 +38,19 @@ def fetch_daily(cache_dir: Path, proxies=None, verify=True) -> bytes | None:
             return today.read_bytes()
         except OSError:
             pass
-    try:
-        s = requests.Session()
-        s.trust_env = False
-        r = s.get(SOURCE, headers={"User-Agent": UA}, timeout=20, proxies=proxies, verify=verify, allow_redirects=True)
-        r.raise_for_status()
-        data = r.content
-        if not data or len(data) > 8_000_000:
-            raise ValueError("empty or oversized image")
-    except Exception:  # noqa: BLE001 - cosmetic; fall back to any cached image
+    data = None
+    s = requests.Session()
+    s.trust_env = False
+    for src in SOURCES:
+        try:
+            r = s.get(src, headers={"User-Agent": UA}, timeout=20, proxies=proxies, verify=verify, allow_redirects=True)
+            r.raise_for_status()
+            if r.content and len(r.content) <= 8_000_000 and r.headers.get("content-type", "").startswith("image"):
+                data = r.content
+                break
+        except Exception:  # noqa: BLE001 - try the next source
+            continue
+    if data is None:  # cosmetic; fall back to any cached image
         if cache_dir:
             files = sorted(cache_dir.glob("bg-*.jpg"), reverse=True)
             if files:
