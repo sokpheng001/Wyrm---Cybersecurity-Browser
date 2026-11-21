@@ -154,6 +154,9 @@ QLineEdit, QPlainTextEdit, QTextBrowser, QSpinBox, QComboBox {
     color: $text; selection-background-color: $interactive; selection-color: #ffffff;
 }
 QLineEdit:focus, QPlainTextEdit:focus, QSpinBox:focus, QComboBox:focus { border: 1px solid $focus; }
+/* combobox-popup: 0 = plain drop-down list BELOW the box on every OS (macOS otherwise pops the list over
+   the box, centred on the current item, covering the input) */
+QComboBox { combobox-popup: 0; }
 QComboBox::drop-down { border: none; width: 24px; }
 QComboBox::down-arrow { image: url("$chevron"); width: 12px; height: 12px; }
 QComboBox QAbstractItemView { background: $layer; border: 1px solid $border; border-radius: 0;
