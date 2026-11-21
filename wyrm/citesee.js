@@ -1,3 +1,9 @@
+/*
+ * Wyrm — wyrm/citesee.js
+ * Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+ * Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+ * Authors: @oda, @sopi, @kwan
+ */
 // Injected into every page (isolated world). Inspired by CiteSee (Chang et al., CHI 2023):
 // finds links to papers (arXiv / DOI), highlights the ones in the reader's history,
 // and returns the list of papers this page links to.

@@ -1,3 +1,9 @@
+#------------------------------------------------------------------------------
+# Wyrm — wyrm/security/tools.py
+# Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+# Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+# Authors: @oda, @sopi, @kwan
+#------------------------------------------------------------------------------
 """Tester's toolbox: encoders/decoders, JWT inspector, hash identify/compute, HTTP repeater."""
 from __future__ import annotations
 

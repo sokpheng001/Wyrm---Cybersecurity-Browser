@@ -1,3 +1,9 @@
+#------------------------------------------------------------------------------
+# Wyrm — wyrm/updater.py
+# Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+# Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+# Authors: @oda, @sopi, @kwan
+#------------------------------------------------------------------------------
 """In-app updates via GitHub Releases — check, download, and install without a manual reinstall.
 
 The update check queries the project's official GitHub release feed, compares the published version to

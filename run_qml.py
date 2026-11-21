@@ -1,3 +1,9 @@
+#------------------------------------------------------------------------------
+# Wyrm — run_qml.py
+# Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+# Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+# Authors: @oda, @sopi, @kwan
+#------------------------------------------------------------------------------
 """Prototype launcher for the QML (Qt Quick) chrome.
 
 Runs the new declarative UI alongside the existing QWidgets app (run.py), so we can migrate the chrome

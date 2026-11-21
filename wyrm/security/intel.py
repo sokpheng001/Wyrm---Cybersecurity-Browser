@@ -1,3 +1,9 @@
+#------------------------------------------------------------------------------
+# Wyrm — wyrm/security/intel.py
+# Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+# Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+# Authors: @oda, @sopi, @kwan
+#------------------------------------------------------------------------------
 """Threat intel + recon from public, passive sources.
 
 CVEs:  OSV.dev (exact package+version for JS libraries) and NVD (keyword search for servers/CMS).

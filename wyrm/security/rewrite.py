@@ -1,3 +1,9 @@
+#------------------------------------------------------------------------------
+# Wyrm — wyrm/security/rewrite.py
+# Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+# Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+# Authors: @oda, @sopi, @kwan
+#------------------------------------------------------------------------------
 """Match & Replace rules (Burp / Caido style): rewrite request headers for in-scope hosts.
 
 A convenience for authorized testing: set a custom User-Agent, add an auth header to every request, or

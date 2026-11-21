@@ -1,3 +1,9 @@
+#------------------------------------------------------------------------------
+# Wyrm — build_windows.ps1
+# Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+# Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+# Authors: @oda, @sopi, @kwan
+#------------------------------------------------------------------------------
 # Build The Hidden Browser on Windows:
 #   dist\Wyrm\Wyrm.exe       (portable folder)
 #   dist\Wyrm-windows.zip             (portable zip)

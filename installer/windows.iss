@@ -1,3 +1,9 @@
+;------------------------------------------------------------------------------
+; Wyrm — installer/windows.iss
+; Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+; Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+; Authors: @oda, @sopi, @kwan
+;------------------------------------------------------------------------------
 ; Inno Setup script: builds dist\Wyrm-Setup-<version>.exe from the PyInstaller folder.
 ;   "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" installer\windows.iss
 #define AppName "Wyrm"

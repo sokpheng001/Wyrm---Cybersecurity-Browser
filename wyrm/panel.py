@@ -1,3 +1,9 @@
+#------------------------------------------------------------------------------
+# Wyrm — wyrm/panel.py
+# Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+# Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+# Authors: @oda, @sopi, @kwan
+#------------------------------------------------------------------------------
 """Research side panel: current-paper card, papers linked on this page, and the saved library."""
 from __future__ import annotations
 

@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+#------------------------------------------------------------------------------
+# Wyrm — build_unix.sh
+# Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+# Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+# Authors: @oda, @sopi, @kwan
+#------------------------------------------------------------------------------
 # Build The Hidden Browser on macOS or Linux.
 #   macOS -> dist/Wyrm.app + dist/Wyrm-macos-<arm64|intel>.dmg (drag-to-Applications installer)
 #            built for the CPU of the Mac/runner it runs on (Apple Silicon -> arm64, Intel -> intel)

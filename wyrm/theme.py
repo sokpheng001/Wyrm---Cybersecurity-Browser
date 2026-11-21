@@ -1,3 +1,9 @@
+#------------------------------------------------------------------------------
+# Wyrm — wyrm/theme.py
+# Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+# Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+# Authors: @oda, @sopi, @kwan
+#------------------------------------------------------------------------------
 """Carbon-style themes (IBM Carbon Design System tokens): Gray 100 (dark) and White (light).
 
 Carbon traits applied here: IBM Plex type, square corners, flat layers instead of borders/shadows,

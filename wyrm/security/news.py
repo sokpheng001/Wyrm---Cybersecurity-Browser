@@ -1,3 +1,9 @@
+#------------------------------------------------------------------------------
+# Wyrm — wyrm/security/news.py
+# Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+# Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+# Authors: @oda, @sopi, @kwan
+#------------------------------------------------------------------------------
 """Latest cybersecurity news for the start page, from public RSS/Atom feeds (no API keys).
 
 Fetched in parallel, merged newest-first, de-duplicated by title. Everything here is untrusted text from the

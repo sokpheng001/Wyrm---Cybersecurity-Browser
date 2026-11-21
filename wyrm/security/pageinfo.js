@@ -1,3 +1,9 @@
+/*
+ * Wyrm — wyrm/security/pageinfo.js
+ * Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+ * Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+ * Authors: @oda, @sopi, @kwan
+ */
 // Read-only snapshot of the current page for passive analysis. Runs in the page's main world
 // (needed to see library globals like jQuery.fn.jquery). Never modifies the page.
 (function () {

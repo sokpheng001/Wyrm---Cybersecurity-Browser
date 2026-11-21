@@ -1,3 +1,9 @@
+#------------------------------------------------------------------------------
+# Wyrm — wyrm/winframe.py
+# Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+# Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+# Authors: @oda, @sopi, @kwan
+#------------------------------------------------------------------------------
 """Chrome-style window on Windows: tabs drawn in the title bar, native frame behaviour kept.
 
 The system caption is removed (WM_NCCALCSIZE), but WS_THICKFRAME/WS_CAPTION stay on the window, so Windows

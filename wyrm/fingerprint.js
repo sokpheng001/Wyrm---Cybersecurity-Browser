@@ -1,3 +1,9 @@
+/*
+ * Wyrm — wyrm/fingerprint.js
+ * Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+ * Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+ * Authors: @oda, @sopi, @kwan
+ */
 // Anti-fingerprinting (main world, document start). Based on PriVaricator (Nikiforakis et al., WWW 2015):
 // add tiny per-session "white lies" to high-entropy fingerprinting surfaces so a fingerprint can't be
 // linked across sessions, while keeping breakage minimal. Noise is seeded per page-session (stable within

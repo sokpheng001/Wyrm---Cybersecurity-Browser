@@ -1,3 +1,9 @@
+#------------------------------------------------------------------------------
+# Wyrm — wyrm/window.py
+# Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+# Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+# Authors: @oda, @sopi, @kwan
+#------------------------------------------------------------------------------
 """Wyrm main window: tabs, navigation, engagements/scope, security + research panels."""
 from __future__ import annotations
 
@@ -908,7 +914,12 @@ class MainWindow(QMainWindow):
         # default the security panel to the mode's primary workflow
         self.security.show_tab("Recon" if self.mode == "red" else "Shields")
         self.apply_theme(self.theme_mode)  # re-applies palette/stylesheet with the mode accent + reloads pages
-        self.toast(f"{'Red team — offensive' if self.mode == 'red' else 'Blue team — defensive'} mode")
+        if self.mode == "red":
+            self.toast("Red team mode is ON — offensive workflow: recon and testing tools first. "
+                       "Click the RED TEAM chip to switch back.", 4500)
+        else:
+            self.toast("Blue team mode is ON — defensive workflow: protection and analysis first. "
+                       "Click the BLUE TEAM chip to switch.", 4500)
 
     def _update_mode_chip(self):
         if not hasattr(self, "mode_chip"):

@@ -1,3 +1,9 @@
+/*
+ * Wyrm — wyrm/youtube.js
+ * Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+ * Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+ * Authors: @oda, @sopi, @kwan
+ */
 // YouTube ad removal (main world, document start). Removes ad slots from player data before the player
 // reads them, skips/fast-forwards any ad that still starts, and hides promoted tiles. Counts what it removes.
 (function () {

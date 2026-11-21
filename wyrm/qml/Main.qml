@@ -1,3 +1,9 @@
+/*
+ * Wyrm — wyrm/qml/Main.qml
+ * Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+ * Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+ * Authors: @oda, @sopi, @kwan
+ */
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts

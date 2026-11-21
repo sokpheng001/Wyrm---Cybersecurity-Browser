@@ -1,3 +1,9 @@
+#------------------------------------------------------------------------------
+# Wyrm — tools/fetch_filters.py
+# Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+# Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+# Authors: @oda, @sopi, @kwan
+#------------------------------------------------------------------------------
 """Download a snapshot of the Shields filter lists into wyrm/assets/filters/ (run at build time),
 so a fresh install blocks ads, trackers, malware and phishing immediately, even before the first update.
 
