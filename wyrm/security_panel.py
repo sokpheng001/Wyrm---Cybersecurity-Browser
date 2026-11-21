@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from html import escape
 from pathlib import Path
@@ -55,19 +56,87 @@ class HeaderHighlighter:
         return _HL(editor.document())
 
 
+# syntax-highlight colors (readable on both light and dark response backgrounds)
+_HL = {"key": "#0f62fe", "str": "#24a148", "num": "#ff832b", "kw": "#8a3ffc", "pun": "#8d8d8d",
+       "tag": "#0f62fe", "com": "#8d8d8d", "hdr": "#8a3ffc"}
+_JSON_TOK = re.compile(r'"(?:\\.|[^"\\])*"|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|[{}\[\],:]|\s+|[^"{}\[\],:\s]+')
+_MARKUP_TOK = re.compile(r'<!--.*?-->|</?[^>]+>', re.S)
+_GEN_TOK = re.compile(
+    r'("(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\')|(\b\d+(?:\.\d+)?\b)'
+    r'|(\b(?:function|return|var|let|const|if|else|for|while|true|false|null|undefined|new|class|import|export|async|await)\b)')
+
+
+def _span(color: str, text: str) -> str:
+    return f"<span style='color:{color}'>{escape(text)}</span>"
+
+
+def _hl_json(text: str) -> str:
+    out = []
+    for m in _JSON_TOK.finditer(text):
+        t = m.group(0)
+        if t.isspace():
+            out.append(escape(t))
+        elif t[0] == '"':
+            out.append(_span(_HL["key"] if text[m.end():].lstrip().startswith(":") else _HL["str"], t))
+        elif t in ("true", "false", "null"):
+            out.append(_span(_HL["kw"], t))
+        elif t[0] == "-" or t[0].isdigit():
+            out.append(_span(_HL["num"], t))
+        elif t in "{}[],:":
+            out.append(_span(_HL["pun"], t))
+        else:
+            out.append(escape(t))
+    return "".join(out)
+
+
+def _hl_markup(text: str) -> str:
+    out, pos = [], 0
+    for m in _MARKUP_TOK.finditer(text):
+        out.append(escape(text[pos:m.start()]))
+        seg = m.group(0)
+        out.append(_span(_HL["com"] if seg.startswith("<!--") else _HL["tag"], seg))
+        pos = m.end()
+    out.append(escape(text[pos:]))
+    return "".join(out)
+
+
+def _hl_generic(text: str) -> str:
+    out, pos = [], 0
+    for m in _GEN_TOK.finditer(text):
+        out.append(escape(text[pos:m.start()]))
+        c = _HL["str"] if m.group(1) else _HL["num"] if m.group(2) else _HL["kw"]
+        out.append(_span(c, m.group(0)))
+        pos = m.end()
+    out.append(escape(text[pos:]))
+    return "".join(out)
+
+
+def _highlight_body(body: str, ctype: str) -> str:
+    if len(body) > 400_000:          # keep very large bodies responsive — skip highlighting
+        return escape(body)
+    b = body.lstrip()
+    if "json" in ctype or b[:1] in "{[":
+        return _hl_json(body)
+    if "html" in ctype or "xml" in ctype or b[:1] == "<":
+        return _hl_markup(body)
+    return _hl_generic(body)
+
+
 def _format_response(r: dict) -> str:
-    """Render an HTTP response as clean, colored HTML: status line, headers, body."""
+    """Render an HTTP response as clean, syntax-highlighted HTML: status line, headers, body."""
     head = r.get("head", "")
     lines = head.split("\n")
     status_line = lines[0] if lines else ""
     status = r.get("status") or 0
     color = {2: "#24a148", 3: "#4589ff", 4: "#ff832b", 5: "#da1e28"}.get(status // 100, "#8d8d8d")
     out = [f"<div style='font-weight:600;color:{color};margin-bottom:6px'>{escape(status_line)}</div>"]
-    hdr = []
+    hdr, ctype = [], ""
     for ln in lines[1:]:
         if ": " in ln:
             name, val = ln.split(": ", 1)
-            hdr.append(f"<span style='color:#8d8d8d'>{escape(name)}:</span> {escape(val)}")
+            if name.lower() == "content-type":
+                ctype = val.lower()
+            hdr.append(f"<span style='color:{_HL['hdr']};font-weight:600'>{escape(name)}:</span> {escape(val)}")
         elif ln.strip():
             hdr.append(escape(ln))
     if hdr:
@@ -75,7 +144,7 @@ def _format_response(r: dict) -> str:
     body = r.get("body", "")
     if body:
         out.append("<hr style='border:none;border-top:1px solid #8884;margin:8px 0'>")
-        out.append(f"<pre style='white-space:pre-wrap;margin:0'>{escape(body)}</pre>")
+        out.append(f"<pre style='white-space:pre-wrap;margin:0'>{_highlight_body(body, ctype)}</pre>")
     return "".join(out)
 
 
