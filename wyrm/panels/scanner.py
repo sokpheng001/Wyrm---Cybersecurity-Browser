@@ -32,6 +32,7 @@ from ..widgets import BusyOverlay
 class ScannerTab(QWidget):
     _pd_line = Signal(str, object)   # one streamed line from a ProjectDiscovery tool (worker -> UI thread)
     _pd_done = Signal(bool, object)
+    _pd_status = Signal(str)         # status text from the worker (e.g. the scheme it picked)
 
     def __init__(self, win):
         super().__init__()
@@ -39,6 +40,7 @@ class ScannerTab(QWidget):
         self._pd_running = False
         self._pd_line.connect(self._on_pd_line)
         self._pd_done.connect(self._on_pd_done)
+        self._pd_status.connect(lambda t: self.status.setText(t))  # status label is created below
         v = QVBoxLayout(self)
         intro = QLabel("<b>Scanner</b> — for targets you are <b>authorized</b> to test. Port scan and CORS test only "
                        "run on hosts in your engagement scope; the clickjacking check works on any page you open.")
@@ -49,7 +51,10 @@ class ScannerTab(QWidget):
         row = QHBoxLayout()
         row.addWidget(QLabel("Target"))
         self.target = QLineEdit()
-        self.target.setPlaceholderText("https://app.example.com/  or  host / IP")
+        self.target.setPlaceholderText("example.com,  https://app.example.com/path,  host:8443,  IP  or  10.0.0.0/24")
+        self.target.setToolTip("Type a domain, URL, host:port, IP, IP range (CIDR) or AS number. Wyrm gives each tool "
+                               "what it needs: domain tools get the domain, URL tools get a URL (https:// if the "
+                               "site supports it, else http://), and port-aware tools keep your port.")
         row.addWidget(self.target, 1)
         use = QPushButton("Use current")
         use.clicked.connect(self.use_current)
@@ -223,10 +228,12 @@ class ScannerTab(QWidget):
         if self._pd_running:
             return
         tool = pdtools.TOOLS_BY_KEY[self.pd_box.currentData()]
-        target = {"domain": self._host(), "host": self._host(), "url": self._url(),
-                  "cidr": self.target.text().strip(), "asn": self.target.text().strip()}[tool.takes]
-        if not target:
-            self.status.setText("Enter a target first.")
+        if not self.target.text().strip():
+            self.use_current()
+        try:  # domain / URL / host:port / IP / CIDR / ASN -> exactly what this tool needs
+            target = pdtools.target_for(tool, self.target.text())
+        except ValueError as e:
+            self.status.setText(str(e))
             return
         if tool.active and not self._authorized(self._host(), f"{tool.name}"):
             return
@@ -235,13 +242,17 @@ class ScannerTab(QWidget):
         self.pd_run.setEnabled(False)
         self.pd_stop.setEnabled(True)
         self.busy.start(f"{tool.name} running…")
-        self.status.setText(f"{tool.name} {target} …")
+        shown = target.replace("?//", "") if target.startswith("?//") else target
+        self.status.setText(f"Running {tool.name} on {shown} …")
         self._pd_count = 0
         self._pd_stop_flag = False
         px = self.win.proxies()
 
         def work():
-            return pdtools.run(tool, target, lambda text, obj: self._pd_line.emit(text, obj), proxies=px,
+            t = pdtools.probe_scheme(target, px)  # no http(s):// typed: use https if the site answers, else http
+            if t != target:
+                self._pd_status.emit(f"Running {tool.name} on {t} …")
+            return pdtools.run(tool, t, lambda text, obj: self._pd_line.emit(text, obj), proxies=px,
                                should_stop=lambda: self._pd_stop_flag)
         self.win.runner.run(work, lambda ok, res: self._pd_done.emit(bool(ok), res))
 

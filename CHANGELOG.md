@@ -12,6 +12,9 @@ most important points first. Each build of a version adds an "Also in this build
   can run code (programs, scripts, installers, macro documents); the safe choice is always the default
 - Security tools: dnsx, tlsx, cdncheck, alterx and katana fixed for the latest tool versions; asnmap
   explains that it needs a free ProjectDiscovery Cloud API key
+- Scanner target box takes a domain, URL, host:port, IP, IP range or AS number; each tool gets what it
+  needs (https:// or http:// picked automatically, ports kept, ranges for naabu/httpx/tlsx) and
+  the status line shows exactly what ran
 - Repeater: loading animation while the response Preview renders
 - Security tools: fixed "charmap codec can't decode" errors; Stop works instantly; failures say why
 - Updates are checked against the release's SHA-256 before installing; Linux now updates in place too

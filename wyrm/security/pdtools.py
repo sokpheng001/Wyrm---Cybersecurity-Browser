@@ -72,6 +72,92 @@ TOOLS: list[Tool] = [
 TOOLS_BY_KEY = {t.key: t for t in TOOLS}
 
 
+_PORT_AWARE = {"httpx", "tlsx", "naabu", "cdncheck"}  # host tools that accept host:port
+_CIDR_AWARE = {"naabu", "httpx", "tlsx"}               # host tools that scan a whole IP range
+
+
+def target_for(tool: Tool, text: str) -> str:
+    """What `tool` should receive for whatever the user typed: a domain, URL, host:port, IP, CIDR, ASN...
+    Raises ValueError with a readable message when the input can't fit this tool. URL tools get a URL; when the
+    user typed no scheme the result starts with "?//" and probe_scheme() picks https or http before running."""
+    import ipaddress
+    from urllib.parse import urlsplit
+    raw = (text or "").strip().strip("'\"").rstrip("/")
+    if not raw:
+        raise ValueError("Enter a target first (a domain, URL or IP).")
+    if tool.takes == "cidr":
+        try:
+            return str(ipaddress.ip_network(raw, strict=False))
+        except ValueError:
+            raise ValueError(f"{tool.name} needs an IP range like 192.168.1.0/24, not “{raw}”.") from None
+    if tool.takes == "asn":
+        m = re.fullmatch(r"(?i)(?:AS)?(\d{1,10})", raw)
+        if not m:
+            raise ValueError(f"{tool.name} needs an AS number like AS13335, not “{raw}”.")
+        return "AS" + m.group(1)
+    if re.fullmatch(r"(?i)AS\d{1,10}", raw):
+        raise ValueError(f"{raw.upper()} is an AS number; {tool.name} needs a domain, host or URL.")
+    if "/" in raw and "://" not in raw:  # an IP range?
+        try:
+            net = ipaddress.ip_network(raw, strict=False)
+        except ValueError:
+            net = None
+        if net is not None:
+            if tool.key in _CIDR_AWARE:
+                return str(net)
+            raise ValueError(f"{tool.name} doesn't take an IP range; enter one host, domain or URL "
+                             "(naabu, httpx and tlsx can scan a range).")
+    has_scheme = "://" in raw
+    parts = urlsplit(raw if has_scheme else "//" + raw)
+    if has_scheme and parts.scheme.lower() not in ("http", "https"):
+        raise ValueError(f"Only http:// and https:// targets are supported, not {parts.scheme}://.")
+    try:
+        host = (parts.hostname or "").rstrip(".").lower()
+        port = parts.port
+    except ValueError:
+        raise ValueError(f"“{raw}” isn't a valid host or URL.") from None
+    if host.startswith("*."):
+        host = host[2:]
+    if not host or not re.fullmatch(r"[a-z0-9._:-]+", host):
+        raise ValueError(f"“{raw}” isn't a valid domain, host or URL.")
+    try:
+        is_ip = bool(ipaddress.ip_address(host))
+    except ValueError:
+        is_ip = False
+    hostport = (f"[{host}]" if ":" in host else host) + (f":{port}" if port else "")
+    if tool.takes == "domain":
+        if is_ip:
+            raise ValueError(f"{tool.name} works on domain names; “{host}” is an IP address.")
+        return host
+    if tool.takes == "host":
+        if tool.key == "httpx" and has_scheme:  # httpx probes URLs too: keep the scheme and path the user typed
+            return f"{parts.scheme.lower()}://{hostport}{parts.path or ''}"
+        return hostport if tool.key in _PORT_AWARE else host
+    # url tools: keep the path the user typed; scheme decided now or by probe_scheme()
+    path = parts.path or ""
+    query = f"?{parts.query}" if parts.query else ""
+    return (f"{parts.scheme.lower()}://" if has_scheme else "?//") + hostport + path + query
+
+
+def probe_scheme(target: str, proxies=None) -> str:
+    """For a URL target typed without a scheme ("?//host/..."): https if the site answers on it, else http.
+    Certificates aren't checked here: a site with a self-signed certificate still speaks https."""
+    if not target.startswith("?//"):
+        return target
+    import requests
+    rest = target[3:]
+    import warnings
+    for scheme in ("https", "http"):
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")  # unverified-certificate warning: only reachability matters here
+                requests.head(f"{scheme}://{rest}", timeout=6, allow_redirects=False, proxies=proxies, verify=False)
+            return f"{scheme}://{rest}"
+        except requests.RequestException:
+            continue
+    return f"https://{rest}"  # neither answered: let the tool report it
+
+
 BUNDLED = Path(__file__).resolve().parents[1] / "bin"  # wyrm/bin (also inside the packaged app)
 
 
