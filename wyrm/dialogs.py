@@ -147,7 +147,7 @@ class SettingsDialog(QDialog):
         f.addRow(QLabel("<b>AI Triage</b>"))
         self.ai_key = QLineEdit(self.settings.value("ai/api_key", "", type=str))
         self.ai_key.setEchoMode(QLineEdit.EchoMode.Password)
-        self.ai_key.setPlaceholderText("Anthropic API key (kept only on this device)")
+        self.ai_key.setPlaceholderText("API key (kept only on this device)")
         f.addRow("API key", self.ai_key)
         self.ai_model = QLineEdit(self.settings.value("ai/model", "claude-sonnet-5-5", type=str))
         f.addRow("Model", self.ai_model)

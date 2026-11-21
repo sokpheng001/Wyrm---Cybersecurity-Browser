@@ -758,7 +758,7 @@ class ToolsTab(QWidget):
         model = self.win.settings.value("ai/model", "claude-sonnet-5-5", type=str)
         if not key:
             self.tr_out.setHtml("<p>No API key set. Add one in <b>Settings → General → AI Triage</b> "
-                                "(your own Anthropic key, stored only on this device).</p>")
+                                "(your own API key, stored only on this device).</p>")
             return
         content = self.tr_in.toPlainText()
         self.tr_go.setEnabled(False)
