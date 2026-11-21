@@ -4,7 +4,7 @@ A privacy and security browser for cybersecurity professionals — and simple en
 Chromium engine, built-in ad/malware/phishing protection, Tor windows, anti-fingerprinting, and a full
 panel of tools for **authorized** web security testing.
 
-Built by **ByKh R&D Group** and **HackPi — Ethical Hackers Group**
+Built by **[ByKh R&D Group](https://bykh.org)** and **HackPi — Ethical Hackers Group** · Website: [bykh.org](https://bykh.org)
 Copyright © 2023–present ByKh R&D Group · Version 0.0.1
 
 ### History
@@ -184,7 +184,7 @@ them to a Release.
 
 ## Developers
 
-- **ByKh R&D Group**
+- **ByKh R&D Group** — [bykh.org](https://bykh.org)
 - **HackPi — Ethical Hackers Group**
 
 ## Credits

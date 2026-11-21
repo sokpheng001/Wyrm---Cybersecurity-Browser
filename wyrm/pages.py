@@ -147,6 +147,8 @@ form.big{max-width:620px;margin:0 auto;position:relative;display:block}
 .foot{color:var(--helper);font-size:12px;margin:40px 0 0}
 .credit{color:var(--muted);font-size:12px;margin:10px 0 0;letter-spacing:.3px}
 .credit b{color:var(--fg);font-weight:600}
+.credit a{color:inherit} .credit a:hover{text-decoration:underline}
+body.hasbg .credit a{color:#fff}
 .copy{color:var(--helper);font-size:12px;margin:6px 0 24px;letter-spacing:.3px}
 body.hasbg .copy{color:#e0e0e0;text-shadow:0 1px 10px rgba(0,0,0,.6)}
 body.hasbg .copy a{color:#fff;text-decoration:underline}
@@ -372,7 +374,8 @@ def render_home(ctx: dict) -> str:
         + f"<div class='grid'>{tiles}</div>"
         + news_html + feed
         + "<p class='foot'>Only test systems you own or are explicitly authorized to test.</p>"
-        + "<p class='credit'>Built by <b>ByKh R&amp;D Group</b> · <b>HackPi</b> — Ethical Hackers Group</p>"
+        + "<p class='credit'>Built by <a href='https://bykh.org' title='bykh.org'><b>ByKh R&amp;D Group</b></a>"
+          " · <b>HackPi</b> — Ethical Hackers Group · <a href='https://bykh.org'>bykh.org</a></p>"
         + f"<p class='copy'><a href='wyrm://help'>How to use Wyrm</a> · © {_years()} ByKh R&amp;D Group · MIT License</p>"
     )
     if ctx.get("tor"):   # Tor window: purple + onion watermark background instead of a web photo
@@ -908,5 +911,7 @@ or go to System Settings → Privacy &amp; Security → <b>Open Anyway</b>.</li>
     content = (f"<nav>{nav}</nav><div><h1>How to use Wyrm</h1>"
                "<p class='lead'>A quick guide to browsing privately and testing safely. "
                f"Open it any time from ⋮ → <b>Help — how to use Wyrm</b> or with {k('F1')}.</p>"
-               f"{body}<p class='top'><a href='#start'>Back to top</a> · <a href='wyrm://home'>Start page</a></p></div>")
+               f"{body}<p class='top'><a href='#start'>Back to top</a> · <a href='wyrm://home'>Start page</a></p>"
+               "<p class='top'>Wyrm is made by <b>ByKh R&amp;D Group</b> — <a href='https://bykh.org'>bykh.org</a>"
+               " · with <b>HackPi</b>, Ethical Hackers Group.</p></div>")
     return _page("How to use Wyrm", content, HELP_CSS, "help")

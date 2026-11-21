@@ -1070,12 +1070,20 @@ class MainWindow(QMainWindow):
 
     def _about(self):
         tor = f"<br>Tor {self.tor.version()} · SOCKS port {self.tor.socks_port}" if self.tor else ""
-        QMessageBox.about(self, "About Wyrm",
-                          f"<b>Wyrm</b> {__version__}<br>"
-                          "A <i>wyrm</i> is a wingless dragon — our mark, and the name of this browser.<br><br>"
-                          "Built by <b>ByKh R&amp;D Group</b><br><b>HackPi</b> — Ethical Hackers Group<br>"
-                          f"Copyright © {years()} ByKh R&amp;D Group · HackPi{tor}<br><br>"
-                          "Chromium engine via Qt WebEngine · Ad/tracker blocking via community filter lists · Tor: Tor Project")
+        box = QMessageBox(self)
+        box.setWindowTitle("About Wyrm")
+        box.setIconPixmap(self.windowIcon().pixmap(64, 64))
+        box.setText(f"<b>Wyrm</b> {__version__}")
+        box.setInformativeText(
+                    "A <i>wyrm</i> is a wingless dragon — our mark, and the name of this browser.<br><br>"
+                    "Built by <b>ByKh R&amp;D Group</b> · <b>bykh.org</b><br><b>HackPi</b> — Ethical Hackers Group<br>"
+                    f"Copyright © {years()} ByKh R&amp;D Group · HackPi{tor}<br><br>"
+                    "Chromium engine via Qt WebEngine · Ad/tracker blocking via community filter lists · Tor: Tor Project")
+        visit = box.addButton("Visit bykh.org", QMessageBox.ButtonRole.ActionRole)
+        box.addButton(QMessageBox.StandardButton.Close)
+        box.exec()
+        if box.clickedButton() is visit:  # open our website in Wyrm itself
+            self.open_url("https://bykh.org", new_tab=True)
 
     # ================================================================ Tor
     def open_tor_window(self):
