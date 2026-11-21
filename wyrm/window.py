@@ -11,7 +11,9 @@ from urllib.parse import parse_qs, urlparse
 from PySide6.QtCore import (
     QBuffer, QByteArray, QEvent, QIODevice, QProcess, QSettings, QSize, QStandardPaths, Qt, QTimer, QUrl, Signal,
 )
-from PySide6.QtGui import QAction, QActionGroup, QColor, QGuiApplication, QIcon, QKeySequence, QPainter, QPixmap
+from PySide6.QtGui import (
+    QAction, QActionGroup, QColor, QGuiApplication, QIcon, QImageReader, QKeySequence, QPainter, QPixmap,
+)
 from PySide6.QtNetwork import QNetworkInformation
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWebEngineCore import (
@@ -20,7 +22,7 @@ from PySide6.QtWebEngineCore import (
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
-    QApplication, QComboBox, QCompleter, QDialog, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
+    QApplication, QComboBox, QCompleter, QDialog, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
     QProgressBar, QPushButton, QSizePolicy, QStackedWidget, QTabBar, QTextBrowser, QToolBar, QToolButton, QVBoxLayout,
     QWidget,
 )
@@ -29,7 +31,7 @@ from html import escape
 
 from . import __version__, engines, linkguard, pages, scholar, theme, winframe
 from . import shields as shields_mod
-from .security import rewrite, secsearch
+from .security import news as news_mod, rewrite, secsearch
 from .shields import PageStats, Shields
 from .async_util import Runner
 from .dialogs import EngagementDialog, FindingDialog, SettingsDialog
@@ -395,6 +397,7 @@ class MainWindow(QMainWindow):
 
         self.scheme_handler = HiddenSchemeHandler(self.library, self.runner, self.default_engine, self.home_context, self)
         self.scheme_handler.actions = self.scheme_action
+        self.scheme_handler.custom_bg = self._custom_bg
 
         # docks: security (main) + research (tabbed behind it)
         self.security = SecurityPanel(self)
@@ -418,8 +421,14 @@ class MainWindow(QMainWindow):
             self.runner.run(lambda: shields_mod.build_engines(shields_mod.fetch_lists(self.shields.cache)),
                             self._filters_ready)
         self._kev_recent: list = []  # latest exploited-in-the-wild CVEs, shown on the start page
+        self._news: list = []        # latest cybersecurity headlines, shown on the start page while online
+        self._online = True
         if not tor:
             self.runner.run(secsearch.recent_kev, self._kev_ready)
+            self._fetch_news()
+            self._news_timer = QTimer(self)
+            self._news_timer.timeout.connect(self._fetch_news)
+            self._news_timer.start(30 * 60 * 1000)  # refresh headlines every 30 minutes
             if self.settings.value("updates/check", True, type=bool):  # quiet startup check; only prompts if newer
                 QTimer.singleShot(4000, lambda: self._check_updates(manual=False))
 
@@ -434,6 +443,7 @@ class MainWindow(QMainWindow):
             ni = QNetworkInformation.instance()
             ni.reachabilityChanged.connect(self._on_reachability)
             if ni.reachability() == QNetworkInformation.Reachability.Disconnected:
+                self._online = False
                 QTimer.singleShot(0, lambda: self.offline_banner.set_offline(True))
 
         geo = self.settings.value("geometry")
@@ -472,11 +482,88 @@ class MainWindow(QMainWindow):
     def _kev_ready(self, ok, result):
         if ok and result:
             self._kev_recent = result
-            for i in range(self.tabbar.count()):  # refresh any open start pages so the feed appears
-                v = self.tabbar.tabData(i)
-                u = v.url()
-                if u.scheme() == "wyrm" and u.host() in ("home", ""):
-                    v.page().triggerAction(QWebEnginePage.WebAction.ReloadAndBypassCache)
+            self._refresh_home_pages()
+
+    def _refresh_home_pages(self):
+        for i in range(self.tabbar.count()):  # reload open start pages so new feeds / background show up
+            v = self.tabbar.tabData(i)
+            u = v.url()
+            if u.scheme() == "wyrm" and u.host() in ("home", ""):
+                v.page().triggerAction(QWebEnginePage.WebAction.ReloadAndBypassCache)
+
+    # ---------------------------------------------------------------- start page: news + background
+    def _fetch_news(self):
+        if self.tor or not self._online:
+            return
+        self.runner.run(lambda: news_mod.latest(8, self.proxies(), self.verify_tls()), self._news_ready)
+
+    def _news_ready(self, ok, result):
+        if ok and result and result != self._news:
+            self._news = result
+            self._refresh_home_pages()
+
+    BG_DIR = "backgrounds"
+    BG_EXTS = {".jpg": b"image/jpeg", ".jpeg": b"image/jpeg", ".png": b"image/png", ".webp": b"image/webp",
+               ".gif": b"image/gif"}
+    BG_MAX_BYTES = 25 * 1024 * 1024
+
+    def _custom_bg_path(self) -> Path | None:
+        d = self.data_dir / self.BG_DIR
+        return next((f for f in sorted(d.glob("custom.*")) if f.suffix.lower() in self.BG_EXTS), None) \
+            if d.is_dir() else None
+
+    def _custom_bg(self):
+        f = self._custom_bg_path()
+        try:
+            return (f.read_bytes(), self.BG_EXTS[f.suffix.lower()]) if f else None
+        except OSError:
+            return None
+
+    def _bg_settings(self) -> dict:
+        s = self.settings
+        mode = s.value("home/bg_mode", "", type=str)
+        if mode not in ("random", "color", "image", "none"):  # older versions: a single on/off switch
+            mode = "random" if s.value("home/background", True, type=bool) else "none"
+        f = self._custom_bg_path()
+        ver = str(int(f.stat().st_mtime)) if f else ""
+        if mode == "image" and not ver:
+            mode = "random"
+        return {"mode": mode, "color": s.value("home/bg_color", "midnight", type=str), "image_ver": ver}
+
+    def _set_background(self, params: dict):
+        mode = params.get("mode", "")
+        if mode not in ("random", "color", "image", "none"):
+            return
+        if mode == "color":
+            color = params.get("color", "")
+            if color not in pages.BG_COLOR_CSS:
+                return
+            self.settings.setValue("home/bg_color", color)
+        self.settings.setValue("home/bg_mode", mode)
+        self.settings.setValue("home/background", mode != "none")
+        QTimer.singleShot(0, self._refresh_home_pages)
+
+    def _pick_background_image(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Choose a background image", str(Path.home() / "Pictures"),
+                                              "Images (*.jpg *.jpeg *.png *.webp *.gif)")
+        if not path:
+            return
+        src = Path(path)
+        ext = src.suffix.lower()
+        try:
+            size = src.stat().st_size
+        except OSError:
+            return
+        reader = QImageReader(str(src))
+        if ext not in self.BG_EXTS or size > self.BG_MAX_BYTES or not reader.canRead():
+            QMessageBox.warning(self, "Background", "Please choose a JPG, PNG, WebP or GIF image up to 25 MB.")
+            return
+        d = self.data_dir / self.BG_DIR
+        d.mkdir(parents=True, exist_ok=True)
+        for old in d.glob("custom.*"):
+            old.unlink(missing_ok=True)
+        (d / f"custom{ext}").write_bytes(src.read_bytes())
+        self._set_background({"mode": "image"})
 
     def _filters_ready(self, ok, engines_):
         if ok and engines_:
@@ -532,6 +619,10 @@ class MainWindow(QMainWindow):
             elif do == "recon":
                 self.security.show_tab("Recon")
                 QTimer.singleShot(50, self.security.recon.use_current)
+            elif do == "bg" and not self.tor:
+                self._set_background(params)
+            elif do == "bg-upload" and not self.tor:
+                QTimer.singleShot(0, self._pick_background_image)  # don't block the scheme request on a dialog
             return None
         host, url = params.get("host", ""), params.get("url", "")
         if action == "allow-threat" and host:
@@ -574,7 +665,8 @@ class MainWindow(QMainWindow):
         name = engines.ENGINES.get(self.default_engine(), engines.ENGINES[engines.DEFAULT_ENGINE]).name
         return {"engagement": eng, "counts": self.store.counts(e.id) if e else {}, "engine_name": name,
                 "saved": self.library.saved(), "kev": self._kev_recent, "mode": self.mode,
-                "background": (not self.tor) and self.settings.value("home/background", True, type=bool),
+                "background": (not self.tor) and self._bg_settings()["mode"] != "none",
+                "bg": self._bg_settings(), "news": self._news if self._online else [],
                 "tor": bool(self.tor)}
 
     # ================================================================ profiles / engagements
@@ -1586,8 +1678,13 @@ class MainWindow(QMainWindow):
     def _on_reachability(self, r):
         online = r != QNetworkInformation.Reachability.Disconnected
         self.offline_banner.set_offline(not online)
+        was, self._online = self._online, online
         if online:
             QTimer.singleShot(800, self._retry_failed)
+            if not was:
+                QTimer.singleShot(1500, self._fetch_news)  # back online: get fresh headlines
+        elif was and self._news:
+            self._refresh_home_pages()  # offline: hide the news section
 
     def _retry_failed(self):
         for view, url in list(self._failed.items()):

@@ -13,6 +13,18 @@ BG_SOURCES = [
     "https://picsum.photos/3840/2160",
 ]
 BG_ROTATE_MS = 30 * 60 * 1000  # rotate the wallpaper every 30 minutes
+# start-page background colors the user can pick in "Customize" (key, label, CSS background-image)
+BG_COLORS = [
+    ("midnight", "Midnight", "linear-gradient(135deg,#0b1020,#1c2541)"),
+    ("wyrm", "Wyrm blue", "linear-gradient(135deg,#001141,#0f62fe)"),
+    ("teal", "Deep teal", "linear-gradient(135deg,#04211f,#007d79)"),
+    ("forest", "Forest", "linear-gradient(135deg,#071908,#198038)"),
+    ("purple", "Violet", "linear-gradient(135deg,#1c0f30,#6929c4)"),
+    ("crimson", "Crimson", "linear-gradient(135deg,#2d0709,#a2191f)"),
+    ("sunset", "Sunset", "linear-gradient(135deg,#3e1a00,#d4500f)"),
+    ("graphite", "Graphite", "linear-gradient(135deg,#121212,#3d3d3d)"),
+]
+BG_COLOR_CSS = {k: css for k, _, css in BG_COLORS}
 
 from . import engines
 
@@ -133,6 +145,46 @@ form.big{max-width:620px;margin:0 auto;position:relative;display:block}
 .credit{color:var(--muted);font-size:12px;margin:10px 0 0;letter-spacing:.3px}
 .credit b{color:var(--fg);font-weight:600}
 @media (max-width:620px){.grid{grid-template-columns:1fr 1fr}}
+/* latest cybersecurity news */
+.news a.it{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--layer);border:1px solid var(--line);
+  border-top:0;color:var(--fg)}
+.news a.it:first-of-type{border-top:1px solid var(--line)}
+.news a.it:hover{text-decoration:none;border-color:var(--btn);background:var(--hover)}
+.news .src{font-size:11px;font-weight:600;color:var(--link);white-space:nowrap;min-width:116px}
+.news .tt{flex:1;font-size:13px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.news .dt{font-size:12px;color:var(--muted);white-space:nowrap}
+.feed h2 .live.blue{background:var(--btn);animation:none}
+body.hasbg .news a.it{background:rgba(255,255,255,.88);border-color:rgba(0,0,0,.08);color:#161616;backdrop-filter:blur(6px)}
+body.hasbg .news .tt{color:#161616}
+:root[data-theme=dark] body.hasbg .news a.it{background:rgba(20,20,28,.72);border-color:rgba(255,255,255,.12)}
+:root[data-theme=dark] body.hasbg .news .tt{color:#f4f4f4}
+
+/* "Customize" (background picker), bottom-right like other browsers */
+details.cust{position:fixed;right:20px;bottom:20px;z-index:5;text-align:left}
+details.cust summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;
+  padding:9px 16px;border-radius:20px;background:var(--layer);color:var(--fg);border:1px solid var(--line);
+  box-shadow:0 2px 10px rgba(0,0,0,.18)}
+details.cust summary::-webkit-details-marker{display:none}
+details.cust summary:hover{background:var(--hover)}
+details.cust[open] summary{background:var(--btn);color:#fff;border-color:var(--btn)}
+.cpanel{position:absolute;right:0;bottom:48px;width:330px;padding:16px;background:var(--layer);color:var(--fg);
+  border:1px solid var(--line);box-shadow:0 8px 32px rgba(0,0,0,.35)}
+.cpanel h3{font-size:14px;font-weight:600;margin:0 0 12px}
+.cpanel h4{font-size:12px;font-weight:600;color:var(--muted);margin:16px 0 8px;letter-spacing:.3px}
+.cpanel .opt{display:flex;align-items:center;gap:12px;padding:8px;color:var(--fg);border:2px solid transparent}
+.cpanel .opt:hover{background:var(--hover);text-decoration:none}
+.cpanel .opt.on{border-color:var(--btn)}
+.cpanel .opt .pv{width:56px;height:36px;flex:none;background-size:cover;background-position:center;border:1px solid var(--line)}
+.cpanel .opt .pv.photo{background:linear-gradient(135deg,#0f62fe,#8a3ffc 50%,#da1e28)}
+.cpanel .opt .pv.plain{background:var(--bg)}
+.cpanel .opt .pv.up{display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--muted)}
+.cpanel .opt b{display:block;font-size:13px;font-weight:600}
+.cpanel .opt small{display:block;font-size:12px;color:var(--muted)}
+.cpanel .sws{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cpanel .sw{height:40px;border:2px solid transparent;outline:1px solid var(--line)}
+.cpanel .sw:hover{outline:2px solid var(--fg)}
+.cpanel .sw.on{border-color:#fff;outline:2px solid var(--btn)}
+
 /* daily background photo (Brave-style): full-bleed, with a scrim so content stays legible */
 body.hasbg{background:#0b0b10}
 body.hasbg::before{content:"";position:fixed;inset:0;z-index:-2;background-size:cover;background-position:center;
@@ -235,6 +287,16 @@ def render_home(ctx: dict) -> str:
             + f"<span class='dt'>{escape(k['added'])}</span></a>" for k in kev)
         feed = ("<section class='feed'><h2><span class='live'></span>LATEST EXPLOITED-IN-THE-WILD VULNERABILITIES "
                 "· CISA KEV</h2>" + rows + "</section>")
+    news_html = ""
+    news = ctx.get("news") or []
+    if news:
+        from .security.news import ago
+        rows = "".join(
+            f"<a class='it' href='{escape(n['url'], quote=True)}' title='{escape(n['title'], quote=True)}'>"
+            f"<span class='src'>{escape(n['source'])}</span><span class='tt'>{escape(n['title'])}</span>"
+            f"<span class='dt'>{escape(ago(n['date']))}</span></a>" for n in news)
+        news_html = ("<section class='feed news'><h2><span class='live blue'></span>LATEST CYBERSECURITY NEWS</h2>"
+                     + rows + "</section>")
     mode = ctx.get("mode", "blue")
     mode_line = (f"<p class='modeline {mode}'>"
                  + ("<b>Red team</b> · offensive — recon, test and report. Authorized targets only."
@@ -252,15 +314,17 @@ def render_home(ctx: dict) -> str:
         "<button type='submit'>Search</button></form>"
         + examples + status
         + f"<div class='grid'>{tiles}</div>"
-        + feed
+        + news_html + feed
         + "<p class='foot'>Only test systems you own or are explicitly authorized to test.</p>"
         + "<p class='credit'>Built by <b>ByKh R&amp;D Group</b> · <b>HackPi</b> — Ethical Hackers Group</p>"
     )
-    bg = ctx.get("background")
     if ctx.get("tor"):   # Tor window: purple + onion watermark background instead of a web photo
         html = _page("New tab", body, HOME_CSS + TOR_BG_CSS, "home")
         return html.replace("<body>", "<body class='hasbg tor'>", 1)
-    if bg:  # 4K tech/hacker wallpaper via wyrm://bg; the same image for 30 min (reloads keep it), then a new one
+    bgc = ctx.get("bg") or {"mode": "random" if ctx.get("background") else "none"}
+    bmode = bgc.get("mode", "random")
+    body += _customize_panel(bgc)
+    if bmode == "random":  # 4K tech/hacker wallpaper via wyrm://bg; same image for 30 min (reloads keep it)
         url = f"wyrm://bg?r={secrets.token_hex(6)}"
         # switch when the current wallpaper expires (time left comes from the handler), then every 30 min
         left = int(ctx.get("bg_ms_left") or BG_ROTATE_MS) + 1000
@@ -269,7 +333,40 @@ def render_home(ctx: dict) -> str:
                f"setTimeout(function(){{swap();setInterval(swap,{BG_ROTATE_MS});}},{left});}})();</script>")
         html = _page("New tab", body + rot, HOME_CSS + f"\n:root{{--wyrm-bg:url('{url}')}}", "home")
         return html.replace("<body>", "<body class='hasbg'>", 1)
+    if bmode == "color" and bgc.get("color") in BG_COLOR_CSS:
+        css = HOME_CSS + f"\n:root{{--wyrm-bg:{BG_COLOR_CSS[bgc['color']]}}}\nbody.hasbg::after{{background:rgba(0,0,0,.12)}}"
+        return _page("New tab", body, css, "home").replace("<body>", "<body class='hasbg'>", 1)
+    if bmode == "image" and bgc.get("image_ver"):  # the user's own picture, served by wyrm://bgimg
+        css = HOME_CSS + f"\n:root{{--wyrm-bg:url('wyrm://bgimg?v={escape(str(bgc['image_ver']))}')}}"
+        return _page("New tab", body, css, "home").replace("<body>", "<body class='hasbg'>", 1)
     return _page("New tab", body, HOME_CSS, "home")
+
+
+def _customize_panel(bgc: dict) -> str:
+    """Bottom-right "Customize" button: pick the start-page background (applied instantly, remembered)."""
+    m = bgc.get("mode", "random")
+    has_img = bool(bgc.get("image_ver"))
+
+    def opt(href, pv, title, sub, on):
+        return (f"<a class='opt{' on' if on else ''}' href='{href}'><span class='pv {pv}'>{'+' if pv == 'up' else ''}</span>"
+                f"<span><b>{title}</b><small>{sub}</small></span></a>")
+    opts = opt("wyrm://do?a=bg&amp;mode=random", "photo", "Wyrm wallpapers",
+               "Cybersecurity &amp; tech photos, new one every 30 min", m == "random")
+    if has_img:
+        opts += (f"<a class='opt{' on' if m == 'image' else ''}' href='wyrm://do?a=bg&amp;mode=image'>"
+                 f"<span class='pv' style=\"background-image:url('wyrm://bgimg?v={escape(str(bgc['image_ver']))}')\">"
+                 "</span><span><b>Your image</b><small>The picture you uploaded</small></span></a>")
+    opts += opt("wyrm://do?a=bg-upload", "up", "Upload from device…" if not has_img else "Upload another image…",
+                "JPG, PNG, WebP or GIF, up to 25 MB", False)
+    opts += opt("wyrm://do?a=bg&amp;mode=none", "plain", "No background", "Plain light / dark theme", m == "none")
+    sws = "".join(f"<a class='sw{' on' if m == 'color' and bgc.get('color') == k else ''}' title='{escape(label)}' "
+                  f"href='wyrm://do?a=bg&amp;mode=color&amp;color={k}' style='background:{css}'></a>"
+                  for k, label, css in BG_COLORS)
+    pencil = ("<svg width='16' height='16' viewBox='0 0 16 16' aria-hidden='true'><path fill='currentColor' "
+              "d='M11.3 1.3a1 1 0 0 1 1.4 0l2 2a1 1 0 0 1 0 1.4L6 13.4 2 14l.6-4 8.7-8.7zM4.4 10.6l-.3 1.3 1.3-.3 "
+              "7.6-7.6-1-1-7.6 7.6z'/></svg>")
+    return (f"<details class='cust'><summary>{pencil}Customize</summary><div class='cpanel'>"
+            f"<h3>Background</h3>{opts}<h4>COLORS</h4><div class='sws'>{sws}</div></div></details>")
 
 
 # ====================================================================== paper search results

@@ -115,6 +115,10 @@ rm -rf ~/.local/opt/hiddenbrowser ~/.local/bin/Wyrm ~/.local/share/applications/
   identifiers — type a `CVE-…`, `CWE-…` or `T####` and it goes straight to the right place
 - **History autocomplete** with one-click **Clear history** (⋮ menu)
 - **Light / Dark / Follow-system** themes
+- **Customize the start page background** (bottom-right **Customize** button): rotating cybersecurity
+  wallpapers (a new one every 30 min), color themes, your own image, or none
+- **Latest cybersecurity news** on the start page (The Hacker News, BleepingComputer, Krebs, SecurityWeek,
+  Dark Reading, The Record) — shown while online, refreshed every 30 minutes
 - **Red team / Blue team modes** (⋮ menu or the header chip): swap an offensive (red) vs defensive (blue)
   accent and start-page emphasis — IBM Carbon styling throughout
 

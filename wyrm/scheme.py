@@ -25,7 +25,10 @@ def register_scheme():
     """Must be called before QApplication is created."""
     s = QWebEngineUrlScheme(SCHEME)
     s.setSyntax(QWebEngineUrlScheme.Syntax.Host)
-    s.setFlags(QWebEngineUrlScheme.Flag.SecureScheme | QWebEngineUrlScheme.Flag.LocalAccessAllowed)
+    # CorsEnabled: wyrm://home etc. may load the bundled fonts from wyrm://assets, so every OS renders the
+    # same IBM Plex typeface instead of falling back to its own system font
+    s.setFlags(QWebEngineUrlScheme.Flag.SecureScheme | QWebEngineUrlScheme.Flag.LocalAccessAllowed
+               | QWebEngineUrlScheme.Flag.CorsEnabled)
     QWebEngineUrlScheme.registerScheme(s)
 
 
@@ -86,17 +89,28 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
                 job.redirect(QUrl(target))
             else:
                 job.fail(QWebEngineUrlRequestJob.Error.RequestDenied)
-        elif host == "do":  # start-page action tiles (open a panel, a Tor window, etc.) — stay on home
+        elif host == "do":  # start-page actions (tiles, Customize background) — then back to home
+            # only from our own pages or the address bar: a website must not be able to change settings
+            initiator = job.initiator().scheme() if not job.initiator().isEmpty() else ""
+            if initiator not in ("", "wyrm"):
+                job.fail(QWebEngineUrlRequestJob.Error.RequestDenied)
+                return
             if getattr(self, "actions", None):
-                self.actions("do:" + (params.get("a") or [""])[0], {})
+                self.actions("do:" + (params.get("a") or [""])[0], {k: v[0] for k, v in params.items()})
             job.redirect(QUrl("wyrm://home"))
+        elif host == "bgimg":  # the user's own start-page background (Customize → Upload)
+            img = self.custom_bg() if getattr(self, "custom_bg", None) else None
+            if img:
+                self._reply(job, img[0], img[1])
+            else:
+                job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
         elif host == "bg":  # random new-tab background, held in memory (never saved to disk), changes every 30 min
             self._serve_bg(job)
         elif host == "assets":  # bundled fonts for internal pages
             name = url.path().rsplit("/", 1)[-1]
             f = ASSETS / "fonts" / name
             if name.endswith(".ttf") and f.is_file():
-                self._reply(job, f.read_bytes(), b"font/ttf")
+                self._reply(job, f.read_bytes(), b"font/ttf", cors=True)
             else:
                 job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
         elif host == "go" and q:  # start-page search box: same rules as the address bar
@@ -153,14 +167,17 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
         return None
 
     @staticmethod
-    def _reply(job, content, ctype: bytes = b"text/html"):
+    def _reply(job, content, ctype: bytes = b"text/html", cors: bool = False):
         if not shiboken6.isValid(job):  # user navigated away while we were fetching
             return
         buf = QBuffer(job)
         buf.setData(QByteArray(content.encode("utf-8") if isinstance(content, str) else content))
         buf.open(QIODevice.OpenModeFlag.ReadOnly)
         try:  # wyrm:// pages are dynamic (theme/mode/feed) — never cache them
-            job.setAdditionalResponseHeaders({QByteArray(b"Cache-Control"): QByteArray(b"no-store")})
+            headers = {QByteArray(b"Cache-Control"): QByteArray(b"no-store")}
+            if cors:  # static bundled assets (fonts) only — never dynamic pages
+                headers[QByteArray(b"Access-Control-Allow-Origin")] = QByteArray(b"*")
+            job.setAdditionalResponseHeaders(headers)
         except (TypeError, AttributeError):
             pass
         job.reply(QByteArray(ctype), buf)
