@@ -6,7 +6,7 @@
 ;------------------------------------------------------------------------------
 ; Inno Setup script: builds dist\Wyrm-Setup-<version>.exe from the PyInstaller folder.
 ;   "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" installer\windows.iss
-#define AppName "Wyrm"
+#define AppName "Wyrm Browser"
 #define AppVersion "0.0.1"
 #define AppPublisher "HackPi"
 #define AppExe "Wyrm.exe"

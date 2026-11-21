@@ -6,7 +6,7 @@
 # Authors: @oda, @sopi, @kwan
 #------------------------------------------------------------------------------
 # Build The Hidden Browser on macOS or Linux.
-#   macOS -> dist/Wyrm.app + dist/Wyrm-macos-<arm64|intel>.dmg (drag-to-Applications installer)
+#   macOS -> "dist/Wyrm Browser.app" + dist/Wyrm-macos-<arm64|intel>.dmg (drag-to-Applications installer)
 #            built for the CPU of the Mac/runner it runs on (Apple Silicon -> arm64, Intel -> intel)
 #   Linux -> dist/Wyrm-linux.tar.gz (contains install.sh: adds a menu entry + icon for the user)
 set -euo pipefail
@@ -20,14 +20,15 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python tools/make_icons.py
 if [ "$(uname -s)" = "Darwin" ]; then
   # Re-seal the bundle with a consistent ad-hoc signature (no Apple Developer ID here). A broken or
   # partial signature is what makes macOS report a downloaded app as "damaged".
-  xattr -cr dist/Wyrm.app
-  codesign --force --deep --sign - dist/Wyrm.app
-  codesign --verify --deep --strict dist/Wyrm.app
+  APP="dist/Wyrm Browser.app"
+  xattr -cr "$APP"
+  codesign --force --deep --sign - "$APP"
+  codesign --verify --deep --strict "$APP"
   case "$(uname -m)" in arm64) ARCH=arm64 ;; *) ARCH=intel ;; esac
   rm -rf dist/dmg && mkdir -p dist/dmg
-  cp -R dist/Wyrm.app dist/dmg/
+  cp -R "$APP" dist/dmg/
   ln -s /Applications dist/dmg/Applications
-  hdiutil create -volname "The Hidden Browser" -srcfolder dist/dmg -ov -format UDZO "dist/Wyrm-macos-$ARCH.dmg"
+  hdiutil create -volname "Wyrm Browser" -srcfolder dist/dmg -ov -format UDZO "dist/Wyrm-macos-$ARCH.dmg"
 else
   cp installer/hiddenbrowser.desktop dist/Wyrm/
   cp wyrm/assets/icon.png dist/Wyrm/hiddenbrowser.png

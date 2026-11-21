@@ -43,8 +43,8 @@ Or in Terminal:
 uname -m      # arm64 = Apple Silicon, x86_64 = Intel
 ```
 
-**2. Install.** Double-click the `.dmg`, then drag **Wyrm** onto the **Applications** folder in the window
-that opens. Eject the "The Hidden Browser" disk afterwards.
+**2. Install.** Double-click the `.dmg`, then drag **Wyrm Browser** onto the **Applications** folder in the window
+that opens. Eject the "Wyrm Browser" disk afterwards.
 
 **3. Allow it to open (first launch only).** macOS will say *"Wyrm is damaged and can't be opened"* or
 *"Apple could not verify Wyrm is free of malware"*. It is **not** damaged — macOS says this about every app
@@ -54,10 +54,10 @@ downloaded from the internet that isn't signed with a paid Apple Developer ID. F
   and run:
 
   ```bash
-  xattr -dr com.apple.quarantine /Applications/Wyrm.app
+  xattr -dr com.apple.quarantine "/Applications/Wyrm Browser.app"
   ```
 
-  Then open Wyrm normally from Applications or Launchpad.
+  Then open Wyrm Browser normally from Applications or Launchpad.
 
 - **System Settings.** Double-click Wyrm once and close the warning. Go to **System Settings → Privacy &
   Security**, scroll down to *"Wyrm was blocked…"*, click **Open Anyway** and enter your password.
@@ -72,11 +72,11 @@ Repeat step 3 after installing each new version.
 # the wrong chip version; check step 1.
 
 # Still "damaged"? Remove the download flags from the whole app and re-seal it:
-sudo xattr -cr /Applications/Wyrm.app
-codesign --force --deep --sign - /Applications/Wyrm.app
+sudo xattr -cr "/Applications/Wyrm Browser.app"
+codesign --force --deep --sign - "/Applications/Wyrm Browser.app"
 ```
 
-**Uninstall:** drag **Wyrm** from Applications to the Trash. To also remove settings and history:
+**Uninstall:** drag **Wyrm Browser** from Applications to the Trash. To also remove settings and history:
 
 ```bash
 rm -rf ~/Library/Application\ Support/HackPi/Wyrm ~/Library/Caches/HackPi/Wyrm ~/Library/Preferences/com.hackpi.Wyrm.plist

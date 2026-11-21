@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Wyrm
+Name=Wyrm Browser
 GenericName=Security Testing Browser
 Comment=Browser for authorized web security testing, powered by HackPi
 Exec=Wyrm %u

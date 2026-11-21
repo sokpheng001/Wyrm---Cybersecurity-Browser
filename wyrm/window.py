@@ -49,7 +49,7 @@ from .security_panel import SecurityPanel
 from .widgets import LoadingBar, OfflineBanner
 
 HOME = "wyrm://home"
-APP = "Wyrm"
+APP = "Wyrm Browser"
 CITESEE_JS = (Path(__file__).with_name("citesee.js")).read_text(encoding="utf-8")
 YOUTUBE_JS = (Path(__file__).with_name("youtube.js")).read_text(encoding="utf-8")
 FINGERPRINT_JS = (Path(__file__).with_name("fingerprint.js")).read_text(encoding="utf-8")
@@ -361,6 +361,8 @@ class UpdateDialog(QDialog):
             self.status.setText(f"Could not start the installer: {e}")
             self.b_page.setEnabled(True)
             return
+        for w in QApplication.topLevelWidgets():  # the installer needs us gone: no "Close Wyrm?" prompt
+            w._force_close = True
         QTimer.singleShot(800, QApplication.instance().quit)
 
 
@@ -370,11 +372,21 @@ class MainWindow(QMainWindow):
     def __init__(self, tor=None):
         super().__init__()
         self.tor = tor  # TorManager when this is a Tor window
-        self.setWindowTitle(APP + (" (Tor)" if tor else ""))
+        self._set_title(APP + (" (Tor)" if tor else ""))
         self.resize(1440, 900)
         if winframe.IS_WINDOWS:
             # Qt draws no frame; winframe.install() restores the native resize/snap/shadow behaviour
             self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
+        elif sys.platform == "darwin":
+            # like Safari/Chrome: no separate title bar — the tab strip extends into it and the traffic lights
+            # float over its left end; no title text (no WindowTitleHint)
+            W = Qt.WindowType
+            self.setWindowFlags(W.Window | W.CustomizeWindowHint | W.WindowCloseButtonHint | W.WindowMinimizeButtonHint
+                                | W.WindowMaximizeButtonHint | W.WindowFullscreenButtonHint
+                                | W.ExpandedClientAreaHint | W.NoTitleBarBackgroundHint)
+            self.setWindowFlag(W.WindowTitleHint, False)  # Qt re-adds it; without it the title text is hidden
+            # draw right up to the top edge (the tab strip *is* the title bar) instead of below it
+            self.setAttribute(Qt.WidgetAttribute.WA_ContentsMarginsRespectsSafeArea, False)
         self.settings = QSettings()
         self.theme_mode = self.settings.value("theme", "system")
         if self.theme_mode not in ("dark", "light", "system"):
@@ -464,7 +476,12 @@ class MainWindow(QMainWindow):
         QGuiApplication.styleHints().colorSchemeChanged.connect(
             lambda *_: self.theme_mode == "system" and self.apply_theme("system"))
         self._refresh_engagement_ui()
-        self.new_tab(QUrl(HOME))
+        if not self._restore_session():
+            self.new_tab(QUrl(HOME))
+        if not self.tor:  # keep the saved session fresh, so tabs survive even a crash
+            self._session_timer = QTimer(self)
+            self._session_timer.timeout.connect(self._save_session)
+            self._session_timer.start(20_000)
 
     # ================================================================ privacy: shields, HTTPS-Only, DNS
     def https_only(self) -> bool:
@@ -1035,7 +1052,7 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         m.addAction("Help — how to use Wyrm (F1)", self.open_help)
         m.addAction("Check for updates…", self._check_updates)
-        m.addAction("About Wyrm", self._about)
+        m.addAction("About Wyrm Browser", self._about)
         return m
 
     def open_help(self):
@@ -1079,9 +1096,9 @@ class MainWindow(QMainWindow):
     def _about(self):
         tor = f"<br>Tor {self.tor.version()} · SOCKS port {self.tor.socks_port}" if self.tor else ""
         box = QMessageBox(self)
-        box.setWindowTitle("About Wyrm")
+        box.setWindowTitle("About Wyrm Browser")
         box.setIconPixmap(self.windowIcon().pixmap(64, 64))
-        box.setText(f"<b>Wyrm</b> {__version__}")
+        box.setText(f"<b>Wyrm Browser</b> {__version__}")
         box.setInformativeText(
                     "A <i>wyrm</i> is a wingless dragon — our mark, and the name of this browser.<br><br>"
                     "Built by <b>ByKh R&amp;D Group</b> · <b>bykh.org</b><br><b>HackPi</b> — Ethical Hackers Group<br>"
@@ -1116,6 +1133,7 @@ class MainWindow(QMainWindow):
                                 "Disconnect from the Tor network and close this private window?",
                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                                 QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+            self._force_close = True
             self.close()  # app.aboutToQuit → tor.stop() tears down the Tor process
 
     def _open_settings(self):
@@ -1126,6 +1144,7 @@ class MainWindow(QMainWindow):
                                 "Proxy settings apply after a restart. Restart now?") == QMessageBox.StandardButton.Yes:
             args = sys.argv[1:] if getattr(sys, "frozen", False) else sys.argv
             QProcess.startDetached(sys.executable, args)
+            self._force_close = True
             self.close()
 
     # ================================================================ chrome
@@ -1169,6 +1188,9 @@ class MainWindow(QMainWindow):
         self.brand.setToolTip("Private Tor window: traffic goes through the Tor network, nothing is saved to disk"
                               if self.tor else "Wyrm")
         self.brand.setContentsMargins(14, 0, 0, 0)
+        if sys.platform == "darwin":
+            row.addSpacing(64)  # room for the traffic lights (window has no separate title bar on macOS)
+            strip.installEventFilter(self)  # drag / double-click the empty strip like a title bar
         row.addWidget(self.brand, 0, Qt.AlignmentFlag.AlignVCenter)
         self.tor_tag = tor_tag
         if self.tor:
@@ -1277,9 +1299,11 @@ class MainWindow(QMainWindow):
         self.engine_box = QComboBox(objectName="Engine")
         self.engine_box.setToolTip("Search engine for plain queries")
         self._shrinkable(self.engine_box, 160, 200)
-        self.engine_box.view().setMinimumWidth(260)  # popup still shows full names
+        self.engine_box.view().setMinimumWidth(320)  # popup shows full names next to the logos
         for key, e in engines.ENGINES.items():
             self.engine_box.addItem(e.name, key)
+        self.engine_box.setIconSize(QSize(16, 16))
+        self._load_engine_icons()
         saved = self.settings.value("search/engine", engines.DEFAULT_ENGINE)  # new key: Security Search is the default
         self.engine_box.setCurrentIndex(max(0, self.engine_box.findData(saved)))
         self.engine_box.currentIndexChanged.connect(self._engine_changed)
@@ -1456,6 +1480,29 @@ class MainWindow(QMainWindow):
         box.setInformativeText(url + ("\n\n• " + "\n• ".join(v["reasons"]) if v["reasons"] else ""))
         box.exec()
 
+    def _load_engine_icons(self):
+        """Logo for every engine: our own icons for internal ones, cached site favicons for the rest."""
+        from . import favicons
+        cache = self.data_dir / "favicons"
+        own = {engines.SECURITY.key: "shield", engines.RESEARCH.key: "book"}
+        for i in range(self.engine_box.count()):
+            key = self.engine_box.itemData(i)
+            e = engines.ENGINES.get(key)
+            if key in own:
+                self.engine_box.setItemIcon(i, make_icon(own[key], "#0f62fe", 32))
+                continue
+            icon = favicons.cached_icon(cache, key)
+            self.engine_box.setItemIcon(i, icon or favicons.monogram(e.name if e else key))
+            if icon is None and e and not self.tor:  # fetch once, never from a Tor window
+                px, verify = self.proxies(), self.verify_tls()
+
+                def done(ok, data, key=key):
+                    ic = favicons.store(cache, key, data) if ok and data else None
+                    j = self.engine_box.findData(key)
+                    if ic is not None and j >= 0:
+                        self.engine_box.setItemIcon(j, ic)
+                self.runner.run(lambda h=e.home: favicons.fetch(h, px, verify), done)
+
     def _engine_changed(self):
         self.settings.setValue("search/engine", self.engine_box.currentData())
         self.settings.sync()  # write now, so the choice survives even an unexpected quit
@@ -1586,7 +1633,7 @@ class MainWindow(QMainWindow):
 
     def _set_window_title(self, title: str):
         prefix = f"[{self.engagement.name}] " if self.engagement else ""
-        self.setWindowTitle(prefix + (f"{title} - {APP}" if title and title != "New tab" else APP))
+        self._set_title(prefix + (f"{title} - {APP}" if title and title != "New tab" else APP))
 
     def _remove_tab(self, i):
         view = self.tabbar.tabData(i)
@@ -1980,8 +2027,19 @@ class MainWindow(QMainWindow):
             self.open_url(f"https://www.virustotal.com/gui/file/{digest}", new_tab=True)
 
     def eventFilter(self, obj, ev):
-        if obj is self.urlbar and ev.type() == QEvent.Type.Resize:
+        if obj is getattr(self, "urlbar", None) and ev.type() == QEvent.Type.Resize:
             self.url_icon.move(11, (self.urlbar.height() - self.url_icon.height()) // 2)
+        elif obj is getattr(self, "strip", None) and sys.platform == "darwin":
+            # macOS (no title bar): the empty tab strip behaves like one — drag to move, double-click to zoom
+            t = ev.type()
+            if t in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonDblClick) \
+                    and ev.button() == Qt.MouseButton.LeftButton \
+                    and self._is_caption(ev.globalPosition().toPoint()):
+                if t == QEvent.Type.MouseButtonDblClick:
+                    self.showNormal() if self.isMaximized() else self.showMaximized()
+                elif self.windowHandle() is not None:
+                    self.windowHandle().startSystemMove()
+                return True
         return super().eventFilter(obj, ev)
 
     def keyPressEvent(self, e):
@@ -1990,7 +2048,75 @@ class MainWindow(QMainWindow):
             self._sync_chrome()
         super().keyPressEvent(e)
 
+    # ---------------------------------------------------------------- session (reopen tabs) + close confirmation
+    def _session_urls(self) -> list[str]:
+        urls = []
+        for i in range(self.tabbar.count()):
+            u = self.tabbar.tabData(i).url().toString()
+            if u and u != "about:blank" and not u.startswith(("data:", "view-source:")):
+                urls.append(u)
+        return urls
+
+    def _save_session(self):
+        if self.tor:
+            return  # Tor windows never leave a trace
+        self.settings.setValue("session/tabs", json.dumps(self._session_urls()))
+        self.settings.setValue("session/current", self.tabbar.currentIndex())
+        self.settings.sync()
+
+    def _restore_session(self) -> bool:
+        if self.tor:
+            return False
+        try:
+            urls = [u for u in json.loads(self.settings.value("session/tabs", "[]") or "[]") if isinstance(u, str)]
+        except ValueError:
+            urls = []
+        if not urls:
+            return False
+        for u in urls[:50]:
+            self.new_tab(QUrl(u))
+        cur = self.settings.value("session/current", 0, type=int)
+        if 0 <= cur < self.tabbar.count():
+            self.tabbar.setCurrentIndex(cur)
+        return True
+
+    def _set_title(self, text: str):
+        # macOS: the tab strip is the title bar, so no title text is drawn there. (A single space, because Qt
+        # substitutes the app name for an empty title.) Other OSes: normal window title for the taskbar.
+        self.setWindowTitle(" " if sys.platform == "darwin" else text)
+
+    def _confirm_close(self) -> bool:
+        if getattr(self, "_force_close", False) or not self.settings.value("ui/confirm_close", True, type=bool):
+            return True
+        from PySide6.QtWidgets import QCheckBox
+        n = self.tabbar.count()
+        box = QMessageBox(self)
+        box.setWindowTitle("Close Wyrm Browser")
+        box.setIcon(QMessageBox.Icon.Question)
+        if self.tor:
+            box.setText("Close this Tor window?")
+            box.setInformativeText(f"{n} tab(s) will be closed. Nothing from this private window is saved.")
+        else:
+            box.setText("Close Wyrm Browser?")
+            box.setInformativeText(f"You have {n} tab{'s' if n != 1 else ''} open. "
+                                   "They'll be reopened the next time you start Wyrm Browser.")
+        dont = QCheckBox("Don't ask again")
+        box.setCheckBox(dont)
+        close_btn = box.addButton("Close", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(close_btn)
+        box.exec()
+        if box.clickedButton() is not close_btn:
+            return False
+        if dont.isChecked():
+            self.settings.setValue("ui/confirm_close", False)
+        return True
+
     def closeEvent(self, e):
+        if not self._confirm_close():
+            e.ignore()
+            return
+        self._save_session()
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("sec/visible", self.security.isVisible())
         self.runner.shutdown()

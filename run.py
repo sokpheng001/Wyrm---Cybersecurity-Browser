@@ -115,7 +115,7 @@ def main():
         apply_proxy_flags()
     register_scheme()  # must happen before QApplication exists
     app = QApplication(argv)
-    app.setApplicationDisplayName("Wyrm")
+    app.setApplicationDisplayName("Wyrm Browser")  # shown name; data folder stays "Wyrm"
     app.setWindowIcon(QIcon(str(HERE / "wyrm" / "assets" / "icon.png")))
     if sys.platform == "win32":  # own taskbar group + icon instead of python.exe's
         import ctypes

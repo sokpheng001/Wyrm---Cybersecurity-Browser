@@ -909,7 +909,7 @@ emphasis and accent color. ⋮ → <b>Theme</b> chooses Light, Dark or Follow sy
 <li><b>macOS says “damaged” or “can't be verified”</b> after installing: open Terminal and run the command below,
 or go to System Settings → Privacy &amp; Security → <b>Open Anyway</b>.</li>
 </ul>
-<pre>xattr -dr com.apple.quarantine /Applications/Wyrm.app</pre>
+<pre>xattr -dr com.apple.quarantine "/Applications/Wyrm Browser.app"</pre>
 <ul><li><b>Windows SmartScreen</b>: click <b>More info → Run anyway</b>. Wyrm is not yet signed with a paid certificate.</li></ul>"""),
     ]
     nav = "<b>ON THIS PAGE</b>" + "".join(f"<a href='#{sid}'>{title}</a>" for sid, title, _ in sections)

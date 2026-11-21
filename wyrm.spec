@@ -51,9 +51,9 @@ exe = EXE(
 coll = COLLECT(exe, a.binaries, a.datas, name="Wyrm", upx=False)
 
 if sys.platform == "darwin":
-    app = BUNDLE(coll, name="Wyrm.app", icon="wyrm/assets/icon.icns",
+    app = BUNDLE(coll, name="Wyrm Browser.app", icon="wyrm/assets/icon.icns",
                  bundle_identifier="com.hackpi.wyrm",
-                 info_plist={"CFBundleDisplayName": "Wyrm", "CFBundleShortVersionString": VERSION,
+                 info_plist={"CFBundleDisplayName": "Wyrm Browser", "CFBundleName": "Wyrm Browser", "CFBundleShortVersionString": VERSION,
                              "CFBundleVersion": VERSION,
                              "LSMinimumSystemVersion": "12.0",
                              "NSHighResolutionCapable": True})
