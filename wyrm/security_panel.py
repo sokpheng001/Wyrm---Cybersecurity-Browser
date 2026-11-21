@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from . import theme
 from .dialogs import FindingDialog
 from .linkguard import registered_domain
+from .widgets import BusyOverlay
 from .security import analyzer, intel, report, tools
 
 SEV_COLOR = theme.SEVERITY
@@ -29,6 +30,30 @@ def mono(widget):
     f.setFamilies([theme.MONO, "Consolas", "monospace"])
     widget.setFont(f)
     return widget
+
+
+def _format_response(r: dict) -> str:
+    """Render an HTTP response as clean, colored HTML: status line, headers, body."""
+    head = r.get("head", "")
+    lines = head.split("\n")
+    status_line = lines[0] if lines else ""
+    status = r.get("status") or 0
+    color = {2: "#24a148", 3: "#4589ff", 4: "#ff832b", 5: "#da1e28"}.get(status // 100, "#8d8d8d")
+    out = [f"<div style='font-weight:600;color:{color};margin-bottom:6px'>{escape(status_line)}</div>"]
+    hdr = []
+    for ln in lines[1:]:
+        if ": " in ln:
+            name, val = ln.split(": ", 1)
+            hdr.append(f"<span style='color:#8d8d8d'>{escape(name)}:</span> {escape(val)}")
+        elif ln.strip():
+            hdr.append(escape(ln))
+    if hdr:
+        out.append("<div style='line-height:1.5'>" + "<br>".join(hdr) + "</div>")
+    body = r.get("body", "")
+    if body:
+        out.append("<hr style='border:none;border-top:1px solid #8884;margin:8px 0'>")
+        out.append(f"<pre style='white-space:pre-wrap;margin:0'>{escape(body)}</pre>")
+    return "".join(out)
 
 
 def sev_badge(sev: str) -> str:
@@ -81,6 +106,7 @@ class OverviewTab(QWidget):
         self.tree.currentItemChanged.connect(self._show_detail)
         self.tree.itemDoubleClicked.connect(self._open_item)
         split.addWidget(self.tree)
+        self.busy = BusyOverlay(self.tree)
         self.detail = QTextBrowser()
         self.detail.setOpenLinks(False)
         self.detail.anchorClicked.connect(lambda u: win.open_url(u.toString(), new_tab=True))
@@ -127,6 +153,7 @@ class OverviewTab(QWidget):
         self.summary.setText("Collecting page data…")
         self.btn.setEnabled(False)
         self._paint_grade("…")
+        self.busy.start("Analyzing page…")
         view.page().runJavaScript(PAGEINFO_JS, 0, lambda res, u=url: self._got_page(u, res))
 
     def _got_page(self, url, res):
@@ -146,6 +173,7 @@ class OverviewTab(QWidget):
 
     def _done(self, url, ok, r):
         self.btn.setEnabled(True)
+        self.busy.stop()
         if url != self.url:
             return
         if not ok:
@@ -506,6 +534,7 @@ class ReconTab(QWidget):
         self.list = mono(QListWidget())
         self.list.itemDoubleClicked.connect(self._open)
         v.addWidget(self.list, 1)
+        self.busy = BusyOverlay(self.list)
         self.status = QLabel("Passive sources only: certificate transparency logs and the Internet Archive.")
         self.status.setObjectName("Muted")
         self.status.setWordWrap(True)
@@ -535,7 +564,12 @@ class ReconTab(QWidget):
         if not d:
             return
         self.status.setText(f"{label} for {d}…")
-        self.win.runner.run(fn, lambda ok, r: render(d, r) if ok else self.status.setText(f"{label} failed: {r}"), d)
+        self.busy.start(f"{label} for {d}…")
+
+        def done(ok, r):
+            self.busy.stop()
+            render(d, r) if ok else self.status.setText(f"{label} failed: {r}")
+        self.win.runner.run(fn, done, d)
 
     def subdomains(self):
         def render(d, names):
@@ -710,9 +744,9 @@ class ToolsTab(QTabWidget):
         self.r_headers.setPlaceholderText("Header: value (one per line)")
         self.r_body = mono(QPlainTextEdit())
         self.r_body.setPlaceholderText("Request body")
-        self.r_resp = mono(QPlainTextEdit())
-        self.r_resp.setReadOnly(True)
-        self.r_resp.setPlaceholderText("Response appears here")
+        self.r_resp = mono(QTextBrowser())
+        self.r_resp.setOpenLinks(False)
+        self.r_busy = BusyOverlay(self.r_resp)
         for x in (self.r_headers, self.r_body, self.r_resp):
             split.addWidget(x)
         split.setSizes([90, 70, 300])
@@ -824,13 +858,16 @@ class ToolsTab(QTabWidget):
                 return
             self._confirmed_hosts.add(host)
         self.r_send.setEnabled(False)
-        self.r_resp.setPlainText("Sending…")
+        self.r_resp.clear()
+        self.r_busy.start("Sending request…")
         args = (self.r_method.currentText(), url, self.r_headers.toPlainText(), self.r_body.toPlainText(),
                 self.win.proxies(), self.win.verify_tls(), self.r_follow.isChecked())
 
         def done(ok, r):
             self.r_send.setEnabled(True)
-            self.r_resp.setPlainText(f"{r['head']}\n\n{r['body']}" if ok else f"Error: {r}")
+            self.r_busy.stop()
+            self.r_resp.setHtml(_format_response(r) if ok else
+                                f"<pre style='color:#da1e28'>Error: {escape(str(r))}</pre>")
         self.win.runner.run(lambda: tools.send_request(*args), done)
 
 
@@ -958,6 +995,11 @@ class ShieldsTab(QWidget):
 
         opts = QLabel("<b>Protection</b>")
         v.addWidget(opts)
+        hint = QLabel("Tip: to inspect a site's ads for malvertising, turn off <b>Shields up for this site</b> "
+                      "above (loads ads on that site only), or untick <b>Block ads</b> globally.")
+        hint.setObjectName("Muted")
+        hint.setWordWrap(True)
+        v.addWidget(hint)
         self.checks = {}
         for key, label in self.TOGGLES:
             c = QCheckBox(label)
@@ -1068,7 +1110,7 @@ class ShieldsTab(QWidget):
             self.list.addTopLevelItem(it)
         rules = self.win.shields.rule_counts()
         r = " · ".join(f"{k} {n:,}" for k, n in rules.items()) or "not downloaded yet"
-        self.lists.setText(f"Filter rules: {r} · updated {self.win.shields.last_updated()}. Engine: Brave adblock-rust.")
+        self.lists.setText(f"Filter rules: {r} · updated {self.win.shields.last_updated()}.")
         if self.win.tor and hasattr(self, "tor_label"):
             self.tor_label.setText(f"<b>Tor circuit:</b> {escape(self.win.tor.circuit_summary())}")
 

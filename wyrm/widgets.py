@@ -1,9 +1,72 @@
-"""Animated chrome widgets: top loading bar and the offline banner."""
+"""Animated chrome widgets: top loading bar, offline banner, and a centered busy spinner."""
 from __future__ import annotations
 
-from PySide6.QtCore import QEasingCurve, QRectF, Qt, QTimer, QVariantAnimation
-from PySide6.QtGui import QColor, QLinearGradient, QPainter
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtCore import QEasingCurve, QEvent, QRectF, Qt, QTimer, QVariantAnimation
+from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QPushButton, QWidget
+
+
+class BusyOverlay(QWidget):
+    """A centered spinning arc + label, overlaid on its parent while an async tool runs.
+
+    Use: overlay = BusyOverlay(result_widget); overlay.start("Running…"); overlay.stop() when done.
+    It covers the parent (blocking clicks), follows the parent's size, and uses the accent colour.
+    """
+
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self._angle = 0
+        self._label = ""
+        self._timer = QTimer(self)
+        self._timer.setInterval(16)  # ~60fps
+        self._timer.timeout.connect(self._tick)
+        parent.installEventFilter(self)  # follow parent resize
+        self.hide()
+
+    def eventFilter(self, obj, ev):
+        if obj is self.parent() and ev.type() in (QEvent.Type.Resize, QEvent.Type.Move):
+            self.setGeometry(self.parent().rect())
+        return False
+
+    def start(self, label: str = "Working…"):
+        self._label = label
+        self.setGeometry(self.parent().rect())
+        self.show()
+        self.raise_()
+        if not self._timer.isActive():
+            self._timer.start()
+
+    def stop(self):
+        self._timer.stop()
+        self.hide()
+
+    def _tick(self):
+        self._angle = (self._angle + 6) % 360
+        self.update()
+
+    def paintEvent(self, _e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        # faint scrim so the spinner reads over any content
+        scrim = self.palette().color(self.backgroundRole())
+        scrim.setAlpha(140)
+        p.fillRect(self.rect(), scrim)
+        accent = QApplication.palette().highlight().color()  # matches blue/red mode
+        cx, cy = self.width() / 2, self.height() / 2 - 10
+        r = 18
+        track = QColor(accent)
+        track.setAlpha(45)
+        p.setPen(QPen(track, 3))
+        p.drawEllipse(QRectF(cx - r, cy - r, 2 * r, 2 * r))
+        p.setPen(QPen(accent, 3, cap=Qt.PenCapStyle.RoundCap))
+        p.drawArc(QRectF(cx - r, cy - r, 2 * r, 2 * r), -self._angle * 16, 110 * 16)
+        if self._label:
+            p.setPen(self.palette().color(self.foregroundRole()))
+            f = QFont(self.font())
+            f.setPointSizeF(f.pointSizeF() + 0.5)
+            p.setFont(f)
+            p.drawText(QRectF(0, cy + r + 8, self.width(), 24), Qt.AlignmentFlag.AlignHCenter, self._label)
+        p.end()
 
 
 class LoadingBar(QWidget):

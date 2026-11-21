@@ -712,7 +712,7 @@ class MainWindow(QMainWindow):
                           "A <i>wyrm</i> is a wingless dragon — our mark, and the name of this browser.<br><br>"
                           "Built by <b>ByKh R&amp;D Group</b><br><b>HackPi</b> — Ethical Hackers Group<br>"
                           f"Copyright © 2021–2026 HackPi{tor}<br><br>"
-                          "Chromium engine via Qt WebEngine · Ad blocking: Brave adblock-rust · Tor: Tor Project")
+                          "Chromium engine via Qt WebEngine · Ad/tracker blocking via community filter lists · Tor: Tor Project")
 
     # ================================================================ Tor
     def open_tor_window(self):
