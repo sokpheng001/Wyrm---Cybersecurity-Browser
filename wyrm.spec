@@ -6,6 +6,7 @@
 #------------------------------------------------------------------------------
 # PyInstaller spec - works on Windows, macOS and Linux (build on each OS; no cross-compiling).
 #   pyinstaller --noconfirm wyrm.spec
+import os
 import re
 import sys
 
@@ -30,7 +31,9 @@ a = Analysis(
     pathex=["."],
     datas=[("wyrm/citesee.js", "wyrm"), ("wyrm/youtube.js", "wyrm"), ("wyrm/fingerprint.js", "wyrm"),
            ("wyrm/security/pageinfo.js", "wyrm/security"),
-           ("wyrm/assets", "wyrm/assets")],
+           ("wyrm/assets", "wyrm/assets")]
+          # ProjectDiscovery tools (tools/fetch_pdtools.py); skipped if not fetched (e.g. a quick local build)
+          + ([("wyrm/bin", "wyrm/bin")] if os.path.isdir("wyrm/bin") else []),
     hiddenimports=["PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtSvg", "PySide6.QtNetwork", "adblock", "stem", "stem.process", "stem.control", "socks", "wyrm.security.triage", "wyrm.security.fuzzer", "wyrm.security.secsearch", "wyrm.security.rewrite"],
     # trim Qt modules we never use (keeps the bundle smaller)
     excludes=["PySide6.Qt3DCore", "PySide6.QtQuick3D", "PySide6.QtCharts", "PySide6.QtDataVisualization",

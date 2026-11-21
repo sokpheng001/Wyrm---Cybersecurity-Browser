@@ -21,6 +21,7 @@ $py = if (Test-Path ..\venv\Scripts\python.exe) { "..\venv\Scripts\python.exe" }
 Invoke-Step $py -m pip install -q --disable-pip-version-check -r requirements.txt pyinstaller pillow
 Invoke-Step $py tools\make_icons.py
 Invoke-Step $py tools\fetch_filters.py
+Invoke-Step $py tools\fetch_pdtools.py   # bundle the ProjectDiscovery tools
 Invoke-Step $py -m PyInstaller --noconfirm --clean --log-level WARN wyrm.spec
 
 # Optional Authenticode signing. Set SIGN_PFX (path to a code-signing .pfx) and SIGN_PFX_PASSWORD.

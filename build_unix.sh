@@ -15,6 +15,7 @@ cd "$(dirname "$0")"
 .venv/bin/python -m pip install -q -r requirements.txt pyinstaller pillow
 QT_QPA_PLATFORM=offscreen .venv/bin/python tools/make_icons.py
 .venv/bin/python tools/fetch_filters.py
+.venv/bin/python tools/fetch_pdtools.py   # bundle the ProjectDiscovery tools
 .venv/bin/python -m PyInstaller --noconfirm --clean wyrm.spec
 
 if [ "$(uname -s)" = "Darwin" ]; then

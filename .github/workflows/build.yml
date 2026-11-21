@@ -67,10 +67,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-cursor0 libnss3 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libasound2t64
       - if: runner.os == 'Windows'
         shell: pwsh
+        env: { GITHUB_TOKEN: "${{ github.token }}" }
         run: |
           if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
           ./build_windows.ps1
       - if: runner.os != 'Windows'
+        env: { GITHUB_TOKEN: "${{ github.token }}" }
         run: bash build_unix.sh
       - uses: actions/upload-artifact@v4
         with:

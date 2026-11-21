@@ -8,16 +8,18 @@
 """Run ProjectDiscovery's open-source recon/scanning tools (https://github.com/projectdiscovery) when they are
 installed on the machine, and stream their results into the Scanner panel.
 
-Each tool is a separate CLI the user installs themselves; Wyrm only shows a tool that is actually present
-(like nmap). Every tool that contacts the target is marked ``active`` and the panel only runs those on hosts
+The tools ship inside Wyrm (wyrm/bin/, downloaded and SHA-256-verified at build time by
+tools/fetch_pdtools.py); a copy on the PATH is used as a fallback (e.g. when running from source). Every tool that contacts the target is marked ``active`` and the panel only runs those on hosts
 inside the current engagement scope. Tools run with bounded concurrency/rate and a hard timeout; output is
-read as JSON Lines so results appear as they arrive. Nothing is auto-installed or downloaded here.
+read as JSON Lines so results appear as they arrive. Nothing is downloaded at runtime.
 """
 from __future__ import annotations
 
 import json
 import shutil
 import subprocess
+import sys
+from pathlib import Path
 from dataclasses import dataclass, field
 
 
@@ -66,9 +68,18 @@ TOOLS: list[Tool] = [
 TOOLS_BY_KEY = {t.key: t for t in TOOLS}
 
 
+BUNDLED = Path(__file__).resolve().parents[1] / "bin"  # wyrm/bin (also inside the packaged app)
+
+
+def find(key: str) -> str | None:
+    """Path of a tool: the copy bundled with Wyrm, else one on the PATH."""
+    exe = BUNDLED / (key + (".exe" if sys.platform == "win32" else ""))
+    return str(exe) if exe.is_file() else shutil.which(key)
+
+
 def installed() -> list[Tool]:
-    """The ProjectDiscovery tools actually present on this machine (shown in the UI)."""
-    return [t for t in TOOLS if shutil.which(t.key)]
+    """The ProjectDiscovery tools available (bundled with Wyrm or on the PATH), shown in the UI."""
+    return [t for t in TOOLS if find(t.key)]
 
 
 def _dig(obj: dict, dotted: str):
@@ -97,7 +108,7 @@ def run(tool: Tool, target: str, on_line, proxies=None, timeout: int = 600, shou
     polled per line and kills the process when it returns True. Plain stdin tools (mapcidr, alterx) are fed the
     target on stdin; the rest take it as an argument.
     """
-    exe = shutil.which(tool.key)
+    exe = find(tool.key)
     if not exe:
         raise RuntimeError(f"{tool.key} is not installed")
     args = [a.replace("{t}", target) for a in tool.args]
@@ -108,7 +119,9 @@ def run(tool: Tool, target: str, on_line, proxies=None, timeout: int = 600, shou
     count = 0
     try:
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE if stdin_data else subprocess.DEVNULL,
-                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                                # Windows: these are console programs; don't flash a terminal window per run
+                                creationflags=0x08000000 if sys.platform == "win32" else 0)
     except OSError as e:
         raise RuntimeError(f"Could not start {tool.key}: {e}") from e
     try:

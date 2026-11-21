@@ -6,9 +6,11 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.0.3
 
+- ProjectDiscovery tools now come built in: subfinder, dnsx, naabu, httpx, katana, nuclei, tlsx, asnmap,
+  cdncheck, uncover, mapcidr and alterx are installed with the browser — nothing extra to set up; developer: @kwan
 - Scanner now runs the ProjectDiscovery tools you have installed — subfinder, dnsx, naabu, httpx, katana,
   nuclei, tlsx, asnmap, cdncheck, uncover, mapcidr, alterx — with live results; developer: @kwan
-- Only tools actually installed are shown; tools that contact the target run on in-scope hosts only
+- Tools that contact the target run on in-scope hosts only
 - Update button now asks "Restart now" or "Later"; choosing Later installs quietly when you close the browser
 - Port scanner: nmap options appear only when nmap is installed (built-in TCP scan otherwise)
 - Pointing-hand cursor on every clickable control (buttons, checkboxes, tabs, dropdowns)
