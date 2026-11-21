@@ -119,6 +119,7 @@ def main():
     theme.load_fonts()          # IBM Plex Sans / Mono (SIL OFL), bundled
     app.setFont(theme.app_font())
     app.setStyle("Fusion")
+    theme.install_combo_polish(app)  # hand cursor + visible scrollbar on every dropdown
 
     if tor_mode:
         data_dir = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))

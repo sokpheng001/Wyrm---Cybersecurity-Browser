@@ -8,7 +8,9 @@ from __future__ import annotations
 from pathlib import Path
 from string import Template
 
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
+from PySide6.QtWidgets import QComboBox
 
 FONT_DIR = Path(__file__).parent / "assets" / "fonts"
 SANS = "IBM Plex Sans"
@@ -161,6 +163,12 @@ QComboBox::drop-down { border: none; width: 24px; }
 QComboBox::down-arrow { image: url("$chevron"); width: 12px; height: 12px; }
 QComboBox QAbstractItemView { background: $layer; border: 1px solid $border; border-radius: 0;
     selection-background-color: $hover; selection-color: $text; outline: none; padding: 4px; }
+QComboBox QAbstractItemView::item { padding: 6px 10px; min-height: 20px; }
+QComboBox QAbstractItemView::item:hover, QComboBox QAbstractItemView::item:selected { background: $hover; color: $text; }
+/* dropdown list scrollbar: always drawn with a visible track so users can see there is more to scroll */
+QComboBox QAbstractItemView QScrollBar:vertical { background: $field; width: 12px; margin: 0; border-left: 1px solid $border; }
+QComboBox QAbstractItemView QScrollBar::handle:vertical { background: $strong; min-height: 28px; margin: 2px; }
+QComboBox QAbstractItemView QScrollBar::handle:vertical:hover { background: $text; }
 QPushButton {
     background: $secondary; color: #ffffff; border: none; border-radius: 0; padding: 9px 18px; min-height: 15px;
     text-align: center; font-weight: 500;
@@ -267,3 +275,27 @@ def palette(theme: str, mode: str = "blue") -> QPalette:
     pal.setColor(QPalette.ColorGroup.Disabled, R.Text, QColor(p["placeholder"]))
     pal.setColor(QPalette.ColorGroup.Disabled, R.ButtonText, QColor(p["placeholder"]))
     return pal
+
+
+class _ComboPolish(QObject):
+    """App-wide: every dropdown gets a pointing-hand cursor (box + list) and a scrollbar that is always shown
+    when the list is longer than what fits. Qt style sheets cannot set cursors, so this is done in code."""
+
+    def eventFilter(self, obj, ev):
+        if isinstance(obj, QComboBox):
+            t = ev.type()
+            if t == QEvent.Type.Polish:
+                obj.setCursor(Qt.CursorShape.PointingHandCursor)
+                obj.view().viewport().setCursor(Qt.CursorShape.PointingHandCursor)
+                obj.view().verticalScrollBar().setCursor(Qt.CursorShape.PointingHandCursor)
+            elif t == QEvent.Type.MouseButtonPress:  # just before the list opens: decide on the scrollbar
+                obj.view().setVerticalScrollBarPolicy(
+                    Qt.ScrollBarPolicy.ScrollBarAlwaysOn if obj.count() > obj.maxVisibleItems()
+                    else Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        return False
+
+
+def install_combo_polish(app) -> None:
+    app._combo_polish = _ComboPolish(app)  # keep a reference
+    app.installEventFilter(app._combo_polish)
+
