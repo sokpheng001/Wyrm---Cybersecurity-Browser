@@ -19,7 +19,7 @@ from pathlib import Path
 
 import requests
 
-REPO = "sokpheng001/cybersecurity-browser"
+REPO = "sokpheng001/Wyrm---Cybersecurity-Browser"
 API = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases/latest"
 UA = "Wyrm-Updater"
@@ -61,7 +61,11 @@ def check(current: str, proxies=None, verify=True, build: int = 0) -> dict:
     tag = d.get("tag_name") or d.get("name") or ""
     m = re.search(r"wyrm-build:\s*(\d+)", d.get("body") or "")  # hidden marker CI writes into the notes
     rel_build = int(m.group(1)) if m else 0
-    asset = _asset_for_platform(d.get("assets") or [])
+    if d.get("draft") or d.get("prerelease"):
+        d = {}  # not published yet: never offer it
+    # only installers that finished uploading ("starter" = upload still in progress)
+    assets = [a for a in d.get("assets") or [] if a.get("state", "uploaded") == "uploaded"]
+    asset = _asset_for_platform(assets)
     url = asset.get("browser_download_url") if asset else None
     from urllib.parse import urlparse
     if url and urlparse(url).hostname not in _ALLOWED_HOSTS:
@@ -70,8 +74,10 @@ def check(current: str, proxies=None, verify=True, build: int = 0) -> dict:
         "version": tag.lstrip("vV"),
         "tag": tag,
         "build": rel_build,
-        "newer": bool(tag) and (is_newer(tag, current)
-                                or (_ver_tuple(tag) == _ver_tuple(current) and rel_build > int(build or 0))),
+        # newer AND its installer for this OS is ready to download: otherwise no Update button yet
+        "newer": bool(tag) and bool(url) and (is_newer(tag, current)
+                                              or (_ver_tuple(tag) == _ver_tuple(current)
+                                                  and rel_build > int(build or 0))),
         "notes": d.get("body") or "",
         "html_url": d.get("html_url") or RELEASES_PAGE,
         "asset_name": asset.get("name") if asset else None,
@@ -122,8 +128,10 @@ def run_installer(path: Path, relaunch: bool = True) -> None:
     relaunch=True ("Restart now") starts the new version afterwards; False ("Later" → installed on close) doesn't."""
     import subprocess
     if sys.platform == "win32":
-        # Inno Setup, silent: closes the app if still running, updates, and (with /RELAUNCH) starts it again
-        args = [str(path), "/SILENT", "/NORESTART", "/CLOSEAPPLICATIONS"] + (["/RELAUNCH"] if relaunch else [])
+        # Inno Setup, very silent: no wizard or progress window, no message boxes. Closes the app if still
+        # running, updates, and (with /RELAUNCH) starts it again, so the user just sees the browser come back.
+        args = [str(path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"] \
+            + (["/RELAUNCH"] if relaunch else [])
         subprocess.Popen(args, creationflags=0x08000000)  # CREATE_NO_WINDOW; detached so it survives our exit
     elif sys.platform == "darwin":
         if not install_macos(path, relaunch):
