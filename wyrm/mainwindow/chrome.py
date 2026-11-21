@@ -307,6 +307,17 @@ class ChromeMixin:
         if winframe.IS_WINDOWS and not getattr(self, "_frame_installed", False):
             self._frame_installed = True
             winframe.install(self, theme.PALETTES[self.theme_name]["shell"])
+            # The window was already shown with Qt's frameless geometry when the native caption/frame styles
+            # were added, so Qt still lays it out with stale frame margins (a dark band above the tab strip)
+            # until the first resize/maximize. Nudge the size once so Qt re-measures the client area now.
+            QTimer.singleShot(0, self._resync_frame)
+
+    def _resync_frame(self):
+        if self.isMaximized() or self.isFullScreen():
+            return  # can't nudge the size; a maximized window is re-measured via WM_NCCALCSIZE anyway
+        w, h = self.width(), self.height()
+        self.resize(w, h + 1)
+        self.resize(w, h)
 
     def changeEvent(self, e):
         super().changeEvent(e)
