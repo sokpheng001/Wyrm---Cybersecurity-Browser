@@ -97,7 +97,9 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
                 return
             if getattr(self, "actions", None):
                 self.actions("do:" + (params.get("a") or [""])[0], {k: v[0] for k, v in params.items()})
-            job.redirect(QUrl("wyrm://home"))
+            a = (params.get("a") or [""])[0]
+            # background choices return with the Customize panel still open
+            job.redirect(QUrl("wyrm://home#customize" if a.startswith("bg") else "wyrm://home"))
         elif host == "bgimg":  # the user's own start-page background (Customize → Upload)
             img = self.custom_bg() if getattr(self, "custom_bg", None) else None
             if img:

@@ -12,7 +12,10 @@ BG_SOURCES = [
     "https://loremflickr.com/3840/2160/hacker,cybersecurity,technology,quantum,circuit,matrix,code",
     "https://picsum.photos/3840/2160",
 ]
-BG_ROTATE_MS = 30 * 60 * 1000  # rotate the wallpaper every 30 minutes
+BG_ROTATE_MS = 30 * 60 * 1000  # how often the wallpaper changes; set by the window from the user's choice
+# choices offered in Customize → "Change every" (minutes, label)
+BG_INTERVALS = [(5, "5 min"), (15, "15 min"), (30, "30 min"), (60, "1 hour"), (360, "6 hours"), (1440, "Daily")]
+BG_INTERVAL_LABEL = dict(BG_INTERVALS)
 # start-page background colors the user can pick in "Customize" (key, label, CSS background-image)
 BG_COLORS = [
     ("midnight", "Midnight", "linear-gradient(135deg,#0b1020,#1c2541)"),
@@ -153,7 +156,9 @@ body.hasbg .copy{color:#e0e0e0;text-shadow:0 1px 10px rgba(0,0,0,.6)}
   border-top:0;color:var(--fg)}
 .news a.it:first-of-type{border-top:1px solid var(--line)}
 .news a.it:hover{text-decoration:none;border-color:var(--btn);background:var(--hover)}
-.news .src{font-size:11px;font-weight:600;color:var(--link);white-space:nowrap;min-width:116px}
+.news .srcc{flex:none;width:140px;display:flex;justify-content:center}  /* fixed column so titles line up */
+.news .src{display:inline-block;font-size:11px;font-weight:600;line-height:20px;color:var(--link);white-space:nowrap;
+  text-align:center;padding:0 10px;margin:0;border-radius:10px}  /* pill hugs the source name */
 .news .tt{flex:1;font-size:13px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .news .dt{font-size:12px;color:var(--muted);white-space:nowrap}
 .feed h2 .live.blue{background:var(--btn);animation:none}
@@ -162,16 +167,28 @@ body.hasbg .news .tt{color:#161616}
 :root[data-theme=dark] body.hasbg .news a.it{background:rgba(20,20,28,.72);border-color:rgba(255,255,255,.12)}
 :root[data-theme=dark] body.hasbg .news .tt{color:#f4f4f4}
 
-/* "Customize" (background picker), bottom-right like other browsers */
-details.cust{position:fixed;right:20px;bottom:20px;z-index:5;text-align:left}
+/* "Customize": button bottom-right like other browsers; the panel opens centered over a dimmed page */
+details.cust{position:fixed;right:20px;bottom:20px;z-index:50;text-align:left}
 details.cust summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;
   padding:9px 16px;border-radius:20px;background:var(--layer);color:var(--fg);border:1px solid var(--line);
   box-shadow:0 2px 10px rgba(0,0,0,.18)}
 details.cust summary::-webkit-details-marker{display:none}
 details.cust summary:hover{background:var(--hover)}
 details.cust[open] summary{background:var(--btn);color:#fff;border-color:var(--btn)}
-.cpanel{position:absolute;right:0;bottom:48px;width:330px;padding:16px;background:var(--layer);color:var(--fg);
-  border:1px solid var(--line);box-shadow:0 8px 32px rgba(0,0,0,.35)}
+details.cust summary{position:relative;z-index:1}
+details.cust[open]::before{content:"";position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px)}
+.cpanel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100vw - 32px));
+  max-height:calc(100vh - 48px);overflow:auto;padding:20px 20px 16px;background:var(--layer);color:var(--fg);
+  border:1px solid var(--line);box-shadow:0 12px 48px rgba(0,0,0,.45)}
+.cpanel .hd{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px}
+.cpanel .hd h3{margin:0}
+.cpanel .x{display:flex;align-items:center;justify-content:center;width:32px;height:32px;color:var(--fg);cursor:pointer}
+.cpanel .x:hover{background:var(--hover)}
+.cpanel .ivs{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 0}
+.cpanel .iv{font-size:12px;padding:5px 12px;border-radius:14px;background:var(--layer2);color:var(--fg)}
+.cpanel .iv:hover{background:var(--hover);text-decoration:none}
+.cpanel .iv.on{background:var(--btn);color:#fff;font-weight:600}
+.cpanel .note{font-size:12px;color:var(--muted);margin:6px 0 0}
 .cpanel h3{font-size:14px;font-weight:600;margin:0 0 12px}
 .cpanel h4{font-size:12px;font-weight:600;color:var(--muted);margin:16px 0 8px;letter-spacing:.3px}
 .cpanel .opt{display:flex;align-items:center;gap:12px;padding:8px;color:var(--fg);border:2px solid transparent}
@@ -296,7 +313,7 @@ def render_home(ctx: dict) -> str:
         from .security.news import ago
         rows = "".join(
             f"<a class='it' href='{escape(n['url'], quote=True)}' title='{escape(n['title'], quote=True)}'>"
-            f"<span class='src'>{escape(n['source'])}</span><span class='tt'>{escape(n['title'])}</span>"
+            f"<span class='srcc'><span class='src'>{escape(n['source'])}</span></span><span class='tt'>{escape(n['title'])}</span>"
             f"<span class='dt'>{escape(ago(n['date']))}</span></a>" for n in news)
         news_html = ("<section class='feed news'><h2><span class='live blue'></span>LATEST CYBERSECURITY NEWS</h2>"
                      + rows + "</section>")
@@ -327,35 +344,42 @@ def render_home(ctx: dict) -> str:
         return html.replace("<body>", "<body class='hasbg tor'>", 1)
     bgc = ctx.get("bg") or {"mode": "random" if ctx.get("background") else "none"}
     bmode = bgc.get("mode", "random")
-    body += _customize_panel(bgc)
-    if bmode == "random":  # 4K tech/hacker wallpaper via wyrm://bg; same image for 30 min (reloads keep it)
+    # Customize lives outside <main>: main's entry animation would otherwise trap position:fixed inside it
+    panel = _customize_panel(bgc)
+
+    def page(css: str, cls: str = "") -> str:
+        html = _page("New tab", body, css, "home").replace("</main>", "</main>" + panel, 1)
+        return html.replace("<body>", f"<body class='{cls}'>", 1) if cls else html
+    if bmode == "random":  # 4K tech/hacker wallpaper via wyrm://bg; same image for the chosen interval
         url = f"wyrm://bg?r={secrets.token_hex(6)}"
-        # switch when the current wallpaper expires (time left comes from the handler), then every 30 min
-        left = int(ctx.get("bg_ms_left") or BG_ROTATE_MS) + 1000
-        rot = ("<script>(function(){function swap(){document.documentElement.style.setProperty("
-               "'--wyrm-bg',\"url('wyrm://bg?r=\"+Date.now()+\"')\");}"
-               f"setTimeout(function(){{swap();setInterval(swap,{BG_ROTATE_MS});}},{left});}})();</script>")
-        html = _page("New tab", body + rot, HOME_CSS + f"\n:root{{--wyrm-bg:url('{url}')}}", "home")
-        return html.replace("<body>", "<body class='hasbg'>", 1)
+        # switch when the current wallpaper expires (time left comes from the handler), then every interval
+        left = int(ctx.get("bg_ms_left") or BG_ROTATE_MS) + 1000  # BG_ROTATE_MS = the user's interval
+        body += ("<script>(function(){function swap(){document.documentElement.style.setProperty("
+                 "'--wyrm-bg',\"url('wyrm://bg?r=\"+Date.now()+\"')\");}"
+                 f"setTimeout(function(){{swap();setInterval(swap,{BG_ROTATE_MS});}},{left});}})();</script>")
+        return page(HOME_CSS + f"\n:root{{--wyrm-bg:url('{url}')}}", "hasbg")
     if bmode == "color" and bgc.get("color") in BG_COLOR_CSS:
-        css = HOME_CSS + f"\n:root{{--wyrm-bg:{BG_COLOR_CSS[bgc['color']]}}}\nbody.hasbg::after{{background:rgba(0,0,0,.12)}}"
-        return _page("New tab", body, css, "home").replace("<body>", "<body class='hasbg'>", 1)
+        return page(HOME_CSS + f"\n:root{{--wyrm-bg:{BG_COLOR_CSS[bgc['color']]}}}"
+                    "\nbody.hasbg::after{background:rgba(0,0,0,.12)}", "hasbg")
     if bmode == "image" and bgc.get("image_ver"):  # the user's own picture, served by wyrm://bgimg
-        css = HOME_CSS + f"\n:root{{--wyrm-bg:url('wyrm://bgimg?v={escape(str(bgc['image_ver']))}')}}"
-        return _page("New tab", body, css, "home").replace("<body>", "<body class='hasbg'>", 1)
-    return _page("New tab", body, HOME_CSS, "home")
+        return page(HOME_CSS + f"\n:root{{--wyrm-bg:url('wyrm://bgimg?v={escape(str(bgc['image_ver']))}')}}", "hasbg")
+    return page(HOME_CSS)
 
 
 def _customize_panel(bgc: dict) -> str:
-    """Bottom-right "Customize" button: pick the start-page background (applied instantly, remembered)."""
+    """Bottom-right "Customize" button: a centered panel to pick the start-page background and how often the
+    wallpaper changes (applied instantly, remembered). Stays open after a choice (wyrm://home#customize)."""
     m = bgc.get("mode", "random")
     has_img = bool(bgc.get("image_ver"))
+    every = int(bgc.get("interval") or 30)
+    every_lbl = BG_INTERVAL_LABEL.get(every, f"{every} min")
+    every_txt = "once a day" if every == 1440 else f"every {every_lbl}"
 
     def opt(href, pv, title, sub, on):
         return (f"<a class='opt{' on' if on else ''}' href='{href}'><span class='pv {pv}'>{'+' if pv == 'up' else ''}</span>"
                 f"<span><b>{title}</b><small>{sub}</small></span></a>")
     opts = opt("wyrm://do?a=bg&amp;mode=random", "photo", "Wyrm wallpapers",
-               "Cybersecurity &amp; tech photos, new one every 30 min", m == "random")
+               f"Cybersecurity &amp; tech photos, new one {every_txt}", m == "random")
     if has_img:
         opts += (f"<a class='opt{' on' if m == 'image' else ''}' href='wyrm://do?a=bg&amp;mode=image'>"
                  f"<span class='pv' style=\"background-image:url('wyrm://bgimg?v={escape(str(bgc['image_ver']))}')\">"
@@ -363,14 +387,28 @@ def _customize_panel(bgc: dict) -> str:
     opts += opt("wyrm://do?a=bg-upload", "up", "Upload from device…" if not has_img else "Upload another image…",
                 "JPG, PNG, WebP or GIF, up to 25 MB", False)
     opts += opt("wyrm://do?a=bg&amp;mode=none", "plain", "No background", "Plain light / dark theme", m == "none")
+    ivs = "".join(f"<a class='iv{' on' if mins == every else ''}' href='wyrm://do?a=bg-interval&amp;min={mins}'>{lbl}</a>"
+                  for mins, lbl in BG_INTERVALS)
     sws = "".join(f"<a class='sw{' on' if m == 'color' and bgc.get('color') == k else ''}' title='{escape(label)}' "
                   f"href='wyrm://do?a=bg&amp;mode=color&amp;color={k}' style='background:{css}'></a>"
                   for k, label, css in BG_COLORS)
     pencil = ("<svg width='16' height='16' viewBox='0 0 16 16' aria-hidden='true'><path fill='currentColor' "
               "d='M11.3 1.3a1 1 0 0 1 1.4 0l2 2a1 1 0 0 1 0 1.4L6 13.4 2 14l.6-4 8.7-8.7zM4.4 10.6l-.3 1.3 1.3-.3 "
               "7.6-7.6-1-1-7.6 7.6z'/></svg>")
+    close = ("<a class='x' role='button' aria-label='Close' title='Close'><svg width='16' height='16' viewBox='0 0 16 16' "
+             "aria-hidden='true'><path d='M3 3l10 10M13 3L3 13' stroke='currentColor' stroke-width='1.6'/></svg></a>")
+    # open after a choice (#customize), close on Esc / outside click / ×
+    js = ("<script>(function(){var d=document.querySelector('details.cust');if(!d)return;"
+          "if(location.hash==='#customize'){d.open=true;history.replaceState(null,'',location.pathname+location.search);}"
+          "d.querySelector('.x').addEventListener('click',function(e){e.preventDefault();d.open=false;});"
+          "document.addEventListener('keydown',function(e){if(e.key==='Escape')d.open=false;});"
+          "document.addEventListener('click',function(e){if(d.open&&!e.target.closest('.cpanel')"
+          "&&!e.target.closest('summary'))d.open=false;});})();</script>")
     return (f"<details class='cust'><summary>{pencil}Customize</summary><div class='cpanel'>"
-            f"<h3>Background</h3>{opts}<h4>COLORS</h4><div class='sws'>{sws}</div></div></details>")
+            f"<div class='hd'><h3>Background</h3>{close}</div>{opts}"
+            f"<h4>CHANGE WALLPAPER EVERY</h4><div class='ivs'>{ivs}</div>"
+            + ("" if m == "random" else "<p class='note'>Applies when Wyrm wallpapers is selected.</p>")
+            + f"<h4>COLORS</h4><div class='sws'>{sws}</div></div></details>{js}")
 
 
 # ====================================================================== paper search results

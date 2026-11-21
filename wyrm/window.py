@@ -528,7 +528,16 @@ class MainWindow(QMainWindow):
         ver = str(int(f.stat().st_mtime)) if f else ""
         if mode == "image" and not ver:
             mode = "random"
-        return {"mode": mode, "color": s.value("home/bg_color", "midnight", type=str), "image_ver": ver}
+        return {"mode": mode, "color": s.value("home/bg_color", "midnight", type=str), "image_ver": ver,
+                "interval": self._bg_interval()}
+
+    def _bg_interval(self) -> int:
+        """Minutes between wallpaper changes (Customize → Change wallpaper every); also applied to pages."""
+        mins = self.settings.value("home/bg_interval_min", 30, type=int)
+        if mins not in pages.BG_INTERVAL_LABEL:
+            mins = 30
+        pages.BG_ROTATE_MS = mins * 60 * 1000  # read by the start page timer and the wyrm://bg cache
+        return mins
 
     def _set_background(self, params: dict):
         mode = params.get("mode", "")
@@ -621,6 +630,15 @@ class MainWindow(QMainWindow):
                 QTimer.singleShot(50, self.security.recon.use_current)
             elif do == "bg" and not self.tor:
                 self._set_background(params)
+            elif do == "bg-interval" and not self.tor:
+                try:
+                    mins = int(params.get("min", ""))
+                except ValueError:
+                    mins = 0
+                if mins in pages.BG_INTERVAL_LABEL:
+                    self.settings.setValue("home/bg_interval_min", mins)
+                    self._bg_interval()
+                    QTimer.singleShot(0, self._refresh_home_pages)
             elif do == "bg-upload" and not self.tor:
                 QTimer.singleShot(0, self._pick_background_image)  # don't block the scheme request on a dialog
             return None
