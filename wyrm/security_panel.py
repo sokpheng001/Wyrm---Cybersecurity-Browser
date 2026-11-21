@@ -32,6 +32,28 @@ def mono(widget):
     return widget
 
 
+class HeaderHighlighter:
+    """Colors 'Header-Name:' vs value in an editable request-headers box (keeps it editable)."""
+
+    def __new__(cls, editor):
+        from PySide6.QtCore import QRegularExpression
+        from PySide6.QtGui import QColor, QSyntaxHighlighter, QTextCharFormat
+
+        class _HL(QSyntaxHighlighter):
+            def __init__(self, doc):
+                super().__init__(doc)
+                self.name_fmt = QTextCharFormat()
+                self.name_fmt.setForeground(QColor("#8d8d8d"))
+                self.name_fmt.setFontWeight(600)
+                self.re = QRegularExpression(r"^([A-Za-z0-9!#$%&'*+.^_`|~-]+)\s*:")
+
+            def highlightBlock(self, text):
+                m = self.re.match(text)
+                if m.hasMatch():
+                    self.setFormat(0, m.capturedEnd(1), self.name_fmt)
+        return _HL(editor.document())
+
+
 def _format_response(r: dict) -> str:
     """Render an HTTP response as clean, colored HTML: status line, headers, body."""
     head = r.get("head", "")
@@ -641,6 +663,78 @@ class ToolsTab(QTabWidget):
         self.addTab(self._hash(), "Hash")
         self.addTab(self._repeater(), "Repeater")
         self.addTab(self._rewrite(), "Match & Replace")
+        self.addTab(self._comparer(), "Comparer")
+        self.addTab(self._sequencer(), "Sequencer")
+
+    # ---------------------------------------------------------------- Comparer
+    def _comparer(self):
+        w = QWidget()
+        v = QVBoxLayout(w)
+        v.addWidget(QLabel("Diff two requests/responses word-by-word (paste or send from Repeater/Traffic)."))
+        split = QSplitter(Qt.Orientation.Horizontal)
+        self.cmp_a = mono(QPlainTextEdit())
+        self.cmp_a.setPlaceholderText("A")
+        self.cmp_b = mono(QPlainTextEdit())
+        self.cmp_b.setPlaceholderText("B")
+        split.addWidget(self.cmp_a)
+        split.addWidget(self.cmp_b)
+        v.addWidget(split, 1)
+        row = QHBoxLayout()
+        b = QPushButton("Compare")
+        b.setObjectName("Primary")
+        b.clicked.connect(self._do_compare)
+        row.addWidget(b)
+        row.addStretch(1)
+        v.addLayout(row)
+        self.cmp_out = QTextBrowser()
+        v.addWidget(self.cmp_out, 1)
+        return w
+
+    def _do_compare(self):
+        a, b = self.cmp_a.toPlainText(), self.cmp_b.toPlainText()
+        st = tools.diff_stats(a, b)
+        parts = [f"<p class='meta' style='color:#8d8d8d'>Similarity {st['ratio']}% · A {st['len_a']} chars · B {st['len_b']} chars</p><pre style='white-space:pre-wrap;margin:0'>"]
+        for op, text in tools.word_diff(a, b):
+            t = escape(text)
+            if op == "equal":
+                parts.append(t)
+            elif op == "insert":
+                parts.append(f"<span style='background:rgba(36,161,72,.28)'>{t}</span>")
+            else:  # delete
+                parts.append(f"<span style='background:rgba(218,30,40,.28);text-decoration:line-through'>{t}</span>")
+        parts.append("</pre>")
+        self.cmp_out.setHtml("".join(parts))
+
+    # ---------------------------------------------------------------- Sequencer
+    def _sequencer(self):
+        w = QWidget()
+        v = QVBoxLayout(w)
+        v.addWidget(QLabel("Assess the randomness of session / CSRF / reset tokens. Paste tokens, one per line."))
+        self.seq_in = mono(QPlainTextEdit())
+        self.seq_in.setPlaceholderText("one token per line…")
+        v.addWidget(self.seq_in, 1)
+        b = QPushButton("Analyze randomness")
+        b.setObjectName("Primary")
+        b.clicked.connect(self._do_sequence)
+        v.addWidget(b)
+        self.seq_out = QTextBrowser()
+        v.addWidget(self.seq_out, 1)
+        return w
+
+    def _do_sequence(self):
+        r = tools.analyze_tokens(self.seq_in.toPlainText().splitlines())
+        if r.get("error"):
+            self.seq_out.setHtml(f"<p style='color:#da1e28'>{escape(r['error'])}</p>")
+            return
+        vq = r["quality_pct"]
+        color = "#24a148" if vq >= 85 else "#ff832b" if vq >= 60 else "#da1e28"
+        self.seq_out.setHtml(
+            f"<p style='font-size:15px;color:{color};font-weight:600'>{escape(r['verdict'])}</p>"
+            f"<p><b>{r['entropy_bits']} bits</b> of entropy (of ~{r['max_bits']} max) · quality {vq}%</p>"
+            f"<p class='meta' style='color:#8d8d8d'>{r['count']} tokens · {r['duplicates']} duplicates · "
+            f"length {r['common_length']}{'' if r['length_consistent'] else ' (varies)'} · "
+            f"charset {r['charset_size']} chars</p>"
+            f"<p class='meta' style='color:#8d8d8d'>Per-character entropy (bits): {escape(str(r['pos_entropy']))}</p>")
 
     def _decoder(self):
         w = QWidget()
@@ -742,6 +836,7 @@ class ToolsTab(QTabWidget):
         split = QSplitter(Qt.Orientation.Vertical)
         self.r_headers = mono(QPlainTextEdit())
         self.r_headers.setPlaceholderText("Header: value (one per line)")
+        self._hdr_hl = HeaderHighlighter(self.r_headers)  # colorize header names
         self.r_body = mono(QPlainTextEdit())
         self.r_body.setPlaceholderText("Request body")
         self.r_resp = mono(QTextBrowser())
@@ -1120,6 +1215,76 @@ class ShieldsTab(QWidget):
 
 
 # =================================================================== dock
+class SiteMapTab(QWidget):
+    """Tree of hosts → paths discovered from observed traffic (passive — just what you browsed)."""
+
+    def __init__(self, win):
+        super().__init__()
+        self.win = win
+        v = QVBoxLayout(self)
+        row = QHBoxLayout()
+        self.filter = QLineEdit()
+        self.filter.setPlaceholderText("Filter host / path…")
+        self.filter.textChanged.connect(self._build)
+        row.addWidget(self.filter, 1)
+        self.scope_only = QCheckBox("In-scope only")
+        self.scope_only.toggled.connect(self._build)
+        row.addWidget(self.scope_only)
+        b = QPushButton("Refresh")
+        b.clicked.connect(self._build)
+        row.addWidget(b)
+        v.addLayout(row)
+        self.tree = QTreeWidget()
+        self.tree.setHeaderLabels(["Path", "Methods", "Last status"])
+        self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.tree.itemDoubleClicked.connect(self._open)
+        v.addWidget(self.tree, 1)
+        self.count = QLabel("")
+        self.count.setObjectName("Muted")
+        v.addWidget(self.count)
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self._build()
+
+    def _build(self):
+        f = self.filter.text().lower().strip()
+        self.tree.clear()
+        rows = self.win.security.traffic.model.rows if hasattr(self.win, "security") else []
+        hosts: dict[str, dict] = {}
+        for r in rows:
+            if r["in_scope"] is not True and self.scope_only.isChecked():
+                continue
+            host, path, method = r["host"], r["path"], r["method"]
+            if f and f not in host.lower() and f not in path.lower():
+                continue
+            h = hosts.setdefault(host, {})
+            e = h.setdefault(path, {"methods": set(), "url": r["url"], "type": r["type"]})
+            e["methods"].add(method)
+        total = 0
+        for host in sorted(hosts):
+            paths = hosts[host]
+            top = QTreeWidgetItem([host, f"{len(paths)} paths", ""])
+            fnt = top.font(0)
+            fnt.setBold(True)
+            top.setFont(0, fnt)
+            for path in sorted(paths):
+                e = paths[path]
+                it = QTreeWidgetItem([path, ",".join(sorted(e["methods"])), ""])
+                it.setData(0, Qt.ItemDataRole.UserRole, e["url"])
+                it.setToolTip(0, e["url"])
+                top.addChild(it)
+                total += 1
+            self.tree.addTopLevelItem(top)
+            top.setExpanded(len(paths) <= 40)
+        self.count.setText(f"{len(hosts)} hosts · {total} paths (from observed traffic)")
+
+    def _open(self, it, _col):
+        url = it.data(0, Qt.ItemDataRole.UserRole)
+        if url:
+            self.win.open_url(url, new_tab=True)
+
+
 class SecurityPanel(QDockWidget):
     def __init__(self, win):
         super().__init__("Security", win)
@@ -1128,12 +1293,14 @@ class SecurityPanel(QDockWidget):
         self.tabs = QTabWidget()
         self.overview = OverviewTab(win)
         self.traffic = TrafficTab(win)
+        self.sitemap = SiteMapTab(win)
         self.recon = ReconTab(win)
         self.tools_tab = ToolsTab(win)
         self.findings = FindingsTab(win)
         self.shields = ShieldsTab(win)
         for w, name in ((self.shields, "Shields"), (self.overview, "Overview"), (self.traffic, "Traffic"),
-                        (self.recon, "Recon"), (self.tools_tab, "Tools"), (self.findings, "Findings")):
+                        (self.sitemap, "Site map"), (self.recon, "Recon"), (self.tools_tab, "Tools"),
+                        (self.findings, "Findings")):
             self.tabs.addTab(w, name)
         self.setWidget(self.tabs)
         self.tabs.currentChanged.connect(self._fade_tab)

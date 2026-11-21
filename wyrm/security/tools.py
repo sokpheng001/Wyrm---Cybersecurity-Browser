@@ -175,3 +175,75 @@ def to_curl(method: str, url: str, headers: dict | None = None, body: str | None
         parts += ["--data-raw", q(body)]
     parts.append(q(url))
     return " ".join(parts)
+
+
+# ------------------------------------------------------------------ Comparer (diff two payloads)
+def word_diff(a: str, b: str) -> list[tuple[str, str]]:
+    """Word/token-level diff. Returns [(op, text)] where op is 'equal' | 'insert' | 'delete' | 'replace'."""
+    import difflib
+    ta = re.split(r"(\s+)", a)
+    tb = re.split(r"(\s+)", b)
+    sm = difflib.SequenceMatcher(None, ta, tb, autojunk=False)
+    out = []
+    for op, i1, i2, j1, j2 in sm.get_opcodes():
+        if op == "equal":
+            out.append(("equal", "".join(ta[i1:i2])))
+        elif op == "delete":
+            out.append(("delete", "".join(ta[i1:i2])))
+        elif op == "insert":
+            out.append(("insert", "".join(tb[j1:j2])))
+        else:  # replace
+            out.append(("delete", "".join(ta[i1:i2])))
+            out.append(("insert", "".join(tb[j1:j2])))
+    return out
+
+
+def diff_stats(a: str, b: str) -> dict:
+    import difflib
+    sm = difflib.SequenceMatcher(None, a, b, autojunk=False)
+    return {"ratio": round(sm.ratio() * 100, 1), "len_a": len(a), "len_b": len(b)}
+
+
+# ------------------------------------------------------------------ Sequencer (token randomness)
+def analyze_tokens(tokens: list[str]) -> dict:
+    """Estimate the randomness/predictability of a set of session/CSRF/reset tokens.
+
+    Reports Shannon entropy per character position and overall, the effective character set, length
+    consistency, duplicate rate, and a plain verdict. Analysis only — nothing is sent anywhere.
+    """
+    import math
+    from collections import Counter
+
+    toks = [t.strip() for t in tokens if t.strip()]
+    n = len(toks)
+    if n < 2:
+        return {"error": "Paste at least 2 tokens (one per line)."}
+    lengths = Counter(len(t) for t in toks)
+    common_len, _ = lengths.most_common(1)[0]
+    same_len = [t for t in toks if len(t) == common_len]
+    uniq = len(set(toks))
+
+    def shannon(counter: Counter, total: int) -> float:
+        return -sum((c / total) * math.log2(c / total) for c in counter.values() if c)
+
+    # per-position entropy over tokens that share the most common length
+    pos_entropy = []
+    charset = set()
+    for i in range(common_len):
+        col = Counter(t[i] for t in same_len)
+        charset |= set(col)
+        pos_entropy.append(round(shannon(col, len(same_len)), 2))
+    total_bits = round(sum(pos_entropy), 1)
+    max_bits = round(common_len * math.log2(max(2, len(charset))), 1)
+    quality = (total_bits / max_bits) if max_bits else 0
+    verdict = ("Strong — looks random" if quality >= 0.85 and total_bits >= 64 else
+               "Adequate" if quality >= 0.6 and total_bits >= 40 else
+               "Weak — low entropy / predictable")
+    return {
+        "count": n, "unique": uniq, "duplicates": n - uniq,
+        "common_length": common_len, "length_consistent": len(lengths) == 1,
+        "charset_size": len(charset),
+        "charset_sample": "".join(sorted(charset)[:60]),
+        "entropy_bits": total_bits, "max_bits": max_bits, "quality_pct": round(quality * 100),
+        "pos_entropy": pos_entropy, "verdict": verdict,
+    }
