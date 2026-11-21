@@ -6,12 +6,13 @@ import secrets
 from html import escape
 from urllib.parse import urlparse
 
-# Random Cambodia photo fetched live each time a new tab opens (served via the wyrm://bg handler so it's
-# same-origin and never blocked/cached). LoremFlickr returns a random Flickr photo matching the tags.
+# Random 4K hacker / cybersecurity / technology / quantum wallpaper, fetched live via the wyrm://bg
+# handler (same-origin, never blocked/cached). It also auto-rotates every 30 minutes on open start pages.
 BG_SOURCES = [
-    "https://loremflickr.com/1920/1080/cambodia,angkor,temple,phnompenh,landscape",
-    "https://picsum.photos/1920/1080",
+    "https://loremflickr.com/3840/2160/hacker,cybersecurity,technology,quantum,circuit,matrix,code",
+    "https://picsum.photos/3840/2160",
 ]
+BG_ROTATE_MS = 30 * 60 * 1000  # rotate the wallpaper every 30 minutes
 
 from . import engines
 
@@ -137,13 +138,19 @@ body.hasbg::after{content:"";position:fixed;inset:0;z-index:-1;
   background:linear-gradient(180deg,rgba(8,8,14,.55),rgba(8,8,14,.72))}
 body.hasbg .wordmark,body.hasbg .tagline,body.hasbg .modeline,body.hasbg .foot,body.hasbg .credit{color:#f4f4f4;text-shadow:0 1px 10px rgba(0,0,0,.6)}
 body.hasbg .logo{filter:drop-shadow(0 2px 10px rgba(0,0,0,.5))}
-body.hasbg .pill{background:rgba(255,255,255,.12);color:#f4f4f4;backdrop-filter:blur(6px)}
-body.hasbg .pill b{color:#fff}
-body.hasbg .tile{background:rgba(20,20,28,.72);border-color:rgba(255,255,255,.12);color:#f4f4f4;backdrop-filter:blur(6px)}
-body.hasbg .tile .d{color:#c6c6c6}
-body.hasbg .feed a.cve{background:rgba(20,20,28,.72);border-color:rgba(255,255,255,.12);color:#f4f4f4;backdrop-filter:blur(6px)}
-body.hasbg .feed .nm{color:#f4f4f4}
-body.hasbg .ex a{background:rgba(255,255,255,.12);color:#f4f4f4}
+/* cards follow the theme — light & translucent in light mode, dark & translucent in dark mode */
+body.hasbg .pill{background:rgba(255,255,255,.80);color:#161616;backdrop-filter:blur(6px)}
+body.hasbg .pill b{color:#161616}
+body.hasbg .tile,body.hasbg .feed a.cve{background:rgba(255,255,255,.88);border-color:rgba(0,0,0,.08);color:#161616;backdrop-filter:blur(6px)}
+body.hasbg .tile .d{color:#525252}
+body.hasbg .feed .nm{color:#161616}
+body.hasbg .ex a{background:rgba(255,255,255,.82);color:#161616}
+:root[data-theme=dark] body.hasbg .pill{background:rgba(255,255,255,.12);color:#f4f4f4}
+:root[data-theme=dark] body.hasbg .pill b{color:#fff}
+:root[data-theme=dark] body.hasbg .tile,:root[data-theme=dark] body.hasbg .feed a.cve{background:rgba(20,20,28,.72);border-color:rgba(255,255,255,.12);color:#f4f4f4}
+:root[data-theme=dark] body.hasbg .tile .d{color:#c6c6c6}
+:root[data-theme=dark] body.hasbg .feed .nm{color:#f4f4f4}
+:root[data-theme=dark] body.hasbg .ex a{background:rgba(255,255,255,.12);color:#f4f4f4}
 body.hasbg .credit b,body.hasbg .modeline b{color:#ffffff}
 body.hasbg .foot{color:#e0e0e0}
 """
@@ -249,9 +256,11 @@ def render_home(ctx: dict) -> str:
     if ctx.get("tor"):   # Tor window: purple + onion watermark background instead of a web photo
         html = _page("New tab", body, HOME_CSS + TOR_BG_CSS, "home")
         return html.replace("<body>", "<body class='hasbg tor'>", 1)
-    if bg:  # live random Cambodia photo via wyrm://bg (fresh token = new image per tab, nothing cached)
+    if bg:  # live random 4K tech/hacker wallpaper via wyrm://bg; auto-rotates every 30 min (no page reload)
         url = f"wyrm://bg?r={secrets.token_hex(6)}"
-        html = _page("New tab", body, HOME_CSS + f"\n:root{{--wyrm-bg:url('{url}')}}", "home")
+        rot = ("<script>setInterval(function(){document.documentElement.style.setProperty("
+               "'--wyrm-bg',\"url('wyrm://bg?r=\"+Date.now()+\"')\");}," + str(BG_ROTATE_MS) + ");</script>")
+        html = _page("New tab", body + rot, HOME_CSS + f"\n:root{{--wyrm-bg:url('{url}')}}", "home")
         return html.replace("<body>", "<body class='hasbg'>", 1)
     return _page("New tab", body, HOME_CSS, "home")
 

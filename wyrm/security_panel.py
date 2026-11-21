@@ -2183,7 +2183,8 @@ class SecurityPanel(QDockWidget):
             hf.setPointSizeF(max(7.5, hf.pointSizeF() - 2))
             head.setFont(hf)
             head.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
-            head.setSizeHint(QSize(0, 26 if gi else 18))  # compact caption; extra space sits above the text
+            # height must clear the ::item padding (8+8) + text, or the caption clips (esp. the first one)
+            head.setSizeHint(QSize(0, 38 if gi else 30))
             self.nav.addItem(head)
             for name, widget in items:
                 it = QListWidgetItem(name)
