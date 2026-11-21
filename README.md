@@ -5,7 +5,7 @@ Chromium engine, built-in ad/malware/phishing protection, Tor windows, anti-fing
 panel of tools for **authorized** web security testing.
 
 Built by **ByKh R&D Group** and **HackPi — Ethical Hackers Group**
-Copyright © 2021–2026 HackPi · Version 1.0.0
+Copyright © 2021–2026 HackPi · Version 1.0.3
 
 ### The name
 
@@ -14,14 +14,98 @@ hoards and protects. It fits a browser that stays low, watches every request, an
 
 ## Install
 
-| OS | Download | Install |
-|---|---|---|
-| Windows 10/11 | `Wyrm-Setup-1.0.0.exe` | Run it and follow the wizard (no admin needed). |
-| macOS 12+ | `Wyrm-macos.dmg` | Open it, drag **Wyrm** to Applications. First launch: right-click → **Open**. |
-| Linux (x64) | `Wyrm-linux.tar.gz` | `tar xzf Wyrm-linux.tar.gz && ./Wyrm/install.sh` |
+Download the file for your computer from the [Releases](../../releases) page (open the latest release →
+**Assets**).
 
-Downloads are on the [Releases](../../releases) page. First launch may show a SmartScreen / antivirus
-"unknown publisher" notice — see **"Why the warning"** below; it's a false positive from an unsigned build.
+| Your computer | File to download |
+|---|---|
+| Windows 10/11 (64-bit) | `Wyrm-Setup-<version>.exe` |
+| Mac with Apple Silicon (M1, M2, M3, M4…) | `Wyrm-macos-arm64.dmg` |
+| Mac with Intel processor | `Wyrm-macos-intel.dmg` |
+| Linux (x64) | `Wyrm-linux.tar.gz` |
+
+> Wyrm is free and not yet signed with a paid Apple / Microsoft publisher certificate, so the first launch
+> shows a security warning. This is expected — the steps below get past it. See
+> [Why the warning](#why-the-warning-smartscreen--antivirus).
+
+### macOS (12 Monterey or newer)
+
+**1. Which Mac do I have?** Apple menu  → **About This Mac**.
+"Chip: Apple M…" → download `Wyrm-macos-arm64.dmg`. "Processor: Intel…" → download `Wyrm-macos-intel.dmg`.
+Or in Terminal:
+
+```bash
+uname -m      # arm64 = Apple Silicon, x86_64 = Intel
+```
+
+**2. Install.** Double-click the `.dmg`, then drag **Wyrm** onto the **Applications** folder in the window
+that opens. Eject the "The Hidden Browser" disk afterwards.
+
+**3. Allow it to open (first launch only).** macOS will say *"Wyrm is damaged and can't be opened"* or
+*"Apple could not verify Wyrm is free of malware"*. It is **not** damaged — macOS says this about every app
+downloaded from the internet that isn't signed with a paid Apple Developer ID. Fix it with **one** of these:
+
+- **Terminal (recommended, works on every macOS version).** Open **Terminal** (Applications → Utilities)
+  and run:
+
+  ```bash
+  xattr -dr com.apple.quarantine /Applications/Wyrm.app
+  ```
+
+  Then open Wyrm normally from Applications or Launchpad.
+
+- **System Settings.** Double-click Wyrm once and close the warning. Go to **System Settings → Privacy &
+  Security**, scroll down to *"Wyrm was blocked…"*, click **Open Anyway** and enter your password.
+  (On macOS 15 and newer, right-click → **Open** no longer works for this.)
+
+Repeat step 3 after installing each new version.
+
+**If it still won't open:**
+
+```bash
+# "You can't open the application because it's not supported on this Mac" → you downloaded
+# the wrong chip version; check step 1.
+
+# Still "damaged"? Remove the download flags from the whole app and re-seal it:
+sudo xattr -cr /Applications/Wyrm.app
+codesign --force --deep --sign - /Applications/Wyrm.app
+```
+
+**Uninstall:** drag **Wyrm** from Applications to the Trash. To also remove settings and history:
+
+```bash
+rm -rf ~/Library/Application\ Support/HackPi/Wyrm ~/Library/Caches/HackPi/Wyrm ~/Library/Preferences/com.hackpi.Wyrm.plist
+```
+
+### Windows 10/11
+
+1. Run `Wyrm-Setup-<version>.exe` (no administrator rights needed).
+2. If **"Windows protected your PC"** (SmartScreen) appears, click **More info → Run anyway**.
+3. Follow the wizard. Wyrm is added to the Start menu.
+
+**Uninstall:** Settings → Apps → Installed apps → **Wyrm** → Uninstall.
+
+### Linux (x64)
+
+```bash
+tar xzf Wyrm-linux.tar.gz
+./Wyrm/install.sh            # installs for your user only (~/.local), no sudo needed
+```
+
+Then start **Wyrm** from your app menu, or run `Wyrm` in a terminal (make sure `~/.local/bin` is on your
+`PATH`). If it fails to start with a Qt / `xcb` error, install the usual runtime libraries
+(Debian/Ubuntu):
+
+```bash
+sudo apt install libegl1 libxkbcommon-x11-0 libxcb-cursor0 libnss3 libxcomposite1 libxdamage1 libxrandr2 libxtst6
+```
+
+**Uninstall:**
+
+```bash
+rm -rf ~/.local/opt/hiddenbrowser ~/.local/bin/Wyrm ~/.local/share/applications/hiddenbrowser.desktop \
+       ~/.local/share/icons/hicolor/512x512/apps/hiddenbrowser.png
+```
 
 ## What it does
 
@@ -71,7 +155,7 @@ Shortcuts: `Ctrl+T/W` tabs · `Ctrl+L` address bar · `Ctrl+Shift+S` security pa
 New, independently-published apps aren't yet signed with a paid publisher certificate, and PyInstaller's
 start-up stub resembles a self-extractor — so Windows SmartScreen or some AV engines may flag the installer
 as "unknown publisher" or a false positive. It is **not** infected. To run it: **More info → Run anyway**
-(Windows) or right-click → **Open** (macOS). You can verify any download on [VirusTotal](https://www.virustotal.com).
+(Windows) or follow the macOS step 3 under **Install** above. You can verify any download on [VirusTotal](https://www.virustotal.com).
 
 ## Build from source
 

@@ -1,8 +1,10 @@
 # PyInstaller spec - works on Windows, macOS and Linux (build on each OS; no cross-compiling).
 #   pyinstaller --noconfirm wyrm.spec
+import re
 import sys
 
-VERSION = "1.0.0"
+# single source of truth: wyrm/__init__.py
+VERSION = re.search(r'__version__\s*=\s*"([^"]+)"', open("wyrm/__init__.py", encoding="utf-8").read()).group(1)
 
 a = Analysis(
     ["run.py"],
@@ -33,5 +35,7 @@ if sys.platform == "darwin":
     app = BUNDLE(coll, name="Wyrm.app", icon="wyrm/assets/icon.icns",
                  bundle_identifier="com.hackpi.wyrm",
                  info_plist={"CFBundleDisplayName": "Wyrm", "CFBundleShortVersionString": VERSION,
+                             "CFBundleVersion": VERSION,
+                             "LSMinimumSystemVersion": "12.0",
                              "NSHighResolutionCapable": True})
 

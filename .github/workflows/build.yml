@@ -12,7 +12,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        # macos-latest = Apple Silicon (arm64); macos-15-intel = Intel (x86_64) Macs
+        os: [windows-latest, macos-latest, macos-15-intel, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +30,7 @@ jobs:
         run: bash build_unix.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: Wyrm-${{ runner.os }}
+          name: Wyrm-${{ matrix.os }}
           path: |
             dist/*Setup*.exe
             dist/*.dmg
