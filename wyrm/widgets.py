@@ -81,7 +81,9 @@ class BusyOverlay(QWidget):
         p.drawEllipse(QRectF(cx - r, cy - r, 2 * r, 2 * r))
         arc = QColor(accent)
         arc.setAlpha(int(160 + 95 * pulse))            # arc opacity pulses too
-        p.setPen(QPen(arc, 3, cap=Qt.PenCapStyle.RoundCap))
+        pen = QPen(arc, 3)  # (QPen(..., cap=...) keyword is not supported by PySide6: set it explicitly)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        p.setPen(pen)
         p.drawArc(QRectF(cx - r, cy - r, 2 * r, 2 * r), -self._angle * 16, 110 * 16)
         # spinner only — no text label (clean, like modern loaders)
         p.end()

@@ -145,7 +145,8 @@ rm -rf ~/.local/opt/hiddenbrowser ~/.local/bin/Wyrm ~/.local/share/applications/
 - **Overview**: passive security grade (headers, CSP, TLS, cookies, tech + CVE lookup, JS secrets/endpoints)
 - **Traffic**: every request, filterable, with **per-site focus**; route through **Burp/ZAP** (Settings → Network)
 - **Site map**: host/path tree built from observed traffic
-- **Recon**: subdomains (crt.sh), Wayback URLs, robots/sitemap/security.txt
+- **Recon**: subdomains (crt.sh), Wayback URLs, robots/sitemap/security.txt, and **ProjectDiscovery Chaos** —
+  search public bug-bounty programs and load their published subdomains (passive, no API key; developer: @oda)
 - **Tools**: Decoder · JWT · Hash · **Repeater** (colored, scope-aware) · **Match & Replace** · **Comparer** ·
   **Sequencer** (token entropy) · **AI Triage**
 - **AI Triage**: a scope-gated, human-in-the-loop, non-destructive assistant that analyzes a request/response

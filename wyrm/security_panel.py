@@ -27,7 +27,7 @@ from . import theme
 from .dialogs import FindingDialog
 from .linkguard import registered_domain
 from .widgets import BusyOverlay
-from .security import analyzer, domscan, fuzzer, intel, report, tools
+from .security import analyzer, chaos, domscan, fuzzer, intel, report, tools
 
 SEV_COLOR = theme.SEVERITY
 PAGEINFO_JS = (Path(__file__).parent / "security" / "pageinfo.js").read_text(encoding="utf-8")
@@ -611,11 +611,17 @@ class ReconTab(QWidget):
         row.addWidget(use)
         v.addLayout(row)
         row2 = QHBoxLayout()
-        for label, fn in (("Subdomains (crt.sh)", self.subdomains), ("Wayback URLs", self.wayback),
-                          ("robots / sitemap / security.txt", self.well_known)):
+        for label, fn, tip in (
+                ("Subdomains (crt.sh)", self.subdomains, "Certificate transparency logs"),
+                ("Wayback URLs", self.wayback, "Archived URLs from the Internet Archive"),
+                ("robots / sitemap / security.txt", self.well_known, "What the site publishes about itself"),
+                ("ProjectDiscovery Chaos", self.chaos_search,
+                 "Search ProjectDiscovery's public bug-bounty recon dataset by program name or domain")):
             b = QPushButton(label)
+            b.setToolTip(tip)
             b.clicked.connect(fn)
             row2.addWidget(b)
+        self._chaos_programs: dict[str, dict] = {}  # result-list text -> Chaos program
         v.addLayout(row2)
         row3 = QHBoxLayout()
         self.filter = QLineEdit()
@@ -635,7 +641,8 @@ class ReconTab(QWidget):
         self.list.customContextMenuRequested.connect(self._list_menu)
         v.addWidget(self.list, 1)
         self.busy = BusyOverlay(self.list)
-        self.status = QLabel("Passive sources only: certificate transparency logs and the Internet Archive.")
+        self.status = QLabel("Passive sources only: certificate transparency logs, the Internet Archive and "
+                             "ProjectDiscovery Chaos.")
         self.status.setObjectName("Muted")
         self.status.setWordWrap(True)
         v.addWidget(self.status)
@@ -704,6 +711,55 @@ class ReconTab(QWidget):
             self._render()
         self._run("Well-known files", lambda d: intel.well_known(f"https://{d}"), render)
 
+    # ---- ProjectDiscovery Chaos (public bug-bounty recon data) — developer: @oda
+    def chaos_search(self):
+        q = self.domain.text().strip()
+        if not q:
+            self.use_current()
+            q = self.domain.text().strip()
+        if not q:
+            self.status.setText("Type a program name (e.g. tesla) or a domain, then search ProjectDiscovery Chaos.")
+            return
+        px, verify = self.win.proxies(), self.win.verify_tls()
+        self.status.setText(f"Searching ProjectDiscovery Chaos for “{q}”…")
+        self.busy.start("Searching ProjectDiscovery Chaos…")
+
+        def done(ok, progs):
+            self.busy.stop()
+            if not ok:
+                self.status.setText(f"ProjectDiscovery Chaos search failed: {progs}")
+                return
+            self._chaos_programs = {}
+            self.items = []
+            for p in progs:
+                text = (f"◆ {p['name']} · {p['platform']} · {'bounty' if p['bounty'] else 'no bounty'} · "
+                        f"{p['count']:,} subdomains · updated {p['updated']}")
+                self._chaos_programs[text] = p
+                self.items.append((text, p["program_url"] or "ProjectDiscovery Chaos program"))
+            self.status.setText(
+                f"{len(progs)} ProjectDiscovery Chaos program(s) match “{q}”. Double-click a program to load its "
+                "subdomains." if progs else f"No ProjectDiscovery Chaos program matches “{q}”.")
+            self._render()
+        self.win.runner.run(lambda: chaos.search(q, px, verify), done)
+
+    def _chaos_load(self, prog: dict):
+        px, verify = self.win.proxies(), self.win.verify_tls()
+        self.status.setText(f"Loading {prog['count']:,} subdomains for {prog['name']} from ProjectDiscovery Chaos…")
+        self.busy.start(f"Loading {prog['name']} from Chaos…")
+
+        def done(ok, hosts):
+            self.busy.stop()
+            if not ok:
+                self.status.setText(f"Couldn't load {prog['name']}: {hosts}")
+                return
+            eng = self.win.engagement
+            self.items = [(h, "in scope" if eng and eng.in_scope(h) else "") for h in hosts]
+            self._chaos_programs = {}
+            self.status.setText(f"{len(hosts):,} subdomains for {prog['name']} ({prog['platform']}) from ProjectDiscovery "
+                                "Chaos. Only test what the program's scope allows — double-click to open.")
+            self._render()
+        self.win.runner.run(lambda: chaos.subdomains(prog, px, verify), done)
+
     def _visible(self):
         f = self.filter.text().lower()
         for text, tip in self.items:
@@ -718,12 +774,20 @@ class ReconTab(QWidget):
         for text, tip in self._visible():
             it = QListWidgetItem(text)
             it.setToolTip(tip)
-            if tip == "in scope" or intel.INTERESTING_URL.search(text):
+            if text in self._chaos_programs:  # clickable Chaos program row
+                f = it.font()
+                f.setBold(True)
+                it.setFont(f)
+                it.setForeground(QBrush(QColor("#4589ff")))
+            elif tip == "in scope" or intel.INTERESTING_URL.search(text):
                 it.setForeground(QBrush(QColor("#1e8e3e" if tip == "in scope" else "#fa7b17")))
             self.list.addItem(it)
 
     def _open(self, it):
         t = it.text().strip()
+        if t in self._chaos_programs:  # a Chaos program row: load its subdomains
+            self._chaos_load(self._chaos_programs[t])
+            return
         if t.startswith("──"):
             return
         url = t if "://" in t else f"https://{t}"
@@ -737,6 +801,14 @@ class ReconTab(QWidget):
 
     def _list_menu(self, pos):
         it = self.list.itemAt(pos)
+        if it and it.text().strip() in self._chaos_programs:
+            prog = self._chaos_programs[it.text().strip()]
+            m = QMenu(self)
+            m.addAction("Load subdomains", lambda: self._chaos_load(prog))
+            if prog["program_url"]:
+                m.addAction("Open program page (scope & rules)", lambda: self.win.open_url(prog["program_url"], new_tab=True))
+            m.exec(self.list.viewport().mapToGlobal(pos))
+            return
         if not it or it.text().strip().startswith("──"):
             return
         t = it.text().strip()

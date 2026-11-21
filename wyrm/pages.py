@@ -861,7 +861,7 @@ network. Nothing from it is saved to disk. The first time, Wyrm downloads Tor fr
 <tr><td><b>Shields</b></td><td>What was blocked, and all protection settings.</td></tr>
 <tr><td><b>Overview</b></td><td>A passive security grade for the open page: headers, CSP, TLS, cookies, technologies with known CVEs, secrets and endpoints in JavaScript.</td></tr>
 <tr><td><b>Site map</b></td><td>The hosts and paths seen while you browse.</td></tr>
-<tr><td><b>Recon</b></td><td>Subdomains (certificate logs), archived URLs (Wayback Machine), robots.txt, sitemap and security.txt.</td></tr>
+<tr><td><b>Recon</b></td><td>Subdomains (certificate logs), archived URLs (Wayback Machine), robots.txt, sitemap and security.txt, and <b>ProjectDiscovery Chaos</b>: search ~800 public bug-bounty programs by name or domain, then double-click a program to load its published subdomains.</td></tr>
 <tr><td><b>Traffic</b></td><td>Every request the page makes, filterable. Can route through Burp Suite or ZAP (Settings → Network).</td></tr>
 <tr><td><b>Intruder</b></td><td>Mark positions with <code>§…§</code> and try one payload per line — in-scope targets only, with a rate limit and a request budget.</td></tr>
 <tr><td><b>DOM Analysis</b></td><td>Passive scan of the page's scripts for DOM-XSS sources and sinks. Read-only — never runs payloads.</td></tr>
