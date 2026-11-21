@@ -92,6 +92,8 @@ QTabBar#MainTabs::tab:selected { background: $layer; color: $text; border-top: 3
 /* fixed 40x40 squares, no margin: the hover/checked background is always a square with the icon dead-centre */
 #NavBar QToolButton { border: none; border-radius: 0; padding: 0; background: transparent; min-width: 40px; min-height: 40px; max-width: 40px; max-height: 40px; margin: 0; }
 #NavBar QToolButton:hover { background: $hover; }
+#NavBar QLabel#Badge { background: $interactive; color: #ffffff; font-size: 10px; font-weight: 600;
+    border-radius: 8px; padding: 0 4px; min-width: 8px; }
 #NavBar QToolButton:checked { background: $selected; }
 #NavBar QToolButton:focus { border: 2px solid $focus; }
 QLineEdit#UrlBar {

@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QEasingCurve, QEvent, QRectF, Qt, QTimer, QVariantAnimation
+from PySide6.QtCore import QEasingCurve, QEvent, QPoint, QRect, QRectF, QSize, Qt, QTimer, QVariantAnimation
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen
-from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import (
+    QApplication, QBoxLayout, QHBoxLayout, QLabel, QLayout, QPushButton, QSizePolicy, QWidget,
+)
 
 
 class BusyOverlay(QWidget):
@@ -231,3 +233,141 @@ class OfflineBanner(QWidget):
         self._anim.setStartValue(self.maximumHeight())
         self._anim.setEndValue(end)
         self._anim.start()
+
+
+class WrapRow(QLayout):
+    """A horizontal row that wraps onto more lines when it runs out of width (responsive button/filter bars).
+    On a line that fits, it behaves like QHBoxLayout: spare width goes to horizontally-expanding widgets
+    (e.g. a filter box); items are vertically centred."""
+
+    def __init__(self, hspacing=8, vspacing=8):
+        # no parent here: attach with widget.setLayout() once the Python side is fully initialised
+        super().__init__()
+        self._items = []
+        self._h, self._v = hspacing, vspacing
+        self.setContentsMargins(0, 0, 0, 0)
+
+    def addItem(self, item):
+        self._items.append(item)
+
+    def count(self):
+        return len(self._items)
+
+    def itemAt(self, i):
+        return self._items[i] if 0 <= i < len(self._items) else None
+
+    def takeAt(self, i):
+        return self._items.pop(i) if 0 <= i < len(self._items) else None
+
+    def expandingDirections(self):
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        try:
+            return self._layout(QRect(0, 0, width, 0), apply=False)
+        except Exception:  # noqa: BLE001 - an exception escaping into Qt's C++ layout code crashes the app
+            return self.sizeHint().height()
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        try:
+            self._layout(rect, apply=True)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def sizeHint(self):
+        vis = self._visible()
+        w = sum(self._w(it) for it in vis) + self._h * max(0, len(vis) - 1)
+        h = max((it.sizeHint().height() for it in vis), default=0)
+        m = self.contentsMargins()
+        return QSize(w + m.left() + m.right(), h + m.top() + m.bottom())
+
+    def minimumSize(self):  # as narrow as the widest single item
+        vis = self._visible()
+        w = max((max(it.minimumSize().width(), min(self._w(it), 160)) for it in vis), default=0)
+        h = max((it.sizeHint().height() for it in vis), default=0)
+        m = self.contentsMargins()
+        return QSize(w + m.left() + m.right(), h + m.top() + m.bottom())
+
+    def _visible(self):
+        return [it for it in self._items if it.widget() is not None and not it.widget().isHidden()]
+
+    @staticmethod
+    def _w(it):
+        return max(it.minimumSize().width(), min(it.sizeHint().width(), it.maximumSize().width()))
+
+    _EXPAND = QSizePolicy.PolicyFlag.ExpandFlag.value
+
+    @classmethod
+    def _expands(cls, it, vertical=False):
+        sp = it.widget().sizePolicy()
+        pol = sp.verticalPolicy() if vertical else sp.horizontalPolicy()
+        return bool(pol.value & cls._EXPAND)  # (enum & enum is not supported in PySide6)
+
+    def _layout(self, rect, apply):
+        m = self.contentsMargins()
+        r = rect.adjusted(m.left(), m.top(), -m.right(), -m.bottom())
+        lines, line, used = [], [], 0
+        for it in self._visible():
+            w = min(self._w(it), r.width())
+            if line and used + self._h + w > r.width():
+                lines.append((line, used))
+                line, used = [], 0
+            used += (self._h if line else 0) + w
+            line.append((it, w))
+        if line:
+            lines.append((line, used))
+        y = r.y()
+        for line, used in lines:
+            lh = max(it.sizeHint().height() for it, _ in line)
+            grow = [i for i, (it, _) in enumerate(line) if self._expands(it)]
+            extra = (r.width() - used) // len(grow) if grow else 0
+            x = r.x()
+            for i, (it, w) in enumerate(line):
+                w = w + (extra if i in grow else 0)
+                h = lh if self._expands(it, vertical=True) else min(it.sizeHint().height(), lh)
+                if apply:
+                    it.setGeometry(QRect(QPoint(x, y + (lh - h) // 2), QSize(w, h)))
+                x += w + self._h
+            y += lh + self._v
+        return y - self._v - r.y() + m.top() + m.bottom() if lines else 0
+
+
+_WRAP_ROWS: list = []
+
+
+def make_rows_wrap(root: QWidget, wider_than: int = 280) -> int:
+    """Turn every plain widget row (QHBoxLayout of widgets) under `root` that needs more than `wider_than` px
+    into a WrapRow, so it wraps instead of forcing its page wider than the panel. Returns rows converted."""
+    done = 0
+    for row in root.findChildren(QHBoxLayout):
+        parent = row.parent()
+        if not isinstance(parent, QBoxLayout) or row.minimumSize().width() <= wider_than:
+            continue
+        items = [row.itemAt(i) for i in range(row.count())]
+        if any(it.layout() is not None for it in items):  # nested layouts: leave alone
+            continue
+        idx = next((i for i in range(parent.count()) if parent.itemAt(i).layout() is row), -1)
+        if idx < 0:
+            continue
+        holder = QWidget()
+        holder.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+        flow = WrapRow(hspacing=max(6, row.spacing()))
+        _WRAP_ROWS.append((holder, flow))  # keep the Python objects alive: Qt calls their overridden methods
+        while row.count():
+            it = row.takeAt(0)
+            wd = it.widget()
+            if wd is not None:
+                if wd.inherits("QLineEdit") and wd.minimumWidth() < 180:
+                    wd.setMinimumWidth(180)  # filter boxes stay usable; neighbours wrap instead
+                flow.addWidget(wd)
+        holder.setLayout(flow)
+        parent.takeAt(idx)
+        parent.insertWidget(idx, holder)
+        row.deleteLater()
+        done += 1
+    return done
+

@@ -69,8 +69,7 @@ input[type=text]:focus{outline:2px solid var(--focus);outline-offset:-2px}
 input::placeholder{color:var(--helper)}
 button{font:inherit;height:48px;padding:0 64px 0 16px;border:0;border-radius:0;background:var(--btn);color:#fff;cursor:pointer;text-align:left}
 button:hover{background:var(--btn-hover)}
-/* search boxes on the Papers / Security pages: keyword and button label centered */
-.qform input[type=text]{text-align:center}
+/* search boxes on the Papers / Security pages: Search label centered (typed text stays left-aligned) */
 .qform button{padding:0 32px;text-align:center}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 0;align-items:center}
 .chip{font-size:12px;padding:2px 10px;border-radius:12px;background:var(--layer2);color:var(--fg)}
@@ -282,7 +281,10 @@ TILE_ICONS = {
     "scan": "<path d='M12 3l8 3v5c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z'/><path d='M9 12l2 2 4-4'/>",
     "cve": "<circle cx='11' cy='11' r='7'/><path d='M21 21l-4.3-4.3'/>",
     "recon": "<circle cx='12' cy='12' r='9'/><path d='M3 12h18'/><path d='M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z'/>",
-    "tor": "<path d='M12 2C9 6 7 9 7 13a5 5 0 0 0 10 0c0-4-2-7-5-11z'/><path d='M12 13v5'/>",
+    "tor": ("<path d='M12 6.5c-1.2 2.4-7 4.6-7 9.2a7 7 0 0 0 14 0c0-4.6-5.8-6.8-7-9.2z'/>"   # onion bulb
+            "<path d='M12 10c-.9 1.8-4.3 3.1-4.3 5.9a4.3 4.3 0 0 0 8.6 0c0-2.8-3.4-4.1-4.3-5.9z'/>"      # middle layer
+            "<path d='M12 13.4c-.5 1-1.8 1.6-1.8 2.7a1.8 1.8 0 0 0 3.6 0c0-1.1-1.3-1.7-1.8-2.7z'/>"     # core
+            "<path d='M12 6.5V4.2'/><path d='M12 4.6c.6-1.6 2-2.3 3.8-2.2'/>"),                        # sprout
     "learn": "<path d='M3 6l9-3 9 3-9 3z'/><path d='M7 9v5c0 1.5 2.5 3 5 3s5-1.5 5-3V9'/><path d='M21 6v6'/>",
     "bounty": "<circle cx='12' cy='12' r='9'/><circle cx='12' cy='12' r='5'/><circle cx='12' cy='12' r='1.4' fill='currentColor'/>",
 }

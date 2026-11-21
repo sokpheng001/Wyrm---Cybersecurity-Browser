@@ -1032,21 +1032,7 @@ class ToolsTab(QWidget):
         row.addWidget(self.r_send)
         v.addLayout(row)
 
-        def pane(title, widget, extra=None):
-            box = QWidget()
-            bl = QVBoxLayout(box)
-            bl.setContentsMargins(0, 0, 0, 0)
-            bl.setSpacing(3)
-            head = QHBoxLayout()
-            lab = QLabel(title)
-            lab.setObjectName("PaneLabel")
-            head.addWidget(lab)
-            head.addStretch(1)
-            if extra:
-                extra(head)
-            bl.addLayout(head)
-            bl.addWidget(widget, 1)
-            return box
+        pane = _pane  # shared helper: same spacing everywhere
 
         split = QSplitter(Qt.Orientation.Vertical)
         self.r_headers = mono(QPlainTextEdit())
@@ -1751,10 +1737,12 @@ class _SortItem(QTreeWidgetItem):
 
 
 def _pane(title, widget, extra=None):
+    """Labelled editor section used in stacked splitters (Repeater, Intruder, …). Consistent rhythm:
+    12px above every section label, 6px between the label and its editor."""
     box = QWidget()
     bl = QVBoxLayout(box)
-    bl.setContentsMargins(0, 0, 0, 0)
-    bl.setSpacing(3)
+    bl.setContentsMargins(0, 12, 0, 0)
+    bl.setSpacing(6)
     head = QHBoxLayout()
     lab = QLabel(title)
     lab.setObjectName("PaneLabel")
@@ -2294,6 +2282,11 @@ class SecurityPanel(QDockWidget):
             if lay is not None:
                 lay.setContentsMargins(16, 14, 16, 12)
                 lay.setSpacing(10)
+        from .widgets import make_rows_wrap
+        make_rows_wrap(self.stack)  # button / filter rows wrap instead of forcing pages wider than the panel
+        for lab in self.stack.findChildren(QLabel):  # long explanatory labels wrap with the panel width
+            if not lab.wordWrap() and len(lab.text()) > 40:
+                lab.setWordWrap(True)
         h.addWidget(self.nav)
         h.addWidget(self.stack, 1)
         self.setWidget(root)

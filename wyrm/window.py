@@ -550,6 +550,7 @@ class MainWindow(QMainWindow):
             self.settings.setValue("home/bg_color", color)
         self.settings.setValue("home/bg_mode", mode)
         self.settings.setValue("home/background", mode != "none")
+        self.settings.sync()
         QTimer.singleShot(0, self._refresh_home_pages)
 
     def _pick_background_image(self):
@@ -586,7 +587,12 @@ class MainWindow(QMainWindow):
     def _update_shield_button(self):
         v = self.current_view()
         n = v.stats.total() if v else 0
-        self.b_shield.setText(str(n) if n else "")
+        badge = self.shield_badge
+        badge.setText(str(n) if n < 1000 else "999+")
+        badge.adjustSize()
+        bw = max(16, badge.width())
+        badge.setGeometry(40 - bw - 1, 2, bw, 16)
+        badge.setVisible(n > 0)
         host = v.url().host() if v else ""
         off = bool(host) and not self.shields.site_enabled(host)
         self.b_shield.setToolTip(f"Shields: {n} blocked on this page" + (" (Shields are OFF for this site)" if off else ""))
@@ -1262,7 +1268,11 @@ class MainWindow(QMainWindow):
         n.addWidget(b_flag)
         # Shields: blocked-count badge, opens the Shields report
         self.b_shield = self._tool("shields", "Shields", lambda: self.security.show_tab("Shields"))
-        self.b_shield.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        # icon-only (centred like every other button); the blocked count is a small corner badge
+        self.shield_badge = QLabel(self.b_shield, objectName="Badge")
+        self.shield_badge.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.shield_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.shield_badge.hide()
         n.addWidget(self.b_shield)
         self._shield_timer = QTimer(self, singleShot=True, interval=250)
         self._shield_timer.timeout.connect(self._update_shield_button)
@@ -1407,6 +1417,7 @@ class MainWindow(QMainWindow):
 
     def _engine_changed(self):
         self.settings.setValue("search/engine", self.engine_box.currentData())
+        self.settings.sync()  # write now, so the choice survives even an unexpected quit
         v = self.current_view()
         if v and v.url().scheme() == "wyrm" and v.url().host() in ("home", ""):
             v.reload()
