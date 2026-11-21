@@ -360,6 +360,7 @@ class MainWindow(QMainWindow):
         self.profiles: dict[str, QWebEngineProfile] = {}
         self._loading_views: set = set()
         self._failed: dict = {}
+        self._closed_tabs: list[str] = []   # URLs of recently closed tabs (Ctrl+Shift+T)
         self._current_key: str | None = None
         self.block_reasons: dict[str, tuple] = {}  # url -> (category, linkguard verdict) for blocked navigations
         self.http_allowed: set[str] = set()        # hosts the user allowed over plain HTTP this session
@@ -1133,6 +1134,24 @@ class MainWindow(QMainWindow):
             (["Ctrl++", "Ctrl+="], lambda: self._zoom(0.1)),
             (["Ctrl+-"], lambda: self._zoom(-0.1)),
             (["Ctrl+0"], lambda: self._zoom(0)),
+            (["Ctrl+Shift+T"], self.reopen_closed_tab),
+            (["Ctrl+PgDown"], lambda: self._cycle_tab(1)),
+            (["Ctrl+PgUp"], lambda: self._cycle_tab(-1)),
+            (["Ctrl+1"], lambda: self._goto_tab(0)),
+            (["Ctrl+2"], lambda: self._goto_tab(1)),
+            (["Ctrl+3"], lambda: self._goto_tab(2)),
+            (["Ctrl+4"], lambda: self._goto_tab(3)),
+            (["Ctrl+5"], lambda: self._goto_tab(4)),
+            (["Ctrl+6"], lambda: self._goto_tab(5)),
+            (["Ctrl+7"], lambda: self._goto_tab(6)),
+            (["Ctrl+8"], lambda: self._goto_tab(7)),
+            (["Ctrl+9"], lambda: self._goto_tab(self.tabbar.count() - 1)),
+            (["F11"], self._toggle_fullscreen),
+            (["Escape"], self._stop_current),
+            (["Ctrl+F", "F3"], self._show_find),
+            (["Ctrl+G"], lambda: self._find_step(True)),
+            (["Ctrl+P"], self._print_page),
+            (["Ctrl+Shift+Delete"], self._clear_history_confirm),
         ):
             a = QAction(self)
             a.setShortcuts([QKeySequence(k) for k in keys])
@@ -1359,10 +1378,108 @@ class MainWindow(QMainWindow):
     def close_tab(self, i: int):
         if i < 0:
             return
+        view = self.tabbar.tabData(i)
+        if view is not None and not self.tor:  # remember it for Ctrl+Shift+T (never in Tor windows)
+            u = view.url().toString()
+            if u and not u.startswith("wyrm://"):
+                self._closed_tabs.append(u)
+                del self._closed_tabs[:-25]
         if self.tabbar.count() <= 1:
             self.current_view().setUrl(QUrl(HOME))
             return
         self._remove_tab(i)
+
+    def reopen_closed_tab(self):
+        if self._closed_tabs:
+            self.new_tab(QUrl(self._closed_tabs.pop()))
+
+    def _cycle_tab(self, step: int):
+        n = self.tabbar.count()
+        if n:
+            self.tabbar.setCurrentIndex((self.tabbar.currentIndex() + step) % n)
+
+    def _goto_tab(self, i: int):
+        if 0 <= i < self.tabbar.count():
+            self.tabbar.setCurrentIndex(i)
+
+    def _stop_current(self):
+        v = self.current_view()
+        if v and v in self._loading_views:
+            v.stop()
+
+    def _toggle_fullscreen(self):
+        self.showNormal() if self.isFullScreen() else self.showFullScreen()
+
+    def _print_page(self):
+        v = self.current_view()
+        if not v:
+            return
+        from PySide6.QtPrintSupport import QPrintDialog, QPrinter
+        printer = QPrinter()
+        if QPrintDialog(printer, self).exec():
+            v.page().print(printer, lambda ok: self.toast("Printed" if ok else "Print failed"))
+
+    # ---------------------------------------------------------------- find in page (Ctrl+F)
+    def _build_find_bar(self):
+        bar = QWidget(self.stack, objectName="FindBar")
+        bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        h = QHBoxLayout(bar)
+        h.setContentsMargins(8, 4, 6, 4)
+        h.setSpacing(4)
+        self._find_input = QLineEdit()
+        self._find_input.setPlaceholderText("Find in page")
+        self._find_input.setFixedWidth(220)
+        self._find_input.setFrame(False)
+        self._find_input.textChanged.connect(lambda t: self._do_find(t, True))
+        self._find_input.returnPressed.connect(lambda: self._find_step(True))
+        h.addWidget(self._find_input)
+        self._find_count = QLabel("")
+        self._find_count.setObjectName("Muted")
+        h.addWidget(self._find_count)
+        for txt, fn in (("‹", lambda: self._find_step(False)), ("›", lambda: self._find_step(True)),
+                        ("✕", self._hide_find)):
+            b = QToolButton()
+            b.setText(txt)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.clicked.connect(fn)
+            h.addWidget(b)
+        bar.hide()
+        self._findbar = bar
+
+    def _show_find(self):
+        if not hasattr(self, "_findbar"):
+            self._build_find_bar()
+        self._findbar.adjustSize()
+        self._findbar.move(self.stack.width() - self._findbar.width() - 16, 8)
+        self._findbar.show()
+        self._findbar.raise_()
+        self._find_input.setFocus()
+        self._find_input.selectAll()
+
+    def _hide_find(self):
+        if hasattr(self, "_findbar"):
+            self._findbar.hide()
+        v = self.current_view()
+        if v:
+            v.findText("")  # clear highlights
+
+    def _do_find(self, text, forward=True):
+        v = self.current_view()
+        if not v:
+            return
+        flags = QWebEnginePage.FindFlag.FindBackward if not forward else QWebEnginePage.FindFlag(0)
+
+        def cb(result):
+            try:
+                n = result.numberOfMatches()
+                self._find_count.setText(f"{result.activeMatch()}/{n}" if n else ("No matches" if text else ""))
+            except Exception:  # noqa: BLE001
+                pass
+        v.findText(text, flags, cb)
+
+    def _find_step(self, forward):
+        if hasattr(self, "_find_input") and self._find_input.text():
+            self._do_find(self._find_input.text(), forward)
 
     def _on_tab_changed(self, _i):
         v = self.current_view()

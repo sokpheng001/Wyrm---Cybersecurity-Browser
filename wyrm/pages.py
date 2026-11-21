@@ -6,9 +6,12 @@ import secrets
 from html import escape
 from urllib.parse import urlparse
 
-# Random Cambodia photo fetched live by the browser each time a new tab opens (no local download/caching).
-# LoremFlickr returns a random Flickr photo matching the tags; a fresh token per render defeats caching.
-BG_URL = "https://loremflickr.com/1920/1080/cambodia,angkor,temple,phnompenh,landscape"
+# Random Cambodia photo fetched live each time a new tab opens (served via the wyrm://bg handler so it's
+# same-origin and never blocked/cached). LoremFlickr returns a random Flickr photo matching the tags.
+BG_SOURCES = [
+    "https://loremflickr.com/1920/1080/cambodia,angkor,temple,phnompenh,landscape",
+    "https://picsum.photos/1920/1080",
+]
 
 from . import engines
 
@@ -246,8 +249,8 @@ def render_home(ctx: dict) -> str:
     if ctx.get("tor"):   # Tor window: purple + onion watermark background instead of a web photo
         html = _page("New tab", body, HOME_CSS + TOR_BG_CSS, "home")
         return html.replace("<body>", "<body class='hasbg tor'>", 1)
-    if bg:  # live random Cambodia photo, fetched by the browser on load (fresh token = new image per tab)
-        url = f"{BG_URL}?r={secrets.token_hex(6)}"
+    if bg:  # live random Cambodia photo via wyrm://bg (fresh token = new image per tab, nothing cached)
+        url = f"wyrm://bg?r={secrets.token_hex(6)}"
         html = _page("New tab", body, HOME_CSS + f"\n:root{{--wyrm-bg:url('{url}')}}", "home")
         return html.replace("<body>", "<body class='hasbg'>", 1)
     return _page("New tab", body, HOME_CSS, "home")

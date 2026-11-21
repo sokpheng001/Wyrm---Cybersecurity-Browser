@@ -75,12 +75,7 @@ class BusyOverlay(QWidget):
         arc.setAlpha(int(160 + 95 * pulse))            # arc opacity pulses too
         p.setPen(QPen(arc, 3, cap=Qt.PenCapStyle.RoundCap))
         p.drawArc(QRectF(cx - r, cy - r, 2 * r, 2 * r), -self._angle * 16, 110 * 16)
-        # label
-        p.setPen(self.palette().color(self.foregroundRole()))
-        f = QFont(self.font())
-        f.setPointSizeF(f.pointSizeF() + 1)
-        p.setFont(f)
-        p.drawText(QRectF(0, cy + r + 10, self.width(), 24), Qt.AlignmentFlag.AlignHCenter, self._label or "Loading…")
+        # spinner only — no text label (clean, like modern loaders)
         p.end()
 
 

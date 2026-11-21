@@ -54,6 +54,13 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
             if getattr(self, "actions", None):
                 self.actions("do:" + (params.get("a") or [""])[0], {})
             job.redirect(QUrl("wyrm://home"))
+        elif host == "bg":  # live random new-tab background, fetched into memory (never saved to disk)
+            def done(ok, res):
+                if ok and res:
+                    self._reply(job, res, b"image/jpeg")
+                else:
+                    job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
+            self.runner.run(self._fetch_bg, done)
         elif host == "assets":  # bundled fonts for internal pages
             name = url.path().rsplit("/", 1)[-1]
             f = ASSETS / "fonts" / name
@@ -92,6 +99,22 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
         else:
             html = pages.render_message("Search failed", f"Search failed: {res}")
         self._reply(job, html)
+
+    @staticmethod
+    def _fetch_bg():
+        """Fetch one random Cambodia photo live (no disk cache). Tries each source; returns bytes or None."""
+        import requests
+        s = requests.Session()
+        s.trust_env = False
+        for src in pages.BG_SOURCES:
+            try:
+                r = s.get(src, timeout=20, allow_redirects=True,
+                          headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Wyrm/1.0"})
+                if r.ok and r.content and r.headers.get("content-type", "").startswith("image"):
+                    return r.content
+            except requests.RequestException:
+                continue
+        return None
 
     @staticmethod
     def _reply(job, content, ctype: bytes = b"text/html"):

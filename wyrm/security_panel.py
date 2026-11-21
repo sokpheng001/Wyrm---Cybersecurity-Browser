@@ -1742,27 +1742,29 @@ class IntruderTab(QWidget):
         v.addWidget(split, 1)
 
         cfg = QHBoxLayout()
+        cfg.setSpacing(8)
         cfg.addWidget(QLabel("Rate"))
         self.rate = QDoubleSpinBox()
         self.rate.setRange(0.2, fuzzer.MAX_RATE)
         self.rate.setSingleStep(0.5)
         self.rate.setValue(5.0)
         self.rate.setSuffix(" req/s")
+        self.rate.setFixedWidth(120)
         cfg.addWidget(self.rate)
+        cfg.addSpacing(16)
         cfg.addWidget(QLabel("Max requests"))
         self.maxreq = QSpinBox()
         self.maxreq.setRange(1, fuzzer.MAX_REQUESTS_CEILING)
         self.maxreq.setValue(200)
+        self.maxreq.setFixedWidth(96)
         self.maxreq.valueChanged.connect(self._update_budget)
         cfg.addWidget(self.maxreq)
-        self.pos_lbl = QLabel("0 positions")
-        self.pos_lbl.setObjectName("Muted")
-        cfg.addWidget(self.pos_lbl)
         cfg.addStretch(1)
-        self.budget = QLabel("")
-        self.budget.setObjectName("Muted")
-        cfg.addWidget(self.budget)
         v.addLayout(cfg)
+        # one tidy status line instead of two cramped labels on the control row
+        self.status_line = QLabel("")
+        self.status_line.setObjectName("Muted")
+        v.addWidget(self.status_line)
 
         runrow = QHBoxLayout()
         self.b_start = QPushButton("Start attack")
@@ -1822,16 +1824,23 @@ class IntruderTab(QWidget):
 
     def _update_positions(self):
         n = sum(fuzzer.positions(t) for t in self._templates())
-        self.pos_lbl.setText(f"{n} position{'s' if n != 1 else ''}")
+        self._update_status()
         return n
 
     def _payload_lines(self):
         return [ln for ln in self.payloads.toPlainText().splitlines() if ln.strip() != ""]
 
     def _update_budget(self):
-        n = len(self._payload_lines())
-        eff = min(n, self.maxreq.value(), fuzzer.MAX_REQUESTS_CEILING)
-        self.budget.setText(f"Will send <b>{eff}</b> of {n} payloads" + (" (budget-capped)" if eff < n else ""))
+        self._update_status()
+
+    def _update_status(self):
+        n_pos = sum(fuzzer.positions(t) for t in self._templates())
+        n_pay = len(self._payload_lines())
+        eff = min(n_pay, self.maxreq.value(), fuzzer.MAX_REQUESTS_CEILING)
+        cap = " · budget-capped" if eff < n_pay else ""
+        self.status_line.setText(
+            f"{n_pos} payload position{'' if n_pos == 1 else 's'} · "
+            f"will send <b>{eff}</b> of {n_pay} payload{'' if n_pay == 1 else 's'}{cap}")
 
     def _load_payloads(self):
         path, _ = QFileDialog.getOpenFileName(self, "Load payload list", "", "Text files (*.txt);;All files (*)")
@@ -2174,7 +2183,7 @@ class SecurityPanel(QDockWidget):
             hf.setPointSizeF(max(7.5, hf.pointSizeF() - 2))
             head.setFont(hf)
             head.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
-            head.setSizeHint(QSize(0, 34 if gi else 24))  # generous height; extra space sits above the text
+            head.setSizeHint(QSize(0, 26 if gi else 18))  # compact caption; extra space sits above the text
             self.nav.addItem(head)
             for name, widget in items:
                 it = QListWidgetItem(name)

@@ -166,6 +166,10 @@ QPushButton:disabled { background: $layer2; color: $placeholder; }
 QPushButton#Primary { background: $button; color: #ffffff; font-weight: 600; }
 QPushButton#Primary:hover { background: $button_hover; }
 QPushButton#Primary:disabled { background: $layer2; color: $placeholder; }
+#FindBar { background: $layer; border: 1px solid $border; }
+#FindBar QLineEdit { background: transparent; color: $text; }
+#FindBar QToolButton { background: transparent; border: none; color: $text; min-width: 24px; min-height: 24px; }
+#FindBar QToolButton:hover { background: $hover; }
 QPushButton#Danger { background: #da1e28; color: #ffffff; font-weight: 600; }
 QPushButton#Danger:hover { background: #b81922; }
 QCheckBox { spacing: 8px; }
