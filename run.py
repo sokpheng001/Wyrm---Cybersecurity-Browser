@@ -118,8 +118,15 @@ def main():
     if tor_mode:
         data_dir = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))
         tor = TorManager(data_dir)
-        app.setPalette(theme.palette("dark"))
-        app.setStyleSheet(theme.stylesheet("dark", data_dir / "ui"))
+        # the connect dialog follows the user's chosen theme (system/dark/light), not a forced dark
+        from PySide6.QtGui import QGuiApplication
+        from PySide6.QtCore import Qt as _Qt
+        pref = QSettings().value("theme", "system")
+        if pref not in ("dark", "light"):
+            pref = "light" if QGuiApplication.styleHints().colorScheme() == _Qt.ColorScheme.Light else "dark"
+        mode = QSettings().value("mode", "blue")
+        app.setPalette(theme.palette(pref, mode))
+        app.setStyleSheet(theme.stylesheet(pref, data_dir / "ui", mode))
         if TorDialog(tor, socks).exec() != QDialog.DialogCode.Accepted:
             tor.stop()
             sys.exit(0)

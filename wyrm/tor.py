@@ -117,10 +117,12 @@ class TorManager:
         cfg = {"SocksPort": f"127.0.0.1:{socks_port}", "ControlPort": f"127.0.0.1:{self.control_port}",
                "CookieAuthentication": "1", "DataDirectory": str(data), "ClientOnly": "1",
                "AvoidDiskWrites": "1", "Log": "notice stdout"}
-        geo = self.root / "data"
-        if (geo / "geoip").exists():
-            cfg["GeoIPFile"] = str(geo / "geoip")
-            cfg["GeoIPv6File"] = str(geo / "geoip6")
+        # Tor needs ABSOLUTE geoip paths (a relative/empty one makes it refuse to start). The Expert
+        # Bundle ships them under data/ — find them wherever they extracted and pass absolute paths.
+        for cfgkey, fname in (("GeoIPFile", "geoip"), ("GeoIPv6File", "geoip6")):
+            hits = list(self.root.rglob(fname))
+            if hits:
+                cfg[cfgkey] = str(hits[0].resolve())
         if sys.platform.startswith("linux"):  # bundled tor ships its own libs next to the binary
             os.environ["LD_LIBRARY_PATH"] = str(Path(tor).parent) + os.pathsep + os.environ.get("LD_LIBRARY_PATH", "")
 
