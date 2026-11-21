@@ -18,7 +18,15 @@ $py = if (Test-Path ..\venv\Scripts\python.exe) { "..\venv\Scripts\python.exe" }
     if (-not (Test-Path .venv)) { python -m venv .venv }
     ".\.venv\Scripts\python.exe"
 }
-Invoke-Step $py -m pip install -q --disable-pip-version-check -r requirements.txt pyinstaller pillow
+Invoke-Step $py -m pip install -q --disable-pip-version-check -r requirements.txt pillow
+if ($env:CI -or $env:WYRM_OWN_BOOTLOADER) {
+    # Compile PyInstaller's launcher (bootloader) from source instead of using the stock prebuilt one, which is
+    # shared with a lot of malware and is a common cause of false antivirus detections. Needs MSVC (on CI runners).
+    $env:PYINSTALLER_COMPILE_BOOTLOADER = "1"
+    Invoke-Step $py -m pip install -q --disable-pip-version-check --no-binary pyinstaller --no-cache-dir pyinstaller
+} else {
+    Invoke-Step $py -m pip install -q --disable-pip-version-check pyinstaller
+}
 Invoke-Step $py tools\make_icons.py
 Invoke-Step $py tools\fetch_filters.py
 Invoke-Step $py tools\fetch_pdtools.py   # bundle the ProjectDiscovery tools

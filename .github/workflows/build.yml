@@ -47,6 +47,8 @@ jobs:
         # macos-latest = Apple Silicon (arm64); macos-15-intel = Intel (x86_64) Macs
         os: [windows-latest, macos-latest, macos-15-intel, ubuntu-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}   # empty = no code signing (see below)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -75,6 +77,29 @@ jobs:
       - if: runner.os != 'Windows'
         env: { GITHUB_TOKEN: "${{ github.token }}" }
         run: bash build_unix.sh
+      # Optional Windows code signing through SignPath Foundation (free for open-source projects). Skipped until
+      # the repo has the secret SIGNPATH_API_TOKEN and the variables SIGNPATH_ORGANIZATION_ID and
+      # SIGNPATH_PROJECT_SLUG (and optionally SIGNPATH_SIGNING_POLICY_SLUG; default "release-signing").
+      - name: Upload the unsigned installer for signing
+        id: unsigned
+        if: runner.os == 'Windows' && env.SIGNPATH_API_TOKEN != ''
+        uses: actions/upload-artifact@v4
+        with: { name: unsigned-windows, path: dist/*Setup*.exe, if-no-files-found: error }
+      - name: Sign the installer (SignPath)
+        if: runner.os == 'Windows' && env.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: dist-signed
+      - name: Use the signed installer
+        if: runner.os == 'Windows' && env.SIGNPATH_API_TOKEN != ''
+        shell: pwsh
+        run: Copy-Item dist-signed\*Setup*.exe dist\ -Force
       - uses: actions/upload-artifact@v4
         with:
           name: Wyrm-${{ matrix.os }}
@@ -117,8 +142,33 @@ jobs:
           } > notes.md
           cat notes.md
       - uses: actions/download-artifact@v4
-        with: { path: dist, merge-multiple: true }
+        with: { path: dist, pattern: "Wyrm-*", merge-multiple: true }   # not the unsigned-windows artifact
       - run: ls -R dist
+      # SHA-256 of every download in the release notes; plus a VirusTotal scan of the Windows installer when the
+      # repo has the secret VT_API_KEY (free VirusTotal account). A failed scan upload never blocks the release.
+      - name: Checksums and VirusTotal scan link (release notes)
+        env: { VT_API_KEY: "${{ secrets.VT_API_KEY }}" }
+        run: |
+          {
+            echo
+            echo "### SHA-256 checksums"
+            echo
+            echo '```'
+            (cd dist && sha256sum *)
+            echo '```'
+          } >> notes.md
+          exe=$(ls dist/*Setup*.exe 2>/dev/null | head -1)
+          if [ -n "$VT_API_KEY" ] && [ -n "$exe" ]; then
+            if url=$(curl -sf -H "x-apikey: $VT_API_KEY" https://www.virustotal.com/api/v3/files/upload_url | jq -er .data) \
+               && curl -sf -H "x-apikey: $VT_API_KEY" -F "file=@$exe" "$url" >/dev/null; then
+              sha=$(sha256sum "$exe" | cut -d' ' -f1)
+              echo >> notes.md
+              echo "Virus scan of the Windows installer: [VirusTotal](https://www.virustotal.com/gui/file/$sha)" >> notes.md
+            else
+              echo "::warning::VirusTotal upload failed; releasing without the scan link"
+            fi
+          fi
+          cat notes.md
       # Upload everything to a hidden draft first, and publish only once every installer is there: installed
       # copies never see a half-uploaded release (no Update button until its installer can be downloaded).
       # A draft creates no git tag, so it uses a temporary name until it is published as v$VERSION.

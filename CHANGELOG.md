@@ -8,6 +8,9 @@ most important points first. Each build of a version adds an "Also in this build
 
 - ProjectDiscovery tools now come built in: subfinder, dnsx, naabu, httpx, katana, nuclei, tlsx, asnmap,
   cdncheck, uncover, mapcidr and alterx are installed with the browser — nothing extra to set up; developer: @kwan
+- Windows installer: the security tools are optional ("Browser only"), in case your antivirus objects to them
+- Updates install silently: the browser closes and comes back updated, no Setup window
+- Each release lists SHA-256 checksums of every download, so you can verify what you installed
 - Scanner now runs the ProjectDiscovery tools you have installed — subfinder, dnsx, naabu, httpx, katana,
   nuclei, tlsx, asnmap, cdncheck, uncover, mapcidr, alterx — with live results; developer: @kwan
 - Tools that contact the target run on in-scope hosts only

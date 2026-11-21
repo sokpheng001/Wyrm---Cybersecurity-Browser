@@ -43,11 +43,28 @@ ArchitecturesInstallIn64BitMode=x64compatible
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+; The ProjectDiscovery tools are optional (ticked by default): some antivirus products label security tools
+; such as naabu/nuclei "HackTool", so users can still install the browser without them. Silent updates keep
+; whatever the user chose last time (Inno remembers the selected components).
+[Types]
+Name: "full"; Description: "Full installation (browser + security tools)"
+Name: "compact"; Description: "Browser only"
+Name: "custom"; Description: "Custom installation"; Flags: iscustom
+
+[Components]
+Name: "main"; Description: "Wyrm Browser"; Types: full compact custom; Flags: fixed
+Name: "tools"; Description: "ProjectDiscovery security tools (nuclei, katana, subfinder, httpx, naabu, ...) — about 480 MB"; Types: full
+
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "..\dist\Wyrm\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\Wyrm\*"; DestDir: "{app}"; Excludes: "\_internal\wyrm\bin"; Components: main; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\Wyrm\_internal\wyrm\bin\*"; DestDir: "{app}\_internal\wyrm\bin"; Components: tools; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+
+[InstallDelete]
+; "Browser only" chosen on an update: remove tools installed earlier
+Type: filesandordirs; Name: "{app}\_internal\wyrm\bin"; Components: not tools
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
