@@ -112,11 +112,13 @@ LoadingBar { background: $layer; }
 
 /* ---------- panels ---------- */
 QDockWidget { color: $text; font-size: 14px; }
-QListWidget#PanelNav { background: $layer; border: none; border-right: 1px solid $border; outline: none; padding: 6px 0; }
-QListWidget#PanelNav::item { padding: 8px 12px 8px 17px; border: none; border-left: 3px solid transparent; color: $muted; }
-QListWidget#PanelNav::item:selected { background: $hover; color: $text; border-left: 3px solid $interactive; font-weight: 600; }
-QListWidget#PanelNav::item:hover:!selected { background: $hover; color: $text; }
-QLabel#NavGroup { color: $muted; font-weight: 700; letter-spacing: 1.2px; background: transparent; }
+QScrollArea#PanelNav { background: $layer; border: none; border-right: 1px solid $border; }
+QWidget#NavBody { background: $layer; }
+QLabel#NavGroup { color: $strong; font-size: 10.5px; font-weight: 700; letter-spacing: 1px; background: transparent; }
+QPushButton#NavItem { background: transparent; border: none; border-left: 3px solid transparent; border-radius: 0;
+    text-align: left; padding: 8px 12px 8px 14px; color: $muted; font-weight: 400; }
+QPushButton#NavItem:hover { background: $hover; color: $text; }
+QPushButton#NavItem:checked { background: $hover; color: $text; border-left: 3px solid $interactive; font-weight: 600; }
 
 /* address-bar suggestion / history dropdown */
 QListView#UrlPopup { background: $layer; border: 1px solid $border; outline: none;

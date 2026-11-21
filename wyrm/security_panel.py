@@ -13,8 +13,8 @@ from PySide6.QtGui import QAction, QBrush, QColor, QGuiApplication
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDockWidget, QDoubleSpinBox, QFileDialog, QHBoxLayout, QHeaderView,
     QLabel, QLineEdit, QListWidget, QListWidgetItem, QMenu, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton,
-    QSpinBox, QSplitter, QStackedWidget, QTabBar, QTableView, QTabWidget, QTextBrowser, QToolButton, QTreeWidget,
-    QTreeWidgetItem, QVBoxLayout, QWidget,
+    QScrollArea, QSpinBox, QSplitter, QStackedWidget, QTabBar, QTableView, QTabWidget, QTextBrowser, QToolButton,
+    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from . import theme
@@ -2236,53 +2236,55 @@ class SecurityPanel(QDockWidget):
         h = QHBoxLayout(root)
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(0)
-        self.nav = QListWidget(objectName="PanelNav")
-        self.nav.setFixedWidth(136)
+        # left nav: section captions + nav buttons in a real scroll area (independent of the fixed header);
+        # avoids the QListWidget::item padding/selection quirks that clipped the section headings.
+        self.nav = QScrollArea(objectName="PanelNav")
+        self.nav.setWidgetResizable(True)
+        self.nav.setFixedWidth(150)
         self.nav.setFrameShape(self.nav.Shape.NoFrame)
+        self.nav.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        navbody = QWidget(objectName="NavBody")
+        nb = QVBoxLayout(navbody)
+        nb.setContentsMargins(0, 8, 0, 12)
+        nb.setSpacing(2)
         self.stack = QStackedWidget()
-        self._nav_rows: dict[str, int] = {}   # name -> nav list row
-        self._page_index: dict[str, int] = {}  # name -> stack index
-        from PySide6.QtCore import QSize
+        self._nav_buttons: dict[str, tuple] = {}   # name -> (button, stack index)
         for gi, (title, items) in enumerate(groups):
-            # plain text item (not setItemWidget) so it renders reliably regardless of font metrics timing
-            head = QListWidgetItem(title)
-            head.setFlags(Qt.ItemFlag.NoItemFlags)  # non-selectable, non-hoverable group caption
-            hf = head.font()
-            hf.setBold(True)
-            hf.setPointSizeF(max(7.5, hf.pointSizeF() - 2))
-            head.setFont(hf)
-            head.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
-            # height must clear the ::item padding (8+8) + text, or the caption clips (esp. the first one)
-            head.setSizeHint(QSize(0, 38 if gi else 30))
-            self.nav.addItem(head)
+            cap = QLabel(title, objectName="NavGroup")
+            cap.setContentsMargins(16, 16 if gi else 6, 12, 4)  # space above each group, tighter for the first
+            nb.addWidget(cap)
             for name, widget in items:
-                it = QListWidgetItem(name)
-                self.nav.addItem(it)
-                self._nav_rows[name] = self.nav.row(it)
-                self._page_index[name] = self.stack.addWidget(widget)
+                btn = QPushButton(name, objectName="NavItem")
+                btn.setCheckable(True)
+                btn.setAutoExclusive(True)
+                btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                idx = self.stack.addWidget(widget)
+                btn.clicked.connect(lambda _c=False, n=name: self._select(n))
+                self._nav_buttons[name] = (btn, idx)
+                nb.addWidget(btn)
+        nb.addStretch(1)
+        self.nav.setWidget(navbody)
         # one consistent outer margin + row spacing for every panel page (alignment & rhythm across tabs)
-        for idx in self._page_index.values():
+        for _n, (_b, idx) in self._nav_buttons.items():
             lay = self.stack.widget(idx).layout()
             if lay is not None:
                 lay.setContentsMargins(16, 14, 16, 12)
                 lay.setSpacing(10)
-        self.nav.currentRowChanged.connect(self._on_nav)
         h.addWidget(self.nav)
         h.addWidget(self.stack, 1)
         self.setWidget(root)
         self.show_tab("Shields")
 
-    def _on_nav(self, row):
-        for name, r in self._nav_rows.items():
-            if r == row:
-                self.stack.setCurrentIndex(self._page_index[name])
-                self._fade(self.stack.currentWidget())
-                return
+    def _select(self, name):
+        btn, idx = self._nav_buttons[name]
+        btn.setChecked(True)
+        self.stack.setCurrentIndex(idx)
+        self._fade(self.stack.currentWidget())
 
     def show_tab(self, name):
         self.show()
-        if name in self._nav_rows:
-            self.nav.setCurrentRow(self._nav_rows[name])
+        if name in self._nav_buttons:
+            self._select(name)
 
     def _fade(self, w):
         from PySide6.QtCore import QEasingCurve, QPropertyAnimation
