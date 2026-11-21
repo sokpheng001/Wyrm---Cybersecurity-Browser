@@ -51,13 +51,16 @@ def _asset_for_platform(assets: list[dict]) -> dict | None:
     return None
 
 
-def check(current: str, proxies=None, verify=True) -> dict:
-    """Return info about the latest release and whether it is newer than `current`."""
+def check(current: str, proxies=None, verify=True, build: int = 0) -> dict:
+    """Latest release info and whether it is newer than the running copy: a higher version, or the same version
+    with a higher build number (CI publishes every good build as the same version with a new build)."""
     r = requests.get(API, headers={"User-Agent": UA, "Accept": "application/vnd.github+json"},
                      timeout=20, proxies=proxies, verify=verify)
     r.raise_for_status()
     d = r.json()
     tag = d.get("tag_name") or d.get("name") or ""
+    m = re.search(r"wyrm-build:\s*(\d+)", d.get("body") or "")  # hidden marker CI writes into the notes
+    rel_build = int(m.group(1)) if m else 0
     asset = _asset_for_platform(d.get("assets") or [])
     url = asset.get("browser_download_url") if asset else None
     from urllib.parse import urlparse
@@ -66,7 +69,9 @@ def check(current: str, proxies=None, verify=True) -> dict:
     return {
         "version": tag.lstrip("vV"),
         "tag": tag,
-        "newer": bool(tag) and is_newer(tag, current),
+        "build": rel_build,
+        "newer": bool(tag) and (is_newer(tag, current)
+                                or (_ver_tuple(tag) == _ver_tuple(current) and rel_build > int(build or 0))),
         "notes": d.get("body") or "",
         "html_url": d.get("html_url") or RELEASES_PAGE,
         "asset_name": asset.get("name") if asset else None,

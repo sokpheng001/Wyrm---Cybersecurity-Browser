@@ -7,8 +7,14 @@
 """Wyrm (powered by HackPi): a privacy- and security-focused web browser."""
 from datetime import date
 
-__version__ = "0.0.1"
+__version__ = "0.0.1"   # shown to users; change it yourself for a new version line (e.g. 0.1.0)
+__build__ = 0           # set by CI (GitHub Actions run number): orders releases that share a version
 START_YEAR = 2023  # development started (first public release: 2026)
+
+
+def version_label() -> str:
+    """'0.0.1 (build 57)' for released builds, '0.0.1 (dev)' when run from source."""
+    return f"{__version__} (build {__build__})" if __build__ else f"{__version__} (dev)"
 
 
 def years() -> str:

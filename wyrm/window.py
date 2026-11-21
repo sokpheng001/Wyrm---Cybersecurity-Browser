@@ -36,7 +36,7 @@ from PySide6.QtWidgets import (
 
 from html import escape
 
-from . import __version__, engines, years, linkguard, pages, scholar, theme, winframe
+from . import __build__, __version__, engines, version_label, years, linkguard, pages, scholar, theme, winframe
 from . import shields as shields_mod
 from .security import news as news_mod, rewrite, secsearch
 from .shields import PageStats, Shields
@@ -395,7 +395,7 @@ class MainWindow(QMainWindow):
                             self._filters_ready)
         self._kev_recent: list = []  # latest exploited-in-the-wild CVEs, shown on the start page
         self._news: list = []        # latest cybersecurity headlines, shown on the start page while online
-        self._online = True
+        self._is_online = True
         if not tor:
             self.runner.run(secsearch.recent_kev, self._kev_ready)
             self._fetch_news()
@@ -420,7 +420,7 @@ class MainWindow(QMainWindow):
             ni = QNetworkInformation.instance()
             ni.reachabilityChanged.connect(self._on_reachability)
             if ni.reachability() == QNetworkInformation.Reachability.Disconnected:
-                self._online = False
+                self._is_online = False
                 QTimer.singleShot(0, lambda: self.offline_banner.set_offline(True))
 
         geo = self.settings.value("geometry")
@@ -475,7 +475,7 @@ class MainWindow(QMainWindow):
 
     # ---------------------------------------------------------------- start page: news + background
     def _fetch_news(self):
-        if self.tor or not self._online:
+        if self.tor or not self._is_online:
             return
         self.runner.run(lambda: news_mod.latest(8, self.proxies(), self.verify_tls()), self._news_ready)
 
@@ -714,7 +714,7 @@ class MainWindow(QMainWindow):
         return {"engagement": eng, "counts": self.store.counts(e.id) if e else {}, "engine_name": name,
                 "saved": self.library.saved(), "kev": self._kev_recent, "mode": self.mode,
                 "background": (not self.tor) and self._bg_settings()["mode"] != "none",
-                "bg": self._bg_settings(), "news": self._news if self._online else [],
+                "bg": self._bg_settings(), "news": self._news if self._is_online else [],
                 "tor": bool(self.tor)}
 
     # ================================================================ profiles / engagements
@@ -1033,7 +1033,7 @@ class MainWindow(QMainWindow):
         if manual:
             self.toast("Checking for updates…", 3000)
         px, verify = self.proxies(), self.verify_tls()
-        self.runner.run(lambda: updater.check(__version__, px, verify),
+        self.runner.run(lambda: updater.check(__version__, px, verify, __build__),
                         lambda ok, r: self._updates_checked(ok, r, manual))
 
     def _updates_checked(self, ok, info, manual):
@@ -1045,7 +1045,7 @@ class MainWindow(QMainWindow):
             self._update_info = None
             self.b_update.hide()  # nothing new: no button
             if manual:
-                QMessageBox.information(self, "Updates", f"You're on the latest version ({__version__}).")
+                QMessageBox.information(self, "Updates", f"You're on the latest version ({version_label()}).")
             return
         if getattr(self, "_updater", None):  # already updating
             return
@@ -1054,7 +1054,7 @@ class MainWindow(QMainWindow):
         self.b_update.setEnabled(True)
         from . import updater
         changes = updater.whats_new(info.get("notes", ""))
-        tip = (f"<b>Wyrm Browser {escape(info.get('version', ''))}</b> is available (you have {__version__}).<br>"
+        tip = (f"<b>Wyrm Browser {escape(info.get('version', ''))}</b> is available (you have {version_label()}).<br>"
                "Click to update — it installs and restarts automatically.")
         if changes:
             tip += "<br><br><b>What's new</b><ul style='margin:4px 0 0 -18px'>" + \
@@ -1096,7 +1096,7 @@ class MainWindow(QMainWindow):
         box = QMessageBox(self)
         box.setWindowTitle("About Wyrm Browser")
         box.setIconPixmap(self.windowIcon().pixmap(64, 64))
-        box.setText(f"<b>Wyrm Browser</b> {__version__}")
+        box.setText(f"<b>Wyrm Browser</b> {version_label()}")
         box.setInformativeText(
                     "A <i>wyrm</i> is a wingless dragon — our mark, and the name of this browser.<br><br>"
                     "Built by <b>ByKh R&amp;D Group</b> · <b>bykh.org</b><br><b>HackPi</b> — Ethical Hackers Group<br>"
@@ -1827,7 +1827,7 @@ class MainWindow(QMainWindow):
     def _on_reachability(self, r):
         online = r != QNetworkInformation.Reachability.Disconnected
         self.offline_banner.set_offline(not online)
-        was, self._online = self._online, online
+        was, self._is_online = self._is_online, online
         if online:
             QTimer.singleShot(800, self._retry_failed)
             if not was:
