@@ -8,6 +8,9 @@ most important points first. Each build of a version adds an "Also in this build
 
 - Extensions: add Chrome extensions (Manifest V3) from the Chrome Web Store, a .zip / .crx file or a folder
   (⋮ → Extensions); switch them on/off or remove them; never run in private or Tor windows
+- Chrome Web Store pages show an “Add to Wyrm Browser” bar: install extensions such as Wappalyzer in one click
+- Scanner → Technologies: built-in Wappalyzer-style detection of what a site is built with (CMS,
+  frameworks, servers, CDN, analytics)
 - Wyrm Shield warnings before adding an extension (what it will be able to do) and before keeping files that
   can run code (programs, scripts, installers, macro documents); the safe choice is always the default
 - Security tools: dnsx, tlsx, cdncheck, alterx and katana fixed for the latest tool versions; asnmap

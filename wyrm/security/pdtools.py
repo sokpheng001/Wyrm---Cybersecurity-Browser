@@ -283,3 +283,29 @@ def _last_error(stderr: str) -> str:
         if re.search(r"(?i)\b(err|error|fatal|ftl|could not|failed|panic)\b", ln):
             return ln[:300]
     return lines[-1][:300] if lines else "no error message"
+
+
+# Wappalyzer-style technology detection, built in: the bundled httpx's -tech-detect uses wappalyzergo
+# (MIT, ProjectDiscovery) with the open-source Wappalyzer fingerprint set. One request, like opening the page.
+TECH_TOOL = Tool("httpx", "Technologies", "What a website is built with (Wappalyzer-style)", False, "url",
+                 ["-silent", "-json", "-tech-detect", "-title", "-status-code", "-web-server", "-cdn",
+                  "-follow-redirects", "-u", "{t}"])
+
+
+def detect_technologies(url: str, proxies=None, should_stop=None) -> dict:
+    """{url, final_url, status, title, server, cdn, tech: [(name, version)]} for one page."""
+    rows = []
+    res = run(TECH_TOOL, url, lambda _t, obj: rows.append(obj) if obj else None, proxies=proxies,
+              timeout=60, should_stop=should_stop)
+    if res.get("stopped"):
+        raise RuntimeError(f"Technology detection {res['stopped']}.")
+    if not rows:
+        raise RuntimeError("The site didn't answer (or blocked the request).")
+    o = rows[-1]
+    tech = []
+    for t in o.get("tech") or []:
+        name, _, ver = str(t).partition(":")
+        tech.append((name.strip(), ver.strip()))
+    return {"url": url, "final_url": o.get("final_url") or o.get("url") or url, "status": o.get("status_code"),
+            "title": o.get("title") or "", "server": o.get("webserver") or "",
+            "cdn": o.get("cdn_name") or "", "tech": sorted(tech, key=lambda x: x[0].lower())}

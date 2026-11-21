@@ -124,6 +124,8 @@ QLabel#UrlIcon { background: transparent; }
 LoadingBar { background: $layer; }
 #OfflineBanner { background: $banner; border-left: 3px solid $banner_border; }
 #OfflineBanner QLabel { color: $banner_text; }
+#InfoBanner { background: $banner; border-left: 3px solid $interactive; }
+#InfoBanner QLabel { color: $banner_text; }
 
 /* ---------- panels ---------- */
 QDockWidget { color: $text; font-size: 14px; }

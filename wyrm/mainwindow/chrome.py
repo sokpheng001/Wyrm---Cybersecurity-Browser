@@ -16,7 +16,7 @@ from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWidgets import QComboBox, QCompleter, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy, QStackedWidget, QTabBar, QToolBar, QToolButton, QVBoxLayout, QWidget
 
 from .. import engines, theme, winframe
-from ..widgets import LoadingBar, OfflineBanner
+from ..widgets import InfoBanner, LoadingBar, OfflineBanner
 from ..ui.common import HOME, make_icon
 
 
@@ -237,6 +237,8 @@ class ChromeMixin:
         col.addWidget(self.loading_bar)
         self.offline_banner = OfflineBanner(self._retry_failed)
         col.addWidget(self.offline_banner)
+        self.store_banner = InfoBanner()  # "Add to Wyrm Browser" on Chrome Web Store extension pages
+        col.addWidget(self.store_banner)
         self.stack = QStackedWidget()
         col.addWidget(self.stack, 1)
         self.setCentralWidget(root)

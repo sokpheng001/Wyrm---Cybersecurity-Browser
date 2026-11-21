@@ -864,6 +864,7 @@ files (choose which).</li>
 <li><b>Extensions</b>: ⋮ → Extensions → Manage extensions… adds Chrome extensions (Manifest V3) from the Chrome
 Web Store (paste the link), a .zip / .crx file or an unpacked folder. Switch each on or off, or remove it; an
 extension's popup opens from ⋮ → Extensions. Extensions never run in private or Tor windows.</li>
+<li><b>Chrome Web Store</b>: open an extension's page in Wyrm and click <b>Add to Wyrm Browser</b> in the bar that appears (the store's own “Add to Chrome” button only works in Google Chrome).</li>
 </ul>"""),
         ("tor", "Tor windows", f"""
 <p>⋮ → <b>New Tor window</b> ({k(mod, alt, "N")}) opens a purple window that routes all traffic through the Tor

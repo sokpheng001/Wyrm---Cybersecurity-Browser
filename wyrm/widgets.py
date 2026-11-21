@@ -243,6 +243,52 @@ class OfflineBanner(QWidget):
         self._anim.start()
 
 
+class InfoBanner(QWidget):
+    """A bar that slides down under the toolbar with a message, one main action and a close button
+    (e.g. "Add this extension to Wyrm Browser" on Chrome Web Store pages). Drawn by Wyrm, not the page."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("InfoBanner")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(14, 6, 10, 6)
+        self.label = QLabel("")
+        self.label.setTextFormat(Qt.TextFormat.RichText)
+        row.addWidget(self.label, 1)
+        self.button = QPushButton("")
+        self.button.setObjectName("Primary")
+        self.button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.button.clicked.connect(lambda: self._action and self._action())
+        row.addWidget(self.button)
+        close = QPushButton("✕")
+        close.setFixedWidth(32)
+        close.setToolTip("Hide")
+        close.setCursor(Qt.CursorShape.PointingHandCursor)
+        close.clicked.connect(lambda: self.show_banner(False))
+        row.addWidget(close)
+        self._action = None
+        self._full = 44
+        self.setMaximumHeight(0)
+        self._anim = QVariantAnimation(self)
+        self._anim.setDuration(240)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._anim.valueChanged.connect(lambda v: self.setMaximumHeight(int(v)))
+
+    def show_banner(self, show: bool, text: str = "", button: str = "", action=None):
+        if show:
+            self.label.setText(text)
+            self.button.setText(button)
+            self._action = action
+        end = self._full if show else 0
+        if self.maximumHeight() == end:
+            return
+        self._anim.stop()
+        self._anim.setStartValue(self.maximumHeight())
+        self._anim.setEndValue(end)
+        self._anim.start()
+
+
 class WrapRow(QLayout):
     """A horizontal row that wraps onto more lines when it runs out of width (responsive button/filter bars).
     On a line that fits, it behaves like QHBoxLayout: spare width goes to horizontally-expanding widgets

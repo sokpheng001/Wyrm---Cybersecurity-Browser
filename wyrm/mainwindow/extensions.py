@@ -177,6 +177,33 @@ class ExtensionsMixin:
                 on_done(True, name)
         self.runner.run(work, done)
 
+    # ---------------------------------------------------------------- Chrome Web Store pages
+    STORE_HOSTS = ("chromewebstore.google.com", "chrome.google.com")
+
+    def _ext_store_check(self, url):
+        """On a Chrome Web Store extension page, show Wyrm's own "Add to Wyrm Browser" bar: the store greys out
+        its "Add to Chrome" button in other browsers (and that button only works inside Google Chrome)."""
+        banner = getattr(self, "store_banner", None)
+        if banner is None:
+            return
+        ext_id = None
+        if url.scheme() == "https" and url.host() in self.STORE_HOSTS and "/detail/" in url.path() \
+                and (url.host() != "chrome.google.com" or url.path().startswith("/webstore/")):
+            ext_id = ext.store_id(url.path().rstrip("/").rsplit("/", 1)[-1])  # the ID is the last path part
+        if not ext_id or not self._ext_supported():
+            if ext_id and self.ephemeral:
+                banner.show_banner(True, "Extensions can't be added in private or Tor windows. Open this page in "
+                                         "a normal Wyrm window to add it.", "OK", lambda: banner.show_banner(False))
+                return
+            banner.show_banner(False)
+            return
+        have = (self._ext_lib() / ext_id / "manifest.json").is_file()
+        text = ("<b>Wyrm Browser</b> can add this extension (the store's “Add to Chrome” button only works in "
+                "Google Chrome)." if not have else "This extension is already in Wyrm Browser.")
+        banner.show_banner(True, text, "Reinstall" if have else "Add to Wyrm Browser",
+                           lambda i=ext_id: self._ext_add("store", i))
+        banner.button.setEnabled(True)
+
     # ---------------------------------------------------------------- menu + popups
     def _ext_fill_menu(self, menu):
         """Rebuilt each time the Extensions submenu opens: enabled extensions (click = its popup) + Manage."""

@@ -188,6 +188,7 @@ class TabsMixin:
         self.b_back.setEnabled(h.canGoBack())
         self.b_fwd.setEnabled(h.canGoForward())
         self._update_scope_badge()
+        self._ext_store_check(url)  # Chrome Web Store page: offer "Add to Wyrm Browser"
 
     # ================================================================ errors / offline
     def _on_loading_info(self, view, info):

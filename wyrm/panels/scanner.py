@@ -76,6 +76,8 @@ class ScannerTab(QWidget):
 
         btns = QHBoxLayout()
         for label, fn, tip in (
+                ("Technologies", self.technologies, "What the site is built with: CMS, frameworks, servers, analytics "
+                 "(Wappalyzer-style, built in). One normal request, like opening the page."),
                 ("Port scan", self.port_scan, "Top 100 TCP ports (TCP connect, polite timing)"),
                 ("CORS test", self.cors, "Crafted Origin headers — after Chen et al., USENIX Security 2018"),
                 ("Clickjacking test", self.clickjacking, "Frame protection — after Huang et al., USENIX Security 2012"),
@@ -298,6 +300,44 @@ class ScannerTab(QWidget):
                       f"to see it framed.<br><i>Method: {escape(r['paper'])}</i>", {"url": url})
             self.status.setText(f"Clickjacking check on {url}: HTTP {r['status']}.")
         self._run("Clickjacking test", lambda: webchecks.clickjacking_test(url, px, verify), render)
+
+    def technologies(self):
+        """Wappalyzer-style technology detection for the target (built in: bundled httpx + wappalyzergo)."""
+        if not self.target.text().strip():
+            self.use_current()
+        try:
+            target = pdtools.target_for(pdtools.TECH_TOOL, self.target.text())
+        except ValueError as e:
+            self.status.setText(str(e))
+            return
+        px = self.win.proxies()
+
+        def work():
+            return pdtools.detect_technologies(pdtools.probe_scheme(target, px), px)
+
+        def render(r):
+            self.tree.clear()
+            blocked = r["status"] in (202, 403, 429, 503) and not [n for n, _ in r["tech"] if n.lower() not in
+                                                                    ("cloudflare", "http/3", "hsts")]
+            info = (f"<b>{escape(r['final_url'])}</b><br>HTTP {escape(str(r['status']))}"
+                    + (f" · Server: {escape(r['server'])}" if r["server"] else "")
+                    + (f" · CDN/WAF: {escape(r['cdn'])}" if r["cdn"] else "")
+                    + (f"<br>Title: {escape(r['title'])}" if r["title"] else ""))
+            if blocked:
+                info += ("<br><br><i>The site answered with a bot check / block page, so only its protection "
+                         "layer could be identified. Install Wappalyzer from the Chrome Web Store (⋮ → Extensions) "
+                         "to see technologies of pages you've opened in the browser.</i>")
+            for name, ver in r["tech"]:
+                self._add(name + (f"  {ver}" if ver else ""), "",
+                          f"<b>{escape(name)}</b>{' version ' + escape(ver) if ver else ''}<br><br>{info}",
+                          {"url": r["final_url"]})
+            if not r["tech"]:
+                self._add("No technologies identified", "", info, {"url": r["final_url"]})
+            self.status.setText(f"{len(r['tech'])} technolog{'y' if len(r['tech']) == 1 else 'ies'} on "
+                                f"{r['final_url']}" + (" (bot check: partial)" if blocked else "") + ".")
+            if self.tree.topLevelItemCount():
+                self.tree.setCurrentItem(self.tree.topLevelItem(0))
+        self._run("Detecting technologies", work, render)
 
     def frame_poc(self):
         url = self._url()
