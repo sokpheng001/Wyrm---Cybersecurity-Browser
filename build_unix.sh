@@ -29,7 +29,13 @@ if [ "$(uname -s)" = "Darwin" ]; then
   rm -rf dist/dmg && mkdir -p dist/dmg
   cp -R "$APP" dist/dmg/
   ln -s /Applications dist/dmg/Applications
-  hdiutil create -volname "Wyrm Browser" -srcfolder dist/dmg -ov -format ULMO "dist/Wyrm-macos-$ARCH.dmg"  # ULMO = LZMA (macOS 10.15+), much smaller than UDZO
+  # ULMO = LZMA (macOS 10.15+), much smaller than UDZO. hdiutil sometimes fails with "Resource busy" on CI Macs
+  # (a background scanner holding the files), so retry a few times before giving up.
+  for attempt in 1 2 3; do
+    hdiutil create -volname "Wyrm Browser" -srcfolder dist/dmg -ov -format ULMO "dist/Wyrm-macos-$ARCH.dmg" && break
+    [ "$attempt" = 3 ] && exit 1
+    echo "hdiutil failed (attempt $attempt), retrying in 20s..."; sleep 20
+  done
 else
   cp installer/wyrm.desktop dist/Wyrm/
   cp wyrm/assets/icon.png dist/Wyrm/wyrm.png
