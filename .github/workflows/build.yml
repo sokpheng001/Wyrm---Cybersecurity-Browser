@@ -93,15 +93,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - name: "What's new (commit titles since the previous release; shown in the app's Update tooltip)"
+      - name: "What's new: CHANGELOG.md section for this version + this build's commits (release text and Update tooltip)"
         run: |
           git fetch --tags --force
           prev=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          if [ -n "$prev" ]; then range="$prev..${{ github.sha }}"; else range="-15 ${{ github.sha }}"; fi
+          commits=$(git log $range --no-merges --format='- %s' | grep -v -i 'skip release' | head -30 || true)
           {
             echo "## What's new in Wyrm Browser v$VERSION (build $BUILD)"
             echo
-            if [ -n "$prev" ]; then range="$prev..${{ github.sha }}"; else range="-15 ${{ github.sha }}"; fi
-            git log $range --no-merges --format='- %s' | grep -v -i 'skip release' | head -30
+            awk -v h="## v$VERSION" '$0==h{f=1;next} /^## /{f=0} f' CHANGELOG.md | sed '/^[[:space:]]*$/d'
+            if [ -n "$commits" ]; then
+              echo
+              echo "### Also in this build"
+              echo
+              echo "$commits"
+            fi
             echo
             echo "<!-- wyrm-build: $BUILD -->"
           } > notes.md

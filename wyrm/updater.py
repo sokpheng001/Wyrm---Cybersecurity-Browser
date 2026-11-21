@@ -80,7 +80,7 @@ def check(current: str, proxies=None, verify=True, build: int = 0) -> dict:
     }
 
 
-def whats_new(notes: str, limit: int = 10) -> list[str]:
+def whats_new(notes: str, limit: int = 12) -> list[str]:
     """Plain 'what's new' lines from release notes: bullet lines only, links and markdown removed (the app
     never shows repository links)."""
     out = []
