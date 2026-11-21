@@ -120,6 +120,21 @@ form.big{max-width:620px;margin:0 auto;position:relative;display:block}
 .credit{color:var(--muted);font-size:12px;margin:10px 0 0;letter-spacing:.3px}
 .credit b{color:var(--fg);font-weight:600}
 @media (max-width:620px){.grid{grid-template-columns:1fr 1fr}}
+/* daily background photo (Brave-style): full-bleed, with a scrim so content stays legible */
+body.hasbg{background:#0b0b10}
+body.hasbg::before{content:"";position:fixed;inset:0;z-index:-2;background-size:cover;background-position:center;
+  background-attachment:fixed;background-image:var(--wyrm-bg)}
+body.hasbg::after{content:"";position:fixed;inset:0;z-index:-1;
+  background:linear-gradient(180deg,rgba(8,8,14,.55),rgba(8,8,14,.72))}
+body.hasbg .wordmark,body.hasbg .tagline,body.hasbg .modeline,body.hasbg .foot,body.hasbg .credit{color:#f4f4f4;text-shadow:0 1px 10px rgba(0,0,0,.6)}
+body.hasbg .logo{filter:drop-shadow(0 2px 10px rgba(0,0,0,.5))}
+body.hasbg .pill{background:rgba(255,255,255,.12);color:#f4f4f4;backdrop-filter:blur(6px)}
+body.hasbg .pill b{color:#fff}
+body.hasbg .tile{background:rgba(20,20,28,.72);border-color:rgba(255,255,255,.12);color:#f4f4f4;backdrop-filter:blur(6px)}
+body.hasbg .tile .d{color:#c6c6c6}
+body.hasbg .feed a.cve{background:rgba(20,20,28,.72);border-color:rgba(255,255,255,.12);color:#f4f4f4;backdrop-filter:blur(6px)}
+body.hasbg .feed .nm{color:#f4f4f4}
+body.hasbg .ex a{background:rgba(255,255,255,.12);color:#f4f4f4}
 """
 
 def _ico(paths: str) -> str:
@@ -204,7 +219,12 @@ def render_home(ctx: dict) -> str:
         + "<p class='foot'>Only test systems you own or are explicitly authorized to test.</p>"
         + "<p class='credit'>Built by <b>ByKh R&amp;D Group</b> · <b>HackPi</b> — Ethical Hackers Group</p>"
     )
-    return _page("New tab", body, HOME_CSS, "home")
+    bg = ctx.get("background")
+    extra_css = HOME_CSS + (f"\n:root{{--wyrm-bg:url('{bg}')}}" if bg else "")
+    html = _page("New tab", body, extra_css, "home")
+    if bg:  # add the background class to <body> so the photo + scrim apply
+        html = html.replace("<body>", "<body class='hasbg'>", 1)
+    return html
 
 
 # ====================================================================== paper search results

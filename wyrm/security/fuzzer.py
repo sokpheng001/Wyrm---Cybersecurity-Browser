@@ -30,6 +30,11 @@ def _apply(template: str, payload: str) -> str:
     return MARK.sub(lambda _m: payload, template)
 
 
+def apply_payload(template: str, payload: str) -> str:
+    """Public: substitute a payload at every §…§ mark (used by the UI to build a concrete request)."""
+    return _apply(template, payload)
+
+
 def run(method: str, url_tpl: str, headers_tpl: str, body_tpl: str, payloads: list[str], *,
         in_scope, rate_per_sec: float, max_requests: int, proxies=None, verify=True,
         on_result=None, should_stop=None) -> dict:

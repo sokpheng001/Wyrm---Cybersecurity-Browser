@@ -7,19 +7,20 @@ from html import escape
 from pathlib import Path
 from urllib.parse import urlparse
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt, QTimer
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QBrush, QColor, QGuiApplication
 from PySide6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QComboBox, QDockWidget, QFileDialog, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QListWidget, QListWidgetItem, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QStackedWidget,
-    QTabBar, QTableView, QTabWidget, QTextBrowser, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QAbstractItemView, QCheckBox, QComboBox, QDockWidget, QDoubleSpinBox, QFileDialog, QHBoxLayout, QHeaderView,
+    QLabel, QLineEdit, QListWidget, QListWidgetItem, QMenu, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton,
+    QSpinBox, QSplitter, QStackedWidget, QTabBar, QTableView, QTabWidget, QTextBrowser, QToolButton, QTreeWidget,
+    QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from . import theme
 from .dialogs import FindingDialog
 from .linkguard import registered_domain
 from .widgets import BusyOverlay
-from .security import analyzer, intel, report, tools
+from .security import analyzer, domscan, fuzzer, intel, report, tools
 
 SEV_COLOR = theme.SEVERITY
 PAGEINFO_JS = (Path(__file__).parent / "security" / "pageinfo.js").read_text(encoding="utf-8")
@@ -1488,7 +1489,13 @@ class SiteMapTab(QWidget):
     def __init__(self, win):
         super().__init__()
         self.win = win
+        self._discovered: dict[str, dict[str, dict]] = {}   # host -> path -> {methods, url, source}
         v = QVBoxLayout(self)
+        intro = QLabel("Passive discovery — URLs seen while you browse, plus what a site publishes about itself "
+                       "(robots.txt + sitemap.xml). No wordlists, no directory brute-forcing.")
+        intro.setWordWrap(True)
+        intro.setObjectName("Muted")
+        v.addWidget(intro)
         row = QHBoxLayout()
         self.filter = QLineEdit()
         self.filter.setPlaceholderText("Filter host / path…")
@@ -1497,12 +1504,19 @@ class SiteMapTab(QWidget):
         self.scope_only = QCheckBox("In-scope only")
         self.scope_only.toggled.connect(self._build)
         row.addWidget(self.scope_only)
+        self.b_discover = QPushButton("Discover current site")
+        self.b_discover.setToolTip("Fetch robots.txt + sitemap.xml for the current site (scope-gated)")
+        self.b_discover.clicked.connect(self._discover)
+        row.addWidget(self.b_discover)
+        self.b_export = QPushButton("Export…")
+        self.b_export.clicked.connect(self._export)
+        row.addWidget(self.b_export)
         b = QPushButton("Refresh")
         b.clicked.connect(self._build)
         row.addWidget(b)
         v.addLayout(row)
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabels(["Path", "Methods", "Last status"])
+        self.tree.setHeaderLabels(["Path", "Methods", "Source"])
         self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.tree.itemDoubleClicked.connect(self._open)
         v.addWidget(self.tree, 1)
@@ -1514,20 +1528,38 @@ class SiteMapTab(QWidget):
         super().showEvent(e)
         self._build()
 
+    def _in_scope_host(self, host: str) -> bool:
+        eng = self.win.engagement
+        return eng.in_scope(host) is not False if eng and eng.scope else True
+
     def _build(self):
         f = self.filter.text().lower().strip()
         self.tree.clear()
         rows = self.win.security.traffic.model.rows if hasattr(self.win, "security") else []
         hosts: dict[str, dict] = {}
-        for r in rows:
+
+        def add(host, path, method, url, source):
+            if not host:
+                return
+            h = hosts.setdefault(host, {})
+            e = h.setdefault(path, {"methods": set(), "url": url, "sources": set()})
+            if method:
+                e["methods"].add(method)
+            e["sources"].add(source)
+
+        for r in rows:  # observed traffic
             if r["in_scope"] is not True and self.scope_only.isChecked():
                 continue
-            host, path, method = r["host"], r["path"], r["method"]
-            if f and f not in host.lower() and f not in path.lower():
+            if f and f not in r["host"].lower() and f not in r["path"].lower():
                 continue
-            h = hosts.setdefault(host, {})
-            e = h.setdefault(path, {"methods": set(), "url": r["url"], "type": r["type"]})
-            e["methods"].add(method)
+            add(r["host"], r["path"], r["method"], r["url"], "browsed")
+        for host, paths in self._discovered.items():  # passive discovery (robots/sitemap)
+            if self.scope_only.isChecked() and not self._in_scope_host(host):
+                continue
+            for path, e in paths.items():
+                if f and f not in host.lower() and f not in path.lower():
+                    continue
+                add(host, path, "", e["url"], e["source"])
         total = 0
         for host in sorted(hosts):
             paths = hosts[host]
@@ -1537,19 +1569,555 @@ class SiteMapTab(QWidget):
             top.setFont(0, fnt)
             for path in sorted(paths):
                 e = paths[path]
-                it = QTreeWidgetItem([path, ",".join(sorted(e["methods"])), ""])
+                it = QTreeWidgetItem([path, ",".join(sorted(m for m in e["methods"] if m)), ", ".join(sorted(e["sources"]))])
                 it.setData(0, Qt.ItemDataRole.UserRole, e["url"])
                 it.setToolTip(0, e["url"])
                 top.addChild(it)
                 total += 1
             self.tree.addTopLevelItem(top)
             top.setExpanded(len(paths) <= 40)
-        self.count.setText(f"{len(hosts)} hosts · {total} paths (from observed traffic)")
+        disc = sum(len(p) for p in self._discovered.values())
+        self.count.setText(f"{len(hosts)} hosts · {total} paths · {disc} from robots/sitemap")
+
+    def _discover(self):
+        view = self.win.current_view() if hasattr(self.win, "current_view") else None
+        url = view.url().toString() if view else ""
+        host = urlparse(url).hostname or ""
+        if not host or not url.startswith("http"):
+            self.win.toast("Open the site you want to map first")
+            return
+        if not self._in_scope_host(host):
+            QMessageBox.warning(self, "Out of scope",
+                                f"{host} is not in the active engagement's scope. Add it to the scope to discover it.")
+            return
+        self.b_discover.setEnabled(False)
+        self.b_discover.setText("Discovering…")
+        from .security import discover
+        px, verify = self.win.proxies(), self.win.verify_tls()
+        self.win.runner.run(lambda: discover.discover(url, px, verify),
+                            lambda ok, r: self._discovered_done(host, ok, r))
+
+    def _discovered_done(self, host, ok, r):
+        self.b_discover.setEnabled(True)
+        self.b_discover.setText("Discover current site")
+        if not ok:
+            self.win.toast(f"Discovery failed: {r}")
+            return
+        n = 0
+        for src_label, urls in (("robots.txt", r.get("robots", [])), ("sitemap.xml", r.get("sitemap", []))):
+            for u in urls:
+                p = urlparse(u)
+                if not p.hostname:
+                    continue
+                bucket = self._discovered.setdefault(p.hostname, {})
+                path = p.path or "/"
+                if path not in bucket:
+                    bucket[path] = {"url": u, "source": src_label}
+                    n += 1
+        self._build()
+        self.win.toast(f"Discovered {n} new URL(s) from robots.txt / sitemap.xml"
+                       + ("" if r.get("robots_ok") else " (no robots.txt)"))
+
+    def _export(self):
+        rows = self.win.security.traffic.model.rows if hasattr(self.win, "security") else []
+        urls = {r["url"] for r in rows}
+        for paths in self._discovered.values():
+            urls.update(e["url"] for e in paths.values())
+        if not urls:
+            self.win.toast("Nothing to export yet — browse the site or run Discover")
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Export discovered URLs", "sitemap-urls.txt",
+                                              "Text files (*.txt);;All files (*)")
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("\n".join(sorted(urls)))
+            self.win.toast(f"Exported {len(urls)} URL(s)")
+        except OSError as e:
+            QMessageBox.warning(self, "Export", f"Could not write file: {e}")
 
     def _open(self, it, _col):
         url = it.data(0, Qt.ItemDataRole.UserRole)
         if url:
             self.win.open_url(url, new_tab=True)
+
+
+class _SortItem(QTreeWidgetItem):
+    """Tree item that sorts numeric columns numerically (for the Intruder results table)."""
+
+    def __lt__(self, other):
+        col = self.treeWidget().sortColumn() if self.treeWidget() else 0
+        a, b = self.text(col), other.text(col)
+        try:
+            return float(a) < float(b)
+        except ValueError:
+            return a < b
+
+
+def _pane(title, widget, extra=None):
+    box = QWidget()
+    bl = QVBoxLayout(box)
+    bl.setContentsMargins(0, 0, 0, 0)
+    bl.setSpacing(3)
+    head = QHBoxLayout()
+    lab = QLabel(title)
+    lab.setObjectName("PaneLabel")
+    head.addWidget(lab)
+    head.addStretch(1)
+    if extra:
+        extra(head)
+    bl.addLayout(head)
+    bl.addWidget(widget, 1)
+    return box
+
+
+STATUS_COLOR = {2: "#1e8e3e", 3: "#4589ff", 4: "#fa7b17", 5: "#da1e28"}
+
+
+# =================================================================== Intruder (fuzzer.py frontend)
+class IntruderTab(QWidget):
+    """Frontend for the throttled, scope-gated fuzzer backend. Does NOT implement its own engine —
+    every request goes through fuzzer.run(), which enforces in-scope-only, a max rate and a budget."""
+    result = Signal(dict)
+
+    def __init__(self, win):
+        super().__init__()
+        self.win = win
+        self._stop = False
+        self._running = False
+        self._results: list[dict] = []
+        self._n = 0
+        v = QVBoxLayout(self)
+        intro = QLabel("Responsible <b>Intruder</b>: mark payload positions with <b>§</b>…<b>§</b> in the URL, "
+                       "headers or body. One payload per line is substituted at every mark. The backend enforces "
+                       "<b>in-scope-only</b> targets, a maximum request rate, and a hard request budget — there is "
+                       "no unthrottled / credential-stuffing / brute-force mode.")
+        intro.setWordWrap(True)
+        intro.setObjectName("Muted")
+        v.addWidget(intro)
+        self.scope_lbl = QLabel("")
+        self.scope_lbl.setObjectName("Muted")
+        self.scope_lbl.setWordWrap(True)
+        v.addWidget(self.scope_lbl)
+
+        row = QHBoxLayout()
+        self.method = QComboBox()
+        self.method.addItems(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])
+        self.method.setEditable(True)
+        row.addWidget(self.method)
+        self.url = mono(QLineEdit())
+        self.url.setPlaceholderText("https://target/search?q=§FUZZ§")
+        self.url.textChanged.connect(self._update_positions)
+        row.addWidget(self.url, 1)
+        v.addLayout(row)
+
+        split = QSplitter(Qt.Orientation.Vertical)
+        self.headers = mono(QPlainTextEdit())
+        self.headers.setPlaceholderText("Header: value (one per line) — may contain §marks§")
+        self.headers.textChanged.connect(self._update_positions)
+        self.body = mono(QPlainTextEdit())
+        self.body.setPlaceholderText("Request body — may contain §marks§")
+        self.body.textChanged.connect(self._update_positions)
+        self.payloads = mono(QPlainTextEdit())
+        self.payloads.setPlaceholderText("One payload per line")
+        self.payloads.textChanged.connect(self._update_budget)
+        split.addWidget(_pane("Request headers", self.headers))
+        split.addWidget(_pane("Request body", self.body))
+
+        def payload_tools(head):
+            b = QPushButton("Load from file…")
+            b.setObjectName("Segment")
+            b.setFixedHeight(24)
+            b.clicked.connect(self._load_payloads)
+            head.addWidget(b)
+        split.addWidget(_pane("Payloads (one per line)", self.payloads, payload_tools))
+        split.setSizes([110, 90, 150])
+        v.addWidget(split, 1)
+
+        cfg = QHBoxLayout()
+        cfg.addWidget(QLabel("Rate"))
+        self.rate = QDoubleSpinBox()
+        self.rate.setRange(0.2, fuzzer.MAX_RATE)
+        self.rate.setSingleStep(0.5)
+        self.rate.setValue(5.0)
+        self.rate.setSuffix(" req/s")
+        cfg.addWidget(self.rate)
+        cfg.addWidget(QLabel("Max requests"))
+        self.maxreq = QSpinBox()
+        self.maxreq.setRange(1, fuzzer.MAX_REQUESTS_CEILING)
+        self.maxreq.setValue(200)
+        self.maxreq.valueChanged.connect(self._update_budget)
+        cfg.addWidget(self.maxreq)
+        self.pos_lbl = QLabel("0 positions")
+        self.pos_lbl.setObjectName("Muted")
+        cfg.addWidget(self.pos_lbl)
+        cfg.addStretch(1)
+        self.budget = QLabel("")
+        self.budget.setObjectName("Muted")
+        cfg.addWidget(self.budget)
+        v.addLayout(cfg)
+
+        runrow = QHBoxLayout()
+        self.b_start = QPushButton("Start attack")
+        self.b_start.setObjectName("Primary")
+        self.b_start.clicked.connect(self._start)
+        self.b_stop = QPushButton("Stop")
+        self.b_stop.setEnabled(False)
+        self.b_stop.clicked.connect(self._stop_now)
+        self.progress = QProgressBar()
+        self.progress.setTextVisible(True)
+        runrow.addWidget(self.b_start)
+        runrow.addWidget(self.b_stop)
+        runrow.addWidget(self.progress, 1)
+        v.addLayout(runrow)
+
+        fr = QHBoxLayout()
+        self.filter = QLineEdit()
+        self.filter.setPlaceholderText("Filter results: status / payload / location…")
+        self.filter.textChanged.connect(self._apply_filter)
+        fr.addWidget(self.filter, 1)
+        v.addLayout(fr)
+        self.table = QTreeWidget()
+        self.table.setHeaderLabels(["#", "Payload", "Status", "Length", "Time (ms)", "Location / Error"])
+        self.table.setRootIsDecorated(False)
+        self.table.setSortingEnabled(True)
+        self.table.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._menu)
+        self.table.itemDoubleClicked.connect(lambda *_: self._to_repeater())
+        v.addWidget(self.table, 1)
+        self.summary = QLabel("")
+        self.summary.setObjectName("Muted")
+        v.addWidget(self.summary)
+
+        self.result.connect(self._on_result)
+        self._update_positions()
+        self._update_budget()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self._refresh_scope()
+
+    # ---------------------------------------------------------- helpers
+    def _refresh_scope(self):
+        eng = self.win.engagement
+        if eng and eng.scope:
+            self.scope_lbl.setText(f"Authorized scope — <b>{escape(eng.name)}</b>: {escape(', '.join(eng.scope))}")
+        elif eng:
+            self.scope_lbl.setText(f"Engagement <b>{escape(eng.name)}</b> has no scope set. Add a target scope "
+                                   "(toolbar → engagement) before testing.")
+        else:
+            self.scope_lbl.setText("No engagement selected. Active testing requires an authorized engagement with "
+                                   "a target scope (toolbar, left of the address bar).")
+
+    def _templates(self):
+        return self.url.text(), self.headers.toPlainText(), self.body.toPlainText()
+
+    def _update_positions(self):
+        n = sum(fuzzer.positions(t) for t in self._templates())
+        self.pos_lbl.setText(f"{n} position{'s' if n != 1 else ''}")
+        return n
+
+    def _payload_lines(self):
+        return [ln for ln in self.payloads.toPlainText().splitlines() if ln.strip() != ""]
+
+    def _update_budget(self):
+        n = len(self._payload_lines())
+        eff = min(n, self.maxreq.value(), fuzzer.MAX_REQUESTS_CEILING)
+        self.budget.setText(f"Will send <b>{eff}</b> of {n} payloads" + (" (budget-capped)" if eff < n else ""))
+
+    def _load_payloads(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Load payload list", "", "Text files (*.txt);;All files (*)")
+        if path:
+            try:
+                with open(path, encoding="utf-8", errors="replace") as fh:
+                    self.payloads.setPlainText(fh.read())
+            except OSError as e:
+                QMessageBox.warning(self, "Payloads", f"Could not read file: {e}")
+
+    # ---------------------------------------------------------- run / stop
+    def _start(self):
+        if self._running:
+            return
+        url = self.url.text().strip()
+        host = urlparse(url).hostname or ""
+        if not host:
+            QMessageBox.information(self, "Intruder", "Enter a target URL first.")
+            return
+        if self._update_positions() == 0:
+            QMessageBox.information(self, "Intruder", "Add at least one payload position: wrap it in §marks§, "
+                                                      "e.g. https://target/search?q=§FUZZ§")
+            return
+        payloads = self._payload_lines()
+        if not payloads:
+            QMessageBox.information(self, "Intruder", "Add at least one payload (one per line).")
+            return
+        eng = self.win.engagement
+        if not eng or not eng.scope:
+            QMessageBox.warning(self, "Authorization required",
+                                "Active testing requires an engagement with a target scope. Create or select one "
+                                "(toolbar) and add the target to its scope before running the Intruder.")
+            return
+        in_scope = lambda h: bool(eng.in_scope(h))  # noqa: E731
+        if not in_scope(host):
+            QMessageBox.warning(self, "Out of scope",
+                                f"{host} is not in the scope of engagement '{eng.name}'. The Intruder only tests "
+                                "in-scope hosts. Add it to the engagement scope if you are authorized to test it.")
+            return
+        eff = min(len(payloads), self.maxreq.value())
+        ok = QMessageBox.question(
+            self, "Confirm authorized test",
+            f"Send up to <b>{eff}</b> requests to <b>{escape(host)}</b> at {self.rate.value():.1f} req/s?\n\n"
+            "Only test systems you are explicitly authorized to test.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if ok != QMessageBox.StandardButton.Yes:
+            return
+
+        self._stop = False
+        self._running = True
+        self._results = []
+        self._n = 0
+        self.table.setSortingEnabled(False)
+        self.table.clear()
+        self.b_start.setEnabled(False)
+        self.b_stop.setEnabled(True)
+        self.progress.setRange(0, eff)
+        self.progress.setValue(0)
+        self.summary.setText("Running…")
+        method, (u, h, b) = self.method.currentText(), self._templates()
+        rate, maxreq = self.rate.value(), self.maxreq.value()
+        px, verify = self.win.proxies(), self.win.verify_tls()
+
+        def worker():
+            return fuzzer.run(method, u, h, b, payloads, in_scope=in_scope, rate_per_sec=rate,
+                              max_requests=maxreq, proxies=px, verify=verify,
+                              on_result=lambda r: self.result.emit(r), should_stop=lambda: self._stop)
+
+        def finished(okk, res):
+            self._running = False
+            self.b_start.setEnabled(True)
+            self.b_stop.setEnabled(False)
+            self.table.setSortingEnabled(True)
+            if okk:
+                self.summary.setText(f"Done — sent {res.get('sent', 0)} request(s)"
+                                     + (" · budget reached" if res.get("capped") else "")
+                                     + (" · stopped" if self._stop else ""))
+            else:
+                self.summary.setText(f"Failed: {res}")
+                QMessageBox.warning(self, "Intruder", f"Attack failed:\n{res}")
+        self.win.runner.run(worker, finished)
+
+    def _stop_now(self):
+        self._stop = True
+        self.b_stop.setEnabled(False)
+        self.summary.setText("Stopping after the current request…")
+
+    def _on_result(self, r):
+        self._results.append(r)
+        self._n += 1
+        self.progress.setValue(self._n)
+        status = r.get("status")
+        row = _SortItem([str(self._n), r.get("payload", ""), str(status) if status is not None else "ERR",
+                         str(r.get("length", 0)), str(r.get("ms", 0)),
+                         r.get("location") or r.get("error") or ""])
+        if status:
+            row.setForeground(2, QBrush(QColor(STATUS_COLOR.get(status // 100, "#8d8d8d"))))
+        else:
+            row.setForeground(2, QBrush(QColor("#8d8d8d")))
+        row.setData(0, Qt.ItemDataRole.UserRole, r)
+        self.table.addTopLevelItem(row)
+        self._filter_row(row)
+        self.summary.setText(f"{self._n} sent")
+
+    def _apply_filter(self):
+        for i in range(self.table.topLevelItemCount()):
+            self._filter_row(self.table.topLevelItem(i))
+
+    def _filter_row(self, row):
+        f = self.filter.text().lower().strip()
+        hay = " ".join(row.text(c) for c in range(row.columnCount())).lower()
+        row.setHidden(bool(f) and f not in hay)
+
+    def _current(self):
+        it = self.table.currentItem()
+        return it.data(0, Qt.ItemDataRole.UserRole) if it else None
+
+    def _concrete(self, r):
+        p = r.get("payload", "")
+        u, h, b = self._templates()
+        return (fuzzer.apply_payload(u, p), fuzzer.apply_payload(h, p), fuzzer.apply_payload(b, p))
+
+    def _to_repeater(self):
+        r = self._current()
+        if not r:
+            return
+        u, h, _b = self._concrete(r)
+        self.win.security.tools_tab.load_request(self.method.currentText(), u, tools.parse_headers(h))
+        self.win.security.show_tab("Tools")
+
+    def _menu(self, pos):
+        it = self.table.itemAt(pos)
+        if not it:
+            return
+        r = it.data(0, Qt.ItemDataRole.UserRole)
+        m = QMenu(self)
+        m.addAction("Send to Repeater", self._to_repeater)
+        m.addAction("Add as finding…", lambda: self._add_finding(r))
+        m.addAction("Copy payload", lambda: QGuiApplication.clipboard().setText(r.get("payload", "")))
+        m.exec(self.table.viewport().mapToGlobal(pos))
+
+    def _add_finding(self, r):
+        u, h, b = self._concrete(r)
+        evidence = (f"Request: {self.method.currentText()} {u}\n{h}\n\n{b}\n\n"
+                    f"Response: status={r.get('status')} length={r.get('length')} time={r.get('ms')}ms "
+                    f"{r.get('location') or r.get('error') or ''}").strip()
+        self.win.add_finding_dialog(title=f"Intruder result: payload {r.get('payload','')[:40]}",
+                                    severity="info", url=u, description="Captured during authorized Intruder testing.",
+                                    evidence=evidence)
+
+
+# =================================================================== DOM Security Analysis
+class DomTab(QWidget):
+    """Dedicated passive DOM source/sink analysis built on domscan.py (extends pageinfo.js data)."""
+
+    def __init__(self, win):
+        super().__init__()
+        self.win = win
+        self.url = ""
+        v = QVBoxLayout(self)
+        intro = QLabel("Passive <b>DOM Security Analysis</b>: scans the scripts this page already loads for DOM-XSS "
+                       "<b>sources</b> (attacker-influenceable inputs) and <b>sinks</b> (APIs that turn strings into "
+                       "markup/code), and flags scripts containing both as potential flows. Read-only — it never "
+                       "executes payloads or modifies the page.")
+        intro.setWordWrap(True)
+        intro.setObjectName("Muted")
+        v.addWidget(intro)
+        row = QHBoxLayout()
+        self.btn = QPushButton("Analyze current page")
+        self.btn.setObjectName("Primary")
+        self.btn.clicked.connect(self.analyze_current)
+        row.addWidget(self.btn)
+        self.counts = QLabel("")
+        self.counts.setObjectName("Muted")
+        row.addWidget(self.counts)
+        row.addStretch(1)
+        v.addLayout(row)
+        split = QSplitter(Qt.Orientation.Vertical)
+        self.tree = QTreeWidget()
+        self.tree.setHeaderLabels(["Finding", "Severity"])
+        self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.tree.currentItemChanged.connect(self._show)
+        split.addWidget(self.tree)
+        self.busy = BusyOverlay(self.tree)
+        self.detail = QTextBrowser()
+        self.detail.setOpenLinks(False)
+        split.addWidget(self.detail)
+        split.setSizes([360, 200])
+        v.addWidget(split, 1)
+        br = QHBoxLayout()
+        self.b_add = QPushButton("Add to findings")
+        self.b_add.clicked.connect(self._add)
+        self.b_copy = QPushButton("Copy")
+        self.b_copy.clicked.connect(self._copy)
+        br.addWidget(self.b_add)
+        br.addWidget(self.b_copy)
+        br.addStretch(1)
+        v.addLayout(br)
+        self._show()
+
+    def analyze_current(self):
+        view = self.win.current_view()
+        if not view:
+            return
+        url = view.url().toString()
+        if not url.startswith("http"):
+            self.counts.setText("Open an http(s) page to analyze it.")
+            return
+        self.url = url
+        self.btn.setEnabled(False)
+        self.busy.start("Scanning DOM scripts…")
+        view.page().runJavaScript(PAGEINFO_JS, 0, lambda res, u=url: self._got_page(u, res))
+
+    def _got_page(self, url, res):
+        try:
+            page = json.loads(res) if isinstance(res, str) else (res or {})
+        except ValueError:
+            page = {}
+        page.setdefault("url", url)
+        eng = self.win.engagement
+        in_scope = (lambda h: bool(eng.in_scope(h))) if eng and eng.scope else \
+            (lambda h, base=urlparse(url).hostname: h == base)
+        px, verify = self.win.proxies(), self.win.verify_tls()
+        self.win.runner.run(lambda: domscan.analyze_dom(page, in_scope, px, verify),
+                            lambda ok, r, u=url: self._done(u, ok, r))
+
+    def _done(self, url, ok, r):
+        self.btn.setEnabled(True)
+        self.busy.stop()
+        if url != self.url:
+            return
+        if not ok:
+            self.counts.setText(f"DOM analysis failed: {r}")
+            return
+        c = r["counts"]
+        self.counts.setText(f"{c['sinks']} sinks · {c['sources']} sources · {c['flows']} potential flows "
+                            f"· {c['scripts']} script(s) scanned")
+        self.tree.clear()
+        groups: dict[str, QTreeWidgetItem] = {}
+        order = ["DOM potential flow", "DOM sinks", "DOM sources"]
+        for i in sorted(r["issues"], key=lambda i: order.index(i["category"]) if i["category"] in order else 9):
+            g = groups.get(i["category"])
+            if not g:
+                g = QTreeWidgetItem([i["category"], ""])
+                fnt = g.font(0)
+                fnt.setBold(True)
+                g.setFont(0, fnt)
+                self.tree.addTopLevelItem(g)
+                groups[i["category"]] = g
+            it = QTreeWidgetItem([i["title"], i["severity"]])
+            it.setForeground(1, QBrush(QColor(SEV_COLOR.get(i["severity"], "#888"))))
+            it.setData(0, Qt.ItemDataRole.UserRole, i)
+            g.addChild(it)
+        for cat, g in groups.items():
+            g.setText(0, f"{cat}  ({g.childCount()})")
+            g.setExpanded(cat != "DOM sources")
+        if not r["issues"]:
+            self.tree.addTopLevelItem(QTreeWidgetItem(["No DOM sources or sinks found in the scanned scripts.", ""]))
+
+    def _issue(self):
+        it = self.tree.currentItem()
+        return it.data(0, Qt.ItemDataRole.UserRole) if it else None
+
+    def _show(self, *_):
+        i = self._issue()
+        self.b_add.setEnabled(bool(i) and bool(self.win.engagement))
+        self.b_copy.setEnabled(bool(i))
+        if not i:
+            self.detail.setHtml("<p style='color:gray'>Select a finding for details. Heuristic static analysis — "
+                                "a 'potential flow' means a script contains both a source and a sink; confirm the "
+                                "data actually flows from source to sink before reporting.</p>")
+            return
+        html = f"<p>{sev_badge(i['severity'])} <b>{escape(i['title'])}</b></p>"
+        if i.get("detail"):
+            html += f"<p>{escape(i['detail'])}</p>"
+        if i.get("evidence"):
+            html += f"<pre style='white-space:pre-wrap'>{escape(i['evidence'])}</pre>"
+        self.detail.setHtml(html)
+
+    def _copy(self):
+        i = self._issue()
+        if i:
+            QGuiApplication.clipboard().setText(f"[{i['severity'].upper()}] {i['title']}\n{i.get('detail','')}\n"
+                                                f"{i.get('evidence','')}".strip())
+
+    def _add(self):
+        i = self._issue()
+        if i:
+            sev = i["severity"] if i["severity"] != "info" else "low"
+            self.win.add_finding_dialog(title=i["title"], severity=sev, url=self.url,
+                                        description=i.get("detail", ""), evidence=i.get("evidence", ""))
 
 
 class SecurityPanel(QDockWidget):
@@ -1571,11 +2139,13 @@ class SecurityPanel(QDockWidget):
         self.tools_tab = ToolsTab(win)
         self.findings = FindingsTab(win)
         self.shields = ShieldsTab(win)
+        self.intruder = IntruderTab(win)
+        self.dom = DomTab(win)
         groups = [
             ("PROTECTION", [("Shields", self.shields)]),
             ("INTELLIGENCE", [("Overview", self.overview), ("Site map", self.sitemap), ("Recon", self.recon)]),
             ("TRAFFIC", [("Traffic", self.traffic)]),
-            ("TESTING", [("Tools", self.tools_tab)]),
+            ("TESTING", [("Intruder", self.intruder), ("DOM Analysis", self.dom), ("Tools", self.tools_tab)]),
             ("FINDINGS", [("Findings", self.findings)]),
         ]
         root = QWidget()
