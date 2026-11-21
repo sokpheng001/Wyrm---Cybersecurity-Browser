@@ -1,16 +1,16 @@
 # Wyrm
 
-A privacy and security browser for cybersecurity professionals.
-Chromium engine, built-in ad/malware/phishing protection, Tor windows, and tools for authorized web security testing.
+A privacy and security browser for cybersecurity professionals — and simple enough for everyone.
+Chromium engine, built-in ad/malware/phishing protection, Tor windows, anti-fingerprinting, and a full
+panel of tools for **authorized** web security testing.
 
 Built by **ByKh R&D Group** and **HackPi — Ethical Hackers Group**
 Copyright © 2021–2026 HackPi · Version 1.0.0
 
 ### The name
 
-A **wyrm** (Old English *wyrm*, “serpent/dragon”) is a wingless, coiled dragon from Norse and Germanic myth —
-a watchful guardian that hoards and protects. It fits a browser that stays low, watches every request, and guards
-the person using it. The coiled-dragon logo comes from the same idea.
+A **wyrm** (Old English *wyrm*, “serpent/dragon”) is a wingless, coiled dragon — a watchful guardian that
+hoards and protects. It fits a browser that stays low, watches every request, and guards the person using it.
 
 ## Install
 
@@ -20,45 +20,58 @@ the person using it. The coiled-dragon logo comes from the same idea.
 | macOS 12+ | `Wyrm-macos.dmg` | Open it, drag **Wyrm** to Applications. First launch: right-click → **Open**. |
 | Linux (x64) | `Wyrm-linux.tar.gz` | `tar xzf Wyrm-linux.tar.gz && ./Wyrm/install.sh` |
 
-Downloads are on the [Releases](../../releases) page.
+Downloads are on the [Releases](../../releases) page. First launch may show a SmartScreen / antivirus
+"unknown publisher" notice — see **"Why the warning"** below; it's a false positive from an unsigned build.
 
-### "Windows protected your PC" / antivirus warning — why it shows, and that it's safe
+## What it does
 
-On first launch Windows may show a blue **SmartScreen** box ("Windows protected your PC"), or your antivirus
-may flag the installer. **This is expected for a new, independently-published app and does not mean the app is
-infected.** It happens because:
+### Browse
+- Chromium engine, tabs in a custom title bar, downloads, DevTools (`F12` / `Ctrl+Shift+I`), view-source (`Ctrl+U`)
+- **Address bar** understands URLs, plain searches, bangs (`!g !ddg !cve !edb !shodan !crt !h1 !r`), and
+  identifiers — type a `CVE-…`, `CWE-…` or `T####` and it goes straight to the right place
+- **History autocomplete** with one-click **Clear history** (⋮ menu)
+- **Light / Dark / Follow-system** themes
+- **Red team / Blue team modes** (⋮ menu or the header chip): swap an offensive (red) vs defensive (blue)
+  accent and start-page emphasis — IBM Carbon styling throughout
 
-- The installer isn't yet signed with a paid publisher certificate, so Windows can't show a known publisher name.
-- The app is packaged with PyInstaller, whose start-up stub looks similar to self-extracting installers, which
-  makes some antivirus engines raise a *false positive*.
+### Stay private & safe (Shields)
+- Block **ads, trackers, malware, phishing, pop-ups**, remove **YouTube ads**, strip tracking parameters —
+  all toggleable, per-site or globally (turn Shields off for one site to analyze its ads for malvertising)
+- **Anti-fingerprinting** (canvas/WebGL/audio noise + attribute normalization)
+- **HTTPS-Only** mode and **encrypted DNS (DNS-over-HTTPS)**
+- **Smart Link Check** — dangerous/suspicious links are paused with the reasons shown
+- **Tor windows** (⋮ → New Tor window): routes through the Tor network, nothing saved to disk;
+  Tor is downloaded from torproject.org and checksum-verified on first use
+- Live **CISA KEV** feed (latest exploited-in-the-wild CVEs) on every new tab
 
-As more people download each signed release, Windows builds up "reputation" and the warning goes away on its own.
-To run it now: on the SmartScreen box click **More info → Run anyway**; on macOS right-click the app → **Open**.
-You can always verify a download yourself by uploading it to [VirusTotal](https://www.virustotal.com).
+### Test (authorized) — the 🛡 Security panel
+- **Engagements**: per-target scope with isolated sessions and an authorization gate; IN/OUT-of-scope badge
+- **Shields / Overview / Traffic / Site map / Recon / Tools / Findings** tabs
+- **Overview**: passive security grade (headers, CSP, TLS, cookies, tech + CVE lookup, JS secrets/endpoints)
+- **Traffic**: every request, filterable, with **per-site focus**; route through **Burp/ZAP** (Settings → Network)
+- **Site map**: host/path tree built from observed traffic
+- **Recon**: subdomains (crt.sh), Wayback URLs, robots/sitemap/security.txt
+- **Tools**: Decoder · JWT · Hash · **Repeater** (colored, scope-aware) · **Match & Replace** · **Comparer** ·
+  **Sequencer** (token entropy) · **AI Triage**
+- **AI Triage**: a scope-gated, human-in-the-loop, non-destructive assistant that analyzes a request/response
+  or code and proposes findings, safe verification steps, and remediation (bring your own API key, Settings → AI)
+- **Findings → report**: export HTML or Markdown
+- **Security Search** (default engine): CVE/CWE/IP/domain/hash intel, ranked by real-world risk
+  (CISA KEV → EPSS → CVSS), with recon and bug-bounty pivots
 
-A fully warning-free version (via the Microsoft Store, which re-signs the package for free) is planned.
+> **Only test systems you own or have explicit written permission to test.**
+> Wyrm is built for defensive work and authorized testing. It deliberately has **no** unthrottled
+> fuzzing/brute-force, credential stuffing, or automated exploitation.
 
-## Use
+Shortcuts: `Ctrl+T/W` tabs · `Ctrl+L` address bar · `Ctrl+Shift+S` security panel · `Ctrl+Shift+F` add finding ·
+`Ctrl+Alt+N` Tor window · `Ctrl+,` settings · `F12` inspect · `Ctrl+U` view source.
 
-- **Search:** type anything in the address bar. The default **Security Search** understands CVEs, products, IPs,
-  domains, hashes, CWE and ATT&CK IDs, and ranks vulnerabilities by real-world risk (CISA KEV → EPSS → CVSS).
-  Other engines: `!g` Google, `!ddg` DuckDuckGo, `!cve` NVD, `!edb` Exploit-DB, `!shodan`, `!crt`, `!h1`.
-- **Shields** (toolbar shield with a number): blocks ads, trackers, malware, phishing, pop-ups and YouTube ads,
-  strips tracking parameters, and shows a report of everything blocked. Toggle per site.
-- **Smart Link Check:** hover a link to see if it looks like phishing. Dangerous or suspicious links always ask
-  before opening, with the reasons shown. Right-click → **Check this link** any time.
-- **Inspect:** right-click → **Inspect** (or `F12` / `Ctrl+Shift+I`) opens the developer tools; `Ctrl+U` views source.
-- **Encrypted connections:** HTTPS-Only mode and encrypted DNS (DNS-over-HTTPS) are on by default.
-- **Tor window:** Menu (⋮) → **New Tor window**. Routes everything through the Tor network, saves nothing to disk.
-- **Security testing:** pick or create an **engagement** (dropdown left of the address bar) with your authorized
-  scope. The 🛡 panel then gives passive page analysis, traffic log, recon, tools (Decoder, JWT, Hash, Repeater,
-  Match & Replace) and a findings report.
-- **Theme:** Menu (⋮) → Theme → Follow system / Dark / Light.
+## Why the warning (SmartScreen / antivirus)
 
-Shortcuts: `Ctrl+T` new tab · `Ctrl+W` close · `Ctrl+L` address bar · `Ctrl+Shift+S` security panel ·
-`Ctrl+Shift+F` add finding · `Ctrl+Alt+N` Tor window · `F12` / `Ctrl+Shift+I` inspect · `Ctrl+U` view source.
-
-> Only test systems you own or have written permission to test.
+New, independently-published apps aren't yet signed with a paid publisher certificate, and PyInstaller's
+start-up stub resembles a self-extractor — so Windows SmartScreen or some AV engines may flag the installer
+as "unknown publisher" or a false positive. It is **not** infected. To run it: **More info → Run anyway**
+(Windows) or right-click → **Open** (macOS). You can verify any download on [VirusTotal](https://www.virustotal.com).
 
 ## Build from source
 
@@ -70,8 +83,9 @@ python run.py                 # run
 python run.py --tor           # run a Tor window
 ```
 
-Installers: `.\build_windows.ps1` (Windows, needs [Inno Setup](https://jrsoftware.org/isinfo.php)) or
-`bash build_unix.sh` (macOS / Linux). GitHub Actions builds all three on every `v*` tag.
+Installers: `./build_windows.ps1` (Windows, needs [Inno Setup](https://jrsoftware.org/isinfo.php)) or
+`bash build_unix.sh` (macOS / Linux). GitHub Actions builds **all three** on every `v*` tag and attaches
+them to a Release.
 
 ## Developers
 
@@ -80,5 +94,7 @@ Installers: `.\build_windows.ps1` (Windows, needs [Inno Setup](https://jrsoftwar
 
 ## Credits
 
-Qt WebEngine (Chromium) · Brave adblock-rust · Tor Project (Tor, stem) · EasyList, EasyPrivacy, uBlock Origin,
-URLhaus, phishing-filter lists · NVD, CISA KEV, FIRST EPSS, OSV, Shodan InternetDB · IBM Plex fonts · Carbon Design System.
+Qt WebEngine (Chromium) · ad/tracker blocking via community filter lists (EasyList, EasyPrivacy, uBlock Origin,
+URLhaus, phishing-filter) · Tor Project (Tor, stem) · NVD, CISA KEV, FIRST EPSS, OSV, Shodan InternetDB ·
+IBM Plex fonts · Carbon Design System. Research informing the design: PriVaricator (anti-fingerprinting),
+CSP Is Dead Long Live CSP (CCS 2016), EPSS (FIRST), CiteSee (CHI 2023).

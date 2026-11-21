@@ -119,10 +119,18 @@ class TorManager:
                "AvoidDiskWrites": "1", "Log": "notice stdout"}
         # Tor needs ABSOLUTE geoip paths (a relative/empty one makes it refuse to start). The Expert
         # Bundle ships them under data/ — find them wherever they extracted and pass absolute paths.
+        found = {}
         for cfgkey, fname in (("GeoIPFile", "geoip"), ("GeoIPv6File", "geoip6")):
-            hits = list(self.root.rglob(fname))
+            hits = [p for p in self.root.rglob(fname) if p.is_file()]
             if hits:
                 cfg[cfgkey] = str(hits[0].resolve())
+                found[fname] = True
+        if "geoip" not in found:
+            # the bundle is incomplete/corrupt — re-download next time instead of dying on a relative path
+            import shutil
+            shutil.rmtree(self.root, ignore_errors=True)
+            raise RuntimeError("Tor data files were missing from the download. Please reconnect — "
+                               "Wyrm will re-download and verify Tor.")
         if sys.platform.startswith("linux"):  # bundled tor ships its own libs next to the binary
             os.environ["LD_LIBRARY_PATH"] = str(Path(tor).parent) + os.pathsep + os.environ.get("LD_LIBRARY_PATH", "")
 

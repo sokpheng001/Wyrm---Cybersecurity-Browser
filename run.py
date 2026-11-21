@@ -49,18 +49,22 @@ class TorDialog(QDialog):
     def __init__(self, tor, port):
         super().__init__()
         self.setWindowTitle("Connecting to Tor")
-        self.setMinimumWidth(460)
+        self.resize(560, 320)
+        self.setMinimumSize(420, 240)
+        self.setSizeGripEnabled(True)   # resizable so long messages can be read in full
         v = QVBoxLayout(self)
         v.setContentsMargins(24, 24, 24, 24)
         title = QLabel("<span style='font-size:20px;font-weight:300'>Connecting to the Tor network</span>")
         v.addWidget(title)
-        self.msg = QLabel("Starting…")
-        self.msg.setWordWrap(True)
-        v.addWidget(self.msg)
         self.bar = QProgressBar()
         self.bar.setTextVisible(False)
         self.bar.setFixedHeight(6)
         v.addWidget(self.bar)
+        from PySide6.QtWidgets import QTextEdit
+        self.msg = QTextEdit()          # read-only, scrollable, selectable — full error always visible
+        self.msg.setReadOnly(True)
+        self.msg.setPlainText("Starting…")
+        v.addWidget(self.msg, 1)
         note = QLabel("<span style='color:gray;font-size:12px'>Traffic is routed through three Tor relays. Nothing from "
                       "this window is saved to disk. The first connection downloads Tor from torproject.org and verifies "
                       "its checksum.</span>")
@@ -77,10 +81,10 @@ class TorDialog(QDialog):
 
     def _progress(self, p, m):
         self.bar.setValue(p)
-        self.msg.setText(m)
+        self.msg.setPlainText(m)
 
     def _failed(self, err):
-        self.msg.setText(f"<span style='color:#da1e28'>Couldn't connect to Tor: {err}</span>")
+        self.msg.setHtml(f"<span style='color:#da1e28'>Couldn't connect to Tor:</span><br><br>{err}")
         self.cancel.setText("Close")
 
 
