@@ -8,9 +8,9 @@ from __future__ import annotations
 from pathlib import Path
 from string import Template
 
-from PySide6.QtCore import QEvent, QObject, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
-from PySide6.QtWidgets import QComboBox
+from PySide6.QtWidgets import QComboBox, QProxyStyle
 
 FONT_DIR = Path(__file__).parent / "assets" / "fonts"
 SANS = "IBM Plex Sans"
@@ -89,7 +89,8 @@ QTabBar#MainTabs::tab:selected { background: $layer; color: $text; border-top: 3
 
 /* ---------- navigation bar (soft, rounded, pill address bar) ---------- */
 #NavBar { background: $layer; border-bottom: 1px solid $border; }
-#NavBar QToolButton { border: none; border-radius: 0; padding: 0; background: transparent; min-width: 36px; min-height: 36px; margin: 2px; }
+/* fixed 40x40 squares, no margin: the hover/checked background is always a square with the icon dead-centre */
+#NavBar QToolButton { border: none; border-radius: 0; padding: 0; background: transparent; min-width: 40px; min-height: 40px; max-width: 40px; max-height: 40px; margin: 0; }
 #NavBar QToolButton:hover { background: $hover; }
 #NavBar QToolButton:checked { background: $selected; }
 #NavBar QToolButton:focus { border: 2px solid $focus; }
@@ -277,25 +278,22 @@ def palette(theme: str, mode: str = "blue") -> QPalette:
     return pal
 
 
-class _ComboPolish(QObject):
-    """App-wide: every dropdown gets a pointing-hand cursor (box + list) and a scrollbar that is always shown
-    when the list is longer than what fits. Qt style sheets cannot set cursors, so this is done in code."""
+class AppStyle(QProxyStyle):
+    """Fusion everywhere (same look on every OS) + every dropdown gets a pointing-hand cursor and a visible
+    scrollbar. Done in polish(), which Qt calls once per widget; an app-wide event filter is NOT safe here
+    (it runs for every QObject event, including QtQuick internals, and recursed until the app crashed)."""
 
-    def eventFilter(self, obj, ev):
-        if isinstance(obj, QComboBox):
-            t = ev.type()
-            if t == QEvent.Type.Polish:
-                obj.setCursor(Qt.CursorShape.PointingHandCursor)
-                obj.view().viewport().setCursor(Qt.CursorShape.PointingHandCursor)
-                obj.view().verticalScrollBar().setCursor(Qt.CursorShape.PointingHandCursor)
-            elif t == QEvent.Type.MouseButtonPress:  # just before the list opens: decide on the scrollbar
-                obj.view().setVerticalScrollBarPolicy(
-                    Qt.ScrollBarPolicy.ScrollBarAlwaysOn if obj.count() > obj.maxVisibleItems()
-                    else Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        return False
+    def __init__(self):
+        super().__init__("Fusion")
 
-
-def install_combo_polish(app) -> None:
-    app._combo_polish = _ComboPolish(app)  # keep a reference
-    app.installEventFilter(app._combo_polish)
+    def polish(self, *args):
+        res = super().polish(*args)
+        w = args[0] if args else None
+        if isinstance(w, QComboBox):
+            hand = Qt.CursorShape.PointingHandCursor
+            w.setCursor(hand)
+            w.view().viewport().setCursor(hand)
+            w.view().verticalScrollBar().setCursor(hand)
+            w.view().setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        return res
 

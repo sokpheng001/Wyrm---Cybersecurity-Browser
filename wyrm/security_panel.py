@@ -1396,11 +1396,15 @@ class ShieldsTab(QWidget):
     CATS = [("ads", "Ads"), ("trackers", "Trackers"), ("malware", "Malware"), ("phishing", "Phishing"),
             ("youtube", "YouTube ads"), ("popups", "Pop-ups"), ("params", "Tracking params removed"),
             ("upgraded", "Upgraded to HTTPS")]
-    TOGGLES = [("ads", "Block ads"), ("antifp", "Resist fingerprinting (canvas/WebGL/audio noise — applies to new tabs)"),
-               ("trackers", "Block trackers (lists + HackPi beacon heuristics)"),
-               ("malware", "Block malware and phishing sites"), ("linkguard", "Smart link check (phishing heuristics)"),
-               ("popups", "Block ad pop-ups"), ("params", "Remove tracking parameters from links"),
-               ("youtube", "Remove YouTube ads (applies to new tabs)")]
+    # (key, short label, details shown as tooltip) — short labels keep the panel usable when narrow
+    TOGGLES = [("ads", "Block ads", ""),
+               ("antifp", "Resist fingerprinting", "Canvas / WebGL / audio noise. Applies to new tabs."),
+               ("trackers", "Block trackers", "Filter lists + HackPi beacon heuristics"),
+               ("malware", "Block malware && phishing", "Blocks known malware and phishing sites"),
+               ("linkguard", "Smart link check", "Phishing heuristics on links you open"),
+               ("popups", "Block ad pop-ups", ""),
+               ("params", "Strip tracking parameters", "Removes utm_*, fbclid, gclid… from links"),
+               ("youtube", "Remove YouTube ads", "Applies to new tabs")]
 
     def __init__(self, win):
         super().__init__()
@@ -1416,6 +1420,8 @@ class ShieldsTab(QWidget):
         v.addLayout(head)
         self.grid = QLabel("")
         self.grid.setTextFormat(Qt.TextFormat.RichText)
+        self.grid.setWordWrap(True)
+        self._stat_cols = 4
         v.addWidget(self.grid)
         self.list = QTreeWidget()
         self.list.setHeaderLabels(["Blocked", "Request"])
@@ -1433,20 +1439,23 @@ class ShieldsTab(QWidget):
         hint.setWordWrap(True)
         v.addWidget(hint)
         self.checks = {}
-        for key, label in self.TOGGLES:
+        for key, label, tip in self.TOGGLES:
             c = QCheckBox(label)
+            if tip:
+                c.setToolTip(tip)
             c.setChecked(win.shields.enabled(key))
             c.toggled.connect(lambda on, k=key: (win.shields.set_enabled(k, on), self._reload_hint()))
             v.addWidget(c)
             self.checks[key] = c
 
         v.addWidget(QLabel("<b>Encryption</b>"))
-        self.https = QCheckBox("HTTPS-Only mode: upgrade every connection to HTTPS")
+        self.https = QCheckBox("HTTPS-Only mode")
+        self.https.setToolTip("Upgrade every connection to HTTPS")
         self.https.setChecked(win.https_only())
         self.https.toggled.connect(lambda on: win.settings.setValue("privacy/https_only", on))
         v.addWidget(self.https)
+        v.addWidget(QLabel("Encrypted DNS (DNS-over-HTTPS)"))
         row = QHBoxLayout()
-        row.addWidget(QLabel("Encrypted DNS"))
         self.doh_mode = QComboBox()
         for key, label in (("secure", "On (fallback to system DNS)"), ("strict", "Strict (encrypted only)"), ("off", "Off")):
             self.doh_mode.addItem(label, key)
@@ -1457,6 +1466,10 @@ class ShieldsTab(QWidget):
         self.doh_prov.setCurrentIndex(max(0, self.doh_prov.findData(win.settings.value("privacy/doh_provider", "cloudflare"))))
         for box, key in ((self.doh_mode, "privacy/doh_mode"), (self.doh_prov, "privacy/doh_provider")):
             box.currentIndexChanged.connect(lambda _i, b=box, k=key: (win.settings.setValue(k, b.currentData()), win.apply_dns()))
+        for box in (self.doh_mode, self.doh_prov):  # may shrink below their longest item
+            box.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            box.setMinimumContentsLength(8)
+            box.view().setMinimumWidth(240)
         row.addWidget(self.doh_mode, 1)
         row.addWidget(self.doh_prov, 1)
         v.addLayout(row)
@@ -1490,6 +1503,11 @@ class ShieldsTab(QWidget):
                 trow.addWidget(b, 0, Qt.AlignmentFlag.AlignRight)
             v.addLayout(trow)
         self.refresh()
+
+    def resizeEvent(self, ev):  # re-flow the counters when the panel is resized
+        super().resizeEvent(ev)
+        if max(2, min(4, (self.width() - 32) // 120)) != self._stat_cols:
+            self.refresh()
 
     def _reload_hint(self):
         self.win.toast("Shield settings changed: reload the page to apply")
@@ -1536,7 +1554,9 @@ class ShieldsTab(QWidget):
             color = "#da1e28" if key in ("malware", "phishing") and n else ("#4589ff" if n else "#8d8d8d")
             cells.append(f"<td style='padding:6px 14px 6px 0'><span style='font-size:20px;font-weight:300;color:{color}'>{n}"
                          f"</span><br><span style='color:gray;font-size:11px'>{label}</span></td>")
-        rows = "".join("<tr>" + "".join(cells[i:i + 4]) + "</tr>" for i in range(0, len(cells), 4))
+        per = max(2, min(4, (self.width() - 32) // 120))  # columns that fit the panel width
+        self._stat_cols = per
+        rows = "".join("<tr>" + "".join(cells[i:i + per]) + "</tr>" for i in range(0, len(cells), per))
         total = self.win.shields.total_blocked
         self.grid.setText(f"<table>{rows}</table><span style='color:gray'>{total:,} blocked since install</span>")
         self.list.clear()
@@ -2211,7 +2231,7 @@ class SecurityPanel(QDockWidget):
     def __init__(self, win):
         super().__init__("Security", win)
         self.setObjectName("SecurityPanel")
-        self.setMinimumWidth(520)
+        self.setMinimumWidth(360)
         self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable
                          | QDockWidget.DockWidgetFeature.DockWidgetFloatable
                          | QDockWidget.DockWidgetFeature.DockWidgetClosable)
@@ -2258,7 +2278,11 @@ class SecurityPanel(QDockWidget):
                 btn.setCheckable(True)
                 btn.setAutoExclusive(True)
                 btn.setCursor(Qt.CursorShape.PointingHandCursor)
-                idx = self.stack.addWidget(widget)
+                page = QScrollArea()  # tall pages scroll instead of squashing; width follows the panel
+                page.setWidgetResizable(True)
+                page.setFrameShape(QScrollArea.Shape.NoFrame)
+                page.setWidget(widget)
+                idx = self.stack.addWidget(page)
                 btn.clicked.connect(lambda _c=False, n=name: self._select(n))
                 self._nav_buttons[name] = (btn, idx)
                 nb.addWidget(btn)
@@ -2266,7 +2290,7 @@ class SecurityPanel(QDockWidget):
         self.nav.setWidget(navbody)
         # one consistent outer margin + row spacing for every panel page (alignment & rhythm across tabs)
         for _n, (_b, idx) in self._nav_buttons.items():
-            lay = self.stack.widget(idx).layout()
+            lay = self.stack.widget(idx).widget().layout()
             if lay is not None:
                 lay.setContentsMargins(16, 14, 16, 12)
                 lay.setSpacing(10)
@@ -2274,6 +2298,11 @@ class SecurityPanel(QDockWidget):
         h.addWidget(self.stack, 1)
         self.setWidget(root)
         self.show_tab("Shields")
+
+    def current_page(self):
+        """The visible tab widget (pages are wrapped in scroll areas)."""
+        w = self.stack.currentWidget()
+        return w.widget() if isinstance(w, QScrollArea) else w
 
     def _select(self, name):
         btn, idx = self._nav_buttons[name]

@@ -1,6 +1,7 @@
 """wyrm:// URL scheme: wyrm://home and wyrm://search?q=... served from Python."""
 from __future__ import annotations
 
+import sys
 import time
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -108,6 +109,8 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
                 job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
         elif host == "bg":  # random new-tab background, held in memory (never saved to disk), changes every 30 min
             self._serve_bg(job)
+        elif host == "help":  # built-in user guide
+            self._reply(job, pages.render_help(sys.platform == "darwin"))
         elif host == "assets":  # bundled fonts for internal pages
             name = url.path().rsplit("/", 1)[-1]
             f = ASSETS / "fonts" / name

@@ -5,7 +5,7 @@ Chromium engine, built-in ad/malware/phishing protection, Tor windows, anti-fing
 panel of tools for **authorized** web security testing.
 
 Built by **ByKh R&D Group** and **HackPi — Ethical Hackers Group**
-Copyright © 2021–2026 HackPi · Version 1.0.3
+Copyright © 2021–present ByKh R&D Group · Version 0.0.1
 
 ### The name
 
@@ -116,7 +116,8 @@ rm -rf ~/.local/opt/hiddenbrowser ~/.local/bin/Wyrm ~/.local/share/applications/
 - **History autocomplete** with one-click **Clear history** (⋮ menu)
 - **Light / Dark / Follow-system** themes
 - **Customize the start page background** (bottom-right **Customize** button): rotating cybersecurity
-  wallpapers (a new one every 30 min), color themes, your own image, or none
+  wallpapers (change every 5 min … daily — your choice), color themes, your own image, or none
+- **Built-in guide**: ⋮ → **Help — how to use Wyrm**, `F1`, or the *How to use Wyrm* link on the start page
 - **Latest cybersecurity news** on the start page (The Hacker News, BleepingComputer, Krebs, SecurityWeek,
   Dark Reading, The Record) — shown while online, refreshed every 30 minutes
 - **Red team / Blue team modes** (⋮ menu or the header chip): swap an offensive (red) vs defensive (blue)

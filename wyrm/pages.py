@@ -150,7 +150,7 @@ form.big{max-width:620px;margin:0 auto;position:relative;display:block}
 .credit b{color:var(--fg);font-weight:600}
 .copy{color:var(--helper);font-size:12px;margin:6px 0 24px;letter-spacing:.3px}
 body.hasbg .copy{color:#e0e0e0;text-shadow:0 1px 10px rgba(0,0,0,.6)}
-@media (max-width:620px){.grid{grid-template-columns:1fr 1fr}}
+body.hasbg .copy a{color:#fff;text-decoration:underline}
 /* latest cybersecurity news */
 .news a.it{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--layer);border:1px solid var(--line);
   border-top:0;color:var(--fg)}
@@ -229,6 +229,34 @@ body.hasbg .ex a{background:rgba(255,255,255,.82);color:#161616}
 body.hasbg .credit b,body.hasbg .modeline b{color:#ffffff}
 body.hasbg .foot{color:#e0e0e0}
 body.hasbg .feed h2{color:#f4f4f4;text-shadow:0 1px 8px rgba(0,0,0,.6)}
+/* ---- responsive start page: medium (side panel open / small window) and narrow widths ---- */
+main.home{padding-bottom:96px}  /* room so the floating Customize button never covers the last row */
+@media (max-width:820px){
+  main.home{padding-left:20px;padding-right:20px}
+  .grid{grid-template-columns:1fr 1fr;gap:12px}
+  .news .srcc{width:124px;justify-content:flex-start}
+  .news .tt,.feed .nm{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4}
+  .feed a.cve,.news a.it{align-items:flex-start;padding:12px 14px}
+  .feed .dt,.news .dt{padding-top:1px}
+}
+@media (max-width:560px){
+  main.home{padding-top:4vh;padding-left:14px;padding-right:14px}
+  .logo{width:56px;height:56px;margin-bottom:12px}
+  .wordmark{font-size:22px}
+  .big input{padding-right:92px}
+  .big button{width:84px}
+  .grid{grid-template-columns:1fr}
+  .tile{padding:14px 16px}
+  /* news: source + time on one line, headline underneath */
+  .news a.it{flex-wrap:wrap;gap:4px 10px}
+  .news .tt{order:3;flex-basis:100%}
+  .news .dt{margin-left:auto}
+  .feed a.cve{flex-wrap:wrap;gap:4px 10px}
+  .feed .nm{order:3;flex-basis:100%}
+  .feed .dt{margin-left:auto}
+  details.cust{right:12px;bottom:12px}
+  details.cust summary{padding:8px 12px}
+}
 """
 
 # Tor window start page: purple field + a faint onion watermark, drawn with inline SVG (no network).
@@ -337,7 +365,7 @@ def render_home(ctx: dict) -> str:
         + news_html + feed
         + "<p class='foot'>Only test systems you own or are explicitly authorized to test.</p>"
         + "<p class='credit'>Built by <b>ByKh R&amp;D Group</b> · <b>HackPi</b> — Ethical Hackers Group</p>"
-        + f"<p class='copy'>© {_years()} ByKh R&amp;D Group · MIT License</p>"
+        + f"<p class='copy'><a href='wyrm://help'>How to use Wyrm</a> · © {_years()} ByKh R&amp;D Group · MIT License</p>"
     )
     if ctx.get("tor"):   # Tor window: purple + onion watermark background instead of a web photo
         html = _page("New tab", body, HOME_CSS + TOR_BG_CSS, "home")
@@ -702,3 +730,159 @@ def render_error(url: str, error: str, code: int, offline: bool, engagement: str
             f"<div class='actions'><a class='btn' href='{escape(url, quote=True)}'>Try again</a>"
             f"<a class='btn ghost' href='{escape(search, quote=True)}'>Search for {escape(host)}</a></div></div>")
     return _page(title, body, ERROR_CSS, "errp")
+
+
+# ====================================================================== built-in user guide (wyrm://help)
+HELP_CSS = """
+main.help{max-width:1080px;display:grid;grid-template-columns:220px 1fr;gap:40px;align-items:start}
+.help nav{position:sticky;top:24px;font-size:13px}
+.help nav b{display:block;font-size:12px;color:var(--muted);letter-spacing:.3px;margin:0 0 8px}
+.help nav a{display:block;padding:6px 10px;color:var(--fg);border-left:2px solid var(--line)}
+.help nav a:hover{text-decoration:none;background:var(--hover);border-left-color:var(--btn)}
+.help h1{font-size:30px;font-weight:300;margin:0 0 6px}
+.help .lead{color:var(--muted);font-size:15px;margin:0 0 28px;line-height:1.6}
+.help section{padding:8px 0 22px;border-top:1px solid var(--line)}
+.help section:first-of-type{border-top:0}
+.help h2{font-size:20px;font-weight:600;margin:18px 0 10px;scroll-margin-top:16px}
+.help h3{font-size:14px;font-weight:600;margin:16px 0 6px}
+.help p,.help li{font-size:14px;line-height:1.65}
+.help ul,.help ol{padding-left:22px;margin:6px 0}
+.help kbd{display:inline-block;font-size:12px;padding:1px 7px;border:1px solid var(--strong);border-bottom-width:2px;
+  border-radius:4px;background:var(--layer);color:var(--fg);white-space:nowrap}
+.help table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0}
+.help td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.help td:first-child{white-space:nowrap;width:1%}
+.help .note{background:var(--layer);border-left:3px solid var(--btn);padding:12px 16px;margin:12px 0;font-size:14px;line-height:1.6}
+.help .warn{border-left-color:var(--error)}
+.help pre{background:var(--layer);padding:12px 16px;overflow:auto;font-size:13px}
+.help .top{font-size:12px}
+@media (max-width:820px){
+  main.help{grid-template-columns:1fr;gap:8px;padding-left:20px;padding-right:20px}
+  .help nav{position:static;display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  .help nav b{flex-basis:100%}
+  .help nav a{border:1px solid var(--line);padding:4px 10px}
+  .help td:first-child{white-space:normal}
+}
+"""
+
+
+def render_help(mac: bool = False) -> str:
+    """Built-in 'How to use Wyrm' guide. Shortcuts are shown the way this OS spells them."""
+    mod, alt, sh = ("⌘", "⌥", "⇧") if mac else ("Ctrl", "Alt", "Shift")
+
+    def k(*keys):
+        return "+".join(f"<kbd>{escape(x)}</kbd>" for x in keys)
+    sections = [
+        ("start", "Getting started", f"""
+<p>Wyrm is a privacy and security browser. Use it like any browser — and when you need it, the
+<b>Security panel</b> gives you professional tools for <b>authorized</b> web security testing.</p>
+<ol>
+<li>Type a website, a search, or a security identifier in the <b>address bar</b> ({k(mod, "L")}) and press Enter.</li>
+<li>Open a new tab with {k(mod, "T")}; close it with {k(mod, "W")}.</li>
+<li>Click the <b>shield</b> button in the toolbar ({k(mod, sh, "S")}) to open the Security panel.</li>
+<li>Everything else is in the <b>⋮ menu</b> at the right of the toolbar: Settings, themes, Tor window, updates and this guide.</li>
+</ol>"""),
+        ("search", "Searching", f"""
+<p>The address bar understands more than web addresses:</p>
+<table>
+<tr><td><b>Website</b></td><td><code>example.com</code> — opens it (always over HTTPS when HTTPS-Only is on).</td></tr>
+<tr><td><b>Search</b></td><td>Any words — searched with the engine chosen in the dropdown next to the address bar.</td></tr>
+<tr><td><b>CVE / CWE / ATT&amp;CK</b></td><td><code>CVE-2021-44228</code>, <code>CWE-79</code>, <code>T1059</code> — go straight to the right intel page.</td></tr>
+<tr><td><b>IP, domain, hash</b></td><td>Opens <b>Security Search</b>: reputation, related CVEs and recon pivots.</td></tr>
+<tr><td><b>Bangs</b></td><td><code>!g</code> Google · <code>!ddg</code> DuckDuckGo · <code>!cve</code> NVD · <code>!edb</code> Exploit-DB ·
+<code>!shodan</code> · <code>!crt</code> certificates · <code>!h1</code> HackerOne · <code>!r</code> Reddit — e.g. <code>!cve log4j</code></td></tr>
+</table>
+<p>Change the default engine with the dropdown beside the address bar. <b>Security Search</b> ranks vulnerabilities by
+real-world risk: exploited in the wild (CISA KEV) first, then exploit probability (EPSS), then CVSS.</p>"""),
+        ("home", "The start page", """
+<ul>
+<li><b>Search box</b> and quick examples to try.</li>
+<li><b>Tiles</b>: scan the current page, look up a CVE, recon a domain, open a Tor window, learn, find bug bounties.</li>
+<li><b>Latest cybersecurity news</b> from trusted security news sites — shown while you are online, refreshed every 30 minutes.</li>
+<li><b>Latest exploited vulnerabilities</b> from the CISA KEV catalog — click one for details.</li>
+</ul>
+<h3>Change the background</h3>
+<p>Click <b>Customize</b> (bottom-right of the start page) and choose:</p>
+<ul>
+<li><b>Wyrm wallpapers</b> — cybersecurity &amp; technology photos. Under <b>Change wallpaper every</b>, pick 5 min,
+15 min, 30 min, 1 hour, 6 hours or Daily. Reloading the page keeps the same photo until that time has passed.</li>
+<li><b>Upload from device</b> — your own JPG, PNG, WebP or GIF (up to 25 MB, kept only on this computer).</li>
+<li><b>Colors</b> — eight color themes, or <b>No background</b> for the plain light/dark look.</li>
+</ul>"""),
+        ("shields", "Privacy &amp; Shields", """
+<p>Shields are on by default and block <b>ads, trackers, malware, phishing and pop-ups</b>, remove YouTube ads,
+strip tracking parameters from links and resist browser fingerprinting.</p>
+<ul>
+<li>See what was blocked on the current site in <b>Security panel → Shields</b>.</li>
+<li>Turn Shields off <b>for one site</b> with <i>Shields up for this site</i> (useful if a site breaks, or to study its ads).</li>
+<li><b>HTTPS-Only</b> upgrades every connection to HTTPS; if a site has no HTTPS you are asked before continuing.</li>
+<li><b>Encrypted DNS</b> (DNS-over-HTTPS) hides which sites you look up — choose the provider in the Shields page.</li>
+<li><b>Smart Link Check</b> pauses suspicious links and shows why. Right-click any link → <i>Check this link</i>.</li>
+<li>Right-click a link → <i>Copy clean link</i> copies it without tracking parameters.</li>
+</ul>"""),
+        ("tor", "Tor windows", f"""
+<p>⋮ → <b>New Tor window</b> ({k(mod, alt, "N")}) opens a purple window that routes all traffic through the Tor
+network. Nothing from it is saved to disk. The first time, Wyrm downloads Tor from torproject.org and verifies it.</p>
+<p>In a Tor window, ⋮ → <b>New Tor identity</b> gets a fresh circuit; <b>Disconnect Tor</b> closes the window.</p>"""),
+        ("panel", "The Security panel", """
+<p>Open it with the shield button. The sections on the left:</p>
+<table>
+<tr><td><b>Shields</b></td><td>What was blocked, and all protection settings.</td></tr>
+<tr><td><b>Overview</b></td><td>A passive security grade for the open page: headers, CSP, TLS, cookies, technologies with known CVEs, secrets and endpoints in JavaScript.</td></tr>
+<tr><td><b>Site map</b></td><td>The hosts and paths seen while you browse.</td></tr>
+<tr><td><b>Recon</b></td><td>Subdomains (certificate logs), archived URLs (Wayback Machine), robots.txt, sitemap and security.txt.</td></tr>
+<tr><td><b>Traffic</b></td><td>Every request the page makes, filterable. Can route through Burp Suite or ZAP (Settings → Network).</td></tr>
+<tr><td><b>Intruder</b></td><td>Mark positions with <code>§…§</code> and try one payload per line — in-scope targets only, with a rate limit and a request budget.</td></tr>
+<tr><td><b>DOM Analysis</b></td><td>Passive scan of the page's scripts for DOM-XSS sources and sinks. Read-only — never runs payloads.</td></tr>
+<tr><td><b>Tools</b></td><td>Decoder, JWT, Hash, Repeater, Match &amp; Replace, Comparer, Sequencer and AI Triage.</td></tr>
+<tr><td><b>Findings</b></td><td>Your notes and issues; export a report as HTML or Markdown.</td></tr>
+</table>
+<p>Drag the panel's edge to resize it, or drag its title to move it to the other side or float it.</p>"""),
+        ("engage", "Engagements &amp; findings", f"""
+<p>An <b>engagement</b> is a security test of a target you are authorized to test. Choose <b>New engagement…</b>
+from the dropdown left of the address bar and enter the scope (domains). Each engagement has its own isolated
+session (cookies, storage) and its own findings. An <b>IN SCOPE / OUT OF SCOPE</b> badge shows where you are.</p>
+<p>Add a finding for the current page with the flag button ({k(mod, sh, "F")}). Export all findings from the
+<b>Findings</b> section. Switch back to <b>Personal</b> for normal browsing.</p>
+<div class='note warn'><b>Only test systems you own or have explicit written permission to test.</b> Wyrm deliberately has
+no unthrottled fuzzing, brute-forcing, credential stuffing or automated exploitation.</div>"""),
+        ("modes", "Red team / Blue team, themes", """
+<p>The chip at the top-left switches between <b>Blue team</b> (defensive) and <b>Red team</b> (offensive)
+emphasis and accent color. ⋮ → <b>Theme</b> chooses Light, Dark or Follow system.</p>"""),
+        ("keys", "Keyboard shortcuts", f"""
+<table>
+<tr><td>{k(mod, "T")} / {k(mod, "W")}</td><td>New tab / close tab</td></tr>
+<tr><td>{k(mod, sh, "T")}</td><td>Reopen closed tab</td></tr>
+<tr><td>{k(mod, "Tab")} · {k(mod, "1")}…{k(mod, "9")}</td><td>Next tab · go to tab</td></tr>
+<tr><td>{k(mod, "L")}</td><td>Address bar</td></tr>
+<tr><td>{k(mod, "F")} · {k(mod, "G")}</td><td>Find in page · find next</td></tr>
+<tr><td>{k("F5")} or {k(mod, "R")}</td><td>Reload</td></tr>
+<tr><td>{k(mod, "+")} {k(mod, "-")} {k(mod, "0")}</td><td>Zoom in / out / reset</td></tr>
+<tr><td>{k(mod, "P")}</td><td>Print</td></tr>
+<tr><td>{k(mod, sh, "S")}</td><td>Security panel</td></tr>
+<tr><td>{k(mod, sh, "F")}</td><td>Add finding</td></tr>
+<tr><td>{k(mod, alt, "N")}</td><td>New Tor window</td></tr>
+<tr><td>{k(mod, ",")}</td><td>Settings</td></tr>
+<tr><td>{k("F12")} · {k(mod, "U")}</td><td>Developer tools · view source</td></tr>
+<tr><td>{k("F11")}</td><td>Full screen</td></tr>
+<tr><td>{k("F1")}</td><td>This guide</td></tr>
+<tr><td>{k(mod, sh, "Delete")}</td><td>Clear search &amp; address history</td></tr>
+</table>"""),
+        ("trouble", "Install, updates &amp; troubleshooting", """
+<ul>
+<li><b>Updates</b>: Wyrm checks quietly at startup; or use ⋮ → <b>Check for updates…</b>.</li>
+<li><b>A site doesn't work</b>: turn off <i>Shields up for this site</i> in Security panel → Shields, then reload.</li>
+<li><b>No news on the start page</b>: you are offline, or the news sites could not be reached — it appears automatically when you reconnect.</li>
+<li><b>macOS says “damaged” or “can't be verified”</b> after installing: open Terminal and run the command below,
+or go to System Settings → Privacy &amp; Security → <b>Open Anyway</b>.</li>
+</ul>
+<pre>xattr -dr com.apple.quarantine /Applications/Wyrm.app</pre>
+<ul><li><b>Windows SmartScreen</b>: click <b>More info → Run anyway</b>. Wyrm is not yet signed with a paid certificate.</li></ul>"""),
+    ]
+    nav = "<b>ON THIS PAGE</b>" + "".join(f"<a href='#{sid}'>{title}</a>" for sid, title, _ in sections)
+    body = "".join(f"<section id='{sid}'><h2>{title}</h2>{html}</section>" for sid, title, html in sections)
+    content = (f"<nav>{nav}</nav><div><h1>How to use Wyrm</h1>"
+               "<p class='lead'>A quick guide to browsing privately and testing safely. "
+               f"Open it any time from ⋮ → <b>Help — how to use Wyrm</b> or with {k('F1')}.</p>"
+               f"{body}<p class='top'><a href='#start'>Back to top</a> · <a href='wyrm://home'>Start page</a></p></div>")
+    return _page("How to use Wyrm", content, HELP_CSS, "help")

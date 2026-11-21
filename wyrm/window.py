@@ -411,7 +411,7 @@ class MainWindow(QMainWindow):
         self.tabifyDockWidget(self.security, self.panel)
         self.panel.hide()
         self.security.setVisible(self.settings.value("sec/visible", True, type=bool))
-        self.resizeDocks([self.security], [500], Qt.Orientation.Horizontal)
+        self.resizeDocks([self.security], [self._panel_width()], Qt.Orientation.Horizontal)
 
         last = self.settings.value("engagement", 0, type=int)
         self.engagement = self.store.engagement(last) if last and not tor else None
@@ -590,7 +590,7 @@ class MainWindow(QMainWindow):
         host = v.url().host() if v else ""
         off = bool(host) and not self.shields.site_enabled(host)
         self.b_shield.setToolTip(f"Shields: {n} blocked on this page" + (" (Shields are OFF for this site)" if off else ""))
-        if self.security.isVisible() and self.security.stack.currentWidget() is self.security.shields:
+        if self.security.isVisible() and self.security.current_page() is self.security.shields:
             self.security.shields.refresh()
 
     def on_link_hovered(self, url: str):
@@ -651,6 +651,33 @@ class MainWindow(QMainWindow):
         return url or None
 
     # ================================================================ helpers used by panels
+    @staticmethod
+    def _shrinkable(box: QComboBox, lo: int, hi: int):
+        """Toolbar dropdown that gives way to the address bar when the window is narrow."""
+        box.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)  # full width when there is room…
+        box.setMinimumWidth(lo)                                                 # …down to lo when there isn't
+        box.setMaximumWidth(hi)
+        box.setProperty("wyrm_w", (lo, hi))
+        box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        box.view().setMinimumWidth(max(hi, 260))
+
+    def _panel_width(self) -> int:
+        """Security panel width that leaves the page at least ~55% of the window."""
+        return max(360, min(500, int(self.width() * 0.42)))
+
+    def resizeEvent(self, ev):
+        super().resizeEvent(ev)
+        # toolbar: below ~1250px the profile / engine dropdowns go compact so the address bar keeps its room
+        narrow = self.width() < 1250
+        for box in (getattr(self, "eng_box", None), getattr(self, "engine_box", None)):
+            if box is not None and box.property("wyrm_w"):
+                lo, hi = box.property("wyrm_w")
+                box.setFixedWidth(lo if narrow else hi)
+        sec = getattr(self, "security", None)
+        # window got narrow: don't let the docked panel crowd out the page
+        if sec is not None and sec.isVisible() and not sec.isFloating() and sec.width() > self.width() * 0.5:
+            self.resizeDocks([sec], [self._panel_width()], Qt.Orientation.Horizontal)
+
     def default_engine(self) -> str:
         return self.engine_box.currentData() if hasattr(self, "engine_box") else engines.DEFAULT_ENGINE
 
@@ -840,7 +867,7 @@ class MainWindow(QMainWindow):
         for act in getattr(self, "_theme_actions", {}).values():
             act.setChecked(act.data() == mode)
         app = QApplication.instance()
-        app.setStyle("Fusion")
+        app.setStyle(theme.AppStyle())
         app.setPalette(theme.palette(name, self.mode))
         app.setStyleSheet(theme.stylesheet(name, self.data_dir / "ui", self.mode))
         p = theme.resolve_palette(name, self.mode)
@@ -987,9 +1014,14 @@ class MainWindow(QMainWindow):
         m.addAction("Shields && privacy panel", lambda: self.security.show_tab("Shields"))
         m.addAction("Clear search && address history", self._clear_history_confirm)
         m.addSeparator()
+        m.addAction("Help — how to use Wyrm (F1)", self.open_help)
         m.addAction("Check for updates…", self._check_updates)
         m.addAction("About Wyrm", self._about)
         return m
+
+    def open_help(self):
+        """Built-in user guide in a new tab."""
+        self.open_url("wyrm://help", new_tab=True)
 
     def _check_updates(self, manual=True):
         from . import updater
@@ -1062,6 +1094,7 @@ class MainWindow(QMainWindow):
     # ================================================================ chrome
     def _tool(self, icon: str, tip: str, fn=None, keys=()) -> QToolButton:
         b = QToolButton()
+        b.setFixedSize(40, 40)  # square, so the hover background is centred on the icon
         b.setIconSize(b.iconSize().scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio))
         b.setToolTip(tip)
         b.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1157,7 +1190,7 @@ class MainWindow(QMainWindow):
 
         self.eng_box = QComboBox(objectName="Engagement")
         self.eng_box.setToolTip("Engagement: authorized target scope + isolated session + findings")
-        self.eng_box.setFixedWidth(190)
+        self._shrinkable(self.eng_box, 130, 190)
         self.eng_box.view().setMinimumWidth(280)
         self.eng_box.activated.connect(self._on_engagement_chosen)
         n.addWidget(self.eng_box)
@@ -1204,7 +1237,7 @@ class MainWindow(QMainWindow):
 
         self.engine_box = QComboBox(objectName="Engine")
         self.engine_box.setToolTip("Search engine for plain queries")
-        self.engine_box.setFixedWidth(200)
+        self._shrinkable(self.engine_box, 160, 200)
         self.engine_box.view().setMinimumWidth(260)  # popup still shows full names
         for key, e in engines.ENGINES.items():
             self.engine_box.addItem(e.name, key)
@@ -1282,6 +1315,7 @@ class MainWindow(QMainWindow):
             (["Ctrl+8"], lambda: self._goto_tab(7)),
             (["Ctrl+9"], lambda: self._goto_tab(self.tabbar.count() - 1)),
             (["F11"], self._toggle_fullscreen),
+            (["F1"], self.open_help),
             (["Escape"], self._stop_current),
             (["Ctrl+F", "F3"], self._show_find),
             (["Ctrl+G"], lambda: self._find_step(True)),

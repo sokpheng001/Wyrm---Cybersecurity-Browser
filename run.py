@@ -118,8 +118,7 @@ def main():
     from wyrm import engines, theme
     theme.load_fonts()          # IBM Plex Sans / Mono (SIL OFL), bundled
     app.setFont(theme.app_font())
-    app.setStyle("Fusion")
-    theme.install_combo_polish(app)  # hand cursor + visible scrollbar on every dropdown
+    app.setStyle(theme.AppStyle())  # Fusion on every OS + hand cursor / visible scrollbar on dropdowns
 
     if tor_mode:
         data_dir = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))

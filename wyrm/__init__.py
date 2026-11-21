@@ -1,7 +1,7 @@
 """Wyrm (powered by HackPi): a privacy- and security-focused web browser."""
 from datetime import date
 
-__version__ = "1.0.3"
+__version__ = "0.0.1"
 START_YEAR = 2021  # development started
 
 
