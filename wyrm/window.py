@@ -392,11 +392,8 @@ class MainWindow(QMainWindow):
             self.runner.run(lambda: shields_mod.build_engines(shields_mod.fetch_lists(self.shields.cache)),
                             self._filters_ready)
         self._kev_recent: list = []  # latest exploited-in-the-wild CVEs, shown on the start page
-        self._bg_uri = None          # daily new-tab background (Brave-style), fetched once per day
         if not tor:
             self.runner.run(secsearch.recent_kev, self._kev_ready)
-            if self.settings.value("home/background", True, type=bool):
-                self._load_background()
             if self.settings.value("updates/check", True, type=bool):  # quiet startup check; only prompts if newer
                 QTimer.singleShot(4000, lambda: self._check_updates(manual=False))
 
@@ -450,21 +447,6 @@ class MainWindow(QMainWindow):
         if ok and result:
             self._kev_recent = result
             for i in range(self.tabbar.count()):  # refresh any open start pages so the feed appears
-                v = self.tabbar.tabData(i)
-                u = v.url()
-                if u.scheme() == "wyrm" and u.host() in ("home", ""):
-                    v.page().triggerAction(QWebEnginePage.WebAction.ReloadAndBypassCache)
-
-    def _load_background(self):
-        from . import background
-        cache = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.CacheLocation)) / "backgrounds"
-        px, verify = self.proxies(), self.verify_tls()
-        self.runner.run(lambda: background.data_uri(background.fetch_daily(cache, px, verify)), self._bg_ready)
-
-    def _bg_ready(self, ok, uri):
-        if ok and uri:
-            self._bg_uri = uri
-            for i in range(self.tabbar.count()):  # show the photo on any open start pages
                 v = self.tabbar.tabData(i)
                 u = v.url()
                 if u.scheme() == "wyrm" and u.host() in ("home", ""):
@@ -566,7 +548,8 @@ class MainWindow(QMainWindow):
         name = engines.ENGINES.get(self.default_engine(), engines.ENGINES[engines.DEFAULT_ENGINE]).name
         return {"engagement": eng, "counts": self.store.counts(e.id) if e else {}, "engine_name": name,
                 "saved": self.library.saved(), "kev": self._kev_recent, "mode": self.mode,
-                "background": self._bg_uri, "tor": bool(self.tor)}
+                "background": (not self.tor) and self.settings.value("home/background", True, type=bool),
+                "tor": bool(self.tor)}
 
     # ================================================================ profiles / engagements
     def _profile_for(self, eng) -> QWebEngineProfile:
