@@ -914,10 +914,7 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "mode_chip"):
             return
         red = self.mode == "red"
-        self.mode_chip.setText("RED TEAM" if red else "BLUE TEAM")
-        bg = "#da1e28" if red else "#0f62fe"
-        self.mode_chip.setStyleSheet(f"#ModeChip{{background:{bg};color:#fff;border-radius:11px;"
-                                     "padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:.5px}}")
+        self.mode_chip.set_mode("RED TEAM" if red else "BLUE TEAM", "#da1e28" if red else "#0f62fe")
         self.mode_chip.setToolTip("Red team (offensive/elite) — click to switch" if red
                                   else "Blue team (defensive/standard) — click to switch")
 
@@ -1160,18 +1157,20 @@ class MainWindow(QMainWindow):
             tor_tag.setText("Tor")
         self.brand.setToolTip("Private Tor window: traffic goes through the Tor network, nothing is saved to disk"
                               if self.tor else "Wyrm")
-        self.brand.setContentsMargins(14, 0, 10, 0)
+        self.brand.setContentsMargins(14, 0, 0, 0)
         row.addWidget(self.brand, 0, Qt.AlignmentFlag.AlignVCenter)
         self.tor_tag = tor_tag
         if self.tor:
             row.addWidget(tor_tag, 0, Qt.AlignmentFlag.AlignVCenter)
         # Red/Blue team mode chip (click to switch)
-        self.mode_chip = QLabel(objectName="ModeChip")
-        self.mode_chip.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.mode_chip.setFixedHeight(22)
-        self.mode_chip.mousePressEvent = lambda e: self._toggle_mode()
+        # (equal space logo → chip → tabs; the chip draws its own glow margin)
+        from .widgets import ModeChip
+        self.mode_chip = ModeChip()
+        self.mode_chip.setObjectName("ModeChip")
+        self.mode_chip.clicked.connect(self._toggle_mode)
         row.addSpacing(8)
         row.addWidget(self.mode_chip, 0, Qt.AlignmentFlag.AlignVCenter)
+        row.addSpacing(8)
         self.brand_divider = QWidget(objectName="BrandDivider")
         self.brand_divider.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.brand_divider.setFixedSize(1, 24)

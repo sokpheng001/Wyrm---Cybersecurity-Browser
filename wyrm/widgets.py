@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QEasingCurve, QEvent, QPoint, QRect, QRectF, QSize, Qt, QTimer, QVariantAnimation
-from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen
+from PySide6.QtCore import QEasingCurve, QEvent, QPoint, QRect, QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QApplication, QBoxLayout, QHBoxLayout, QLabel, QLayout, QPushButton, QSizePolicy, QWidget,
 )
@@ -370,4 +370,111 @@ def make_rows_wrap(root: QWidget, wider_than: int = 280) -> int:
         row.deleteLater()
         done += 1
     return done
+
+
+class ModeChip(QWidget):
+    """Red / Blue team pill in the tab strip: a soft breathing glow in the mode colour plus a light sheen that
+    sweeps across every few seconds, so the current mode is obvious; hover / press states show it's clickable."""
+    clicked = Signal()
+    GLOW = 5  # px reserved around the pill for the glow
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._text, self._color = "", QColor("#0f62fe")
+        self._t, self._hover, self._down = 0.0, False, False
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover)
+        self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+        f = QFont(self.font())
+        f.setPixelSize(11)
+        f.setWeight(QFont.Weight.Bold)
+        f.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.6)
+        self._font = f
+        self._anim = QVariantAnimation(self, startValue=0.0, endValue=1.0, duration=3600, loopCount=-1)
+        self._anim.valueChanged.connect(self._tick)
+        self._anim.start()
+
+    def set_mode(self, text: str, color: str):
+        self._text, self._color = text, QColor(color)
+        self.updateGeometry()
+        self.update()
+
+    def _tick(self, v):
+        self._t = float(v)
+        self.update()
+
+    def sizeHint(self):
+        fm = QFontMetrics(self._font)
+        return QSize(fm.horizontalAdvance(self._text) + 26 + 2 * self.GLOW, 24 + 2 * self.GLOW)
+
+    minimumSizeHint = sizeHint
+
+    def event(self, e):
+        t = e.type()
+        if t == QEvent.Type.HoverEnter:
+            self._hover = True
+            self.update()
+        elif t == QEvent.Type.HoverLeave:
+            self._hover = self._down = False
+            self.update()
+        return super().event(e)
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton:
+            self._down = True
+            self.update()
+
+    def mouseReleaseEvent(self, e):
+        was = self._down
+        self._down = False
+        self.update()
+        if was and self.rect().contains(e.position().toPoint()):
+            self.clicked.emit()
+
+    def keyPressEvent(self, e):
+        if e.key() in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.clicked.emit()
+        else:
+            super().keyPressEvent(e)
+
+    def paintEvent(self, _e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        g = self.GLOW
+        r = QRectF(self.rect()).adjusted(g, g, -g, -g)
+        rad = r.height() / 2
+        pulse = 0.5 - 0.5 * math.cos(2 * math.pi * self._t)          # 0..1..0 breathing
+        boost = 1.5 if self._hover else 1.0
+        p.setPen(Qt.PenStyle.NoPen)
+        for grow, alpha in ((g, 0.07), (g * 0.6, 0.13), (g * 0.25, 0.22)):  # soft halo
+            c = QColor(self._color)
+            c.setAlphaF(min(1.0, alpha * (0.35 + 0.65 * pulse) * boost))
+            p.setBrush(c)
+            p.drawRoundedRect(r.adjusted(-grow, -grow, grow, grow), rad + grow, rad + grow)
+        fill = QColor(self._color)
+        fill = fill.darker(115) if self._down else (fill.lighter(112) if self._hover else fill)
+        p.setBrush(fill)
+        p.drawRoundedRect(r, rad, rad)
+        # light sheen sweeping across the pill during the first part of each cycle
+        if self._t < 0.45:
+            path = QPainterPath()
+            path.addRoundedRect(r, rad, rad)
+            p.save()
+            p.setClipPath(path)
+            x = r.left() - 30 + (r.width() + 60) * (self._t / 0.45)
+            grad = QLinearGradient(x - 22, 0, x + 22, 0)
+            for stop, a in ((0.0, 0.0), (0.5, 0.38), (1.0, 0.0)):
+                c = QColor(255, 255, 255)
+                c.setAlphaF(a)
+                grad.setColorAt(stop, c)
+            p.fillRect(QRectF(x - 22, r.top(), 44, r.height()), grad)
+            p.restore()
+        if self.hasFocus():
+            p.setPen(QPen(QColor(255, 255, 255, 200), 1.5))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawRoundedRect(r.adjusted(1, 1, -1, -1), rad - 1, rad - 1)
+        p.setPen(QColor("#ffffff"))
+        p.setFont(self._font)
+        p.drawText(r, Qt.AlignmentFlag.AlignCenter, self._text)
+        p.end()
 

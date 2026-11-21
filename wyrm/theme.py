@@ -8,9 +8,9 @@ from __future__ import annotations
 from pathlib import Path
 from string import Template
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
-from PySide6.QtWidgets import QComboBox, QProxyStyle
+from PySide6.QtWidgets import QComboBox, QMenu, QProxyStyle
 
 FONT_DIR = Path(__file__).parent / "assets" / "fonts"
 SANS = "IBM Plex Sans"
@@ -71,7 +71,6 @@ QTabBar#MainTabs::close-button { image: url("$close"); subcontrol-position: righ
 QTabBar#MainTabs::close-button:hover { background: $shell_active; }
 #TabStrip { background: $shell; border-bottom: 1px solid $shell_border; }
 #Brand { padding: 0; }
-#ModeChip { padding: 2px 10px; border-radius: 11px; font-size: 11px; font-weight: 700; }
 #TorTag { background: #8a3ffc; color: #ffffff; font-size: 12px; padding: 1px 8px; }
 #BrandDivider { background: $shell_border; }
 #TabStrip QToolButton { border: none; border-radius: 0; padding: 0; background: transparent; min-width: 40px; min-height: 40px; }
@@ -284,6 +283,39 @@ def palette(theme: str, mode: str = "blue") -> QPalette:
     return pal
 
 
+class _MenuInWindow(QObject):
+    """Installed on each QMenu only (not app-wide): when a menu or submenu opens, keep it inside the browser
+    window instead of letting it spill over the desktop. Submenus flip to the left when there's no room."""
+
+    def eventFilter(self, menu, ev):
+        try:
+            if ev.type() == QEvent.Type.Show and isinstance(menu, QMenu):
+                self._clamp(menu)
+        except Exception:  # noqa: BLE001 - never let an error escape into Qt
+            pass
+        return False
+
+    @staticmethod
+    def _clamp(menu):
+        host = menu.parentWidget()
+        while host is not None and host.windowType() == Qt.WindowType.Popup:
+            host = host.parentWidget()
+        if host is None:
+            return
+        win = host.window().frameGeometry()
+        g = menu.geometry()
+        x, y = g.x(), g.y()
+        parent_menu = menu.parentWidget() if isinstance(menu.parentWidget(), QMenu) else None
+        if g.right() > win.right():
+            x = (parent_menu.geometry().left() - g.width() + 2) if parent_menu else win.right() - g.width()
+        x = max(win.left(), min(x, win.right() - g.width()))
+        if g.bottom() > win.bottom():
+            y = win.bottom() - g.height()
+        y = max(win.top(), y)
+        if (x, y) != (g.x(), g.y()):
+            menu.move(x, y)
+
+
 class AppStyle(QProxyStyle):
     """Fusion everywhere (same look on every OS) + every dropdown gets a pointing-hand cursor and a visible
     scrollbar. Done in polish(), which Qt calls once per widget; an app-wide event filter is NOT safe here
@@ -292,9 +324,16 @@ class AppStyle(QProxyStyle):
     def __init__(self):
         super().__init__("Fusion")
 
+    _menu_filter = None
+
     def polish(self, *args):
         res = super().polish(*args)
         w = args[0] if args else None
+        if isinstance(w, QMenu):
+            if AppStyle._menu_filter is None:
+                AppStyle._menu_filter = _MenuInWindow()  # one shared instance, kept alive on the class
+            w.removeEventFilter(AppStyle._menu_filter)
+            w.installEventFilter(AppStyle._menu_filter)
         if isinstance(w, QComboBox):
             hand = Qt.CursorShape.PointingHandCursor
             w.setCursor(hand)
