@@ -149,7 +149,7 @@ class SettingsDialog(QDialog):
         self.ai_key.setEchoMode(QLineEdit.EchoMode.Password)
         self.ai_key.setPlaceholderText("API key (kept only on this device)")
         f.addRow("API key", self.ai_key)
-        self.ai_model = QLineEdit(self.settings.value("ai/model", "claude-sonnet-5-5", type=str))
+        self.ai_model = QLineEdit(self.settings.value("ai/model", "kim-modeling-sp-001", type=str))
         f.addRow("Model", self.ai_model)
         ai_note = QLabel("Powers the human-in-the-loop AI Triage tool (Tools → AI Triage). Non-destructive, "
                          "scope-gated. Leave blank to disable.")
@@ -214,7 +214,7 @@ class SettingsDialog(QDialog):
         s.setValue("general/restore_tabs", self.restore_tabs.isChecked())
         s.setValue("sec/auto", self.autoanalyze.isChecked())
         s.setValue("ai/api_key", self.ai_key.text().strip())
-        s.setValue("ai/model", self.ai_model.text().strip() or "claude-sonnet-5-5")
+        s.setValue("ai/model", self.ai_model.text().strip() or "kim-modeling-sp-001")
         s.setValue("privacy/https_only", self.https_only.isChecked())
         s.setValue("privacy/doh_mode", self.doh_mode.currentData())
         s.setValue("privacy/doh_provider", self.doh_prov.currentData())

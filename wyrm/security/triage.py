@@ -12,7 +12,7 @@ import json
 import requests
 
 API_URL = "https://api.anthropic.com/v1/messages"
-DEFAULT_MODEL = "claude-sonnet-5-5"
+DEFAULT_MODEL = "kim-modeling-sp-001"
 
 SYSTEM_PROMPT = """You are an Application Security Triage Assistant supporting an authorized penetration tester. \
 Your role is to analyze HTTP request/response pairs, API schemas, or source code to identify potential security \
