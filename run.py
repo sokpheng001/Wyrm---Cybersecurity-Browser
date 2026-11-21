@@ -99,7 +99,8 @@ def main():
     QCoreApplication.setOrganizationName("HackPi")
     QCoreApplication.setApplicationName("Wyrm")
     tor_mode = "--tor" in sys.argv
-    argv = [a for a in sys.argv if a != "--tor"]
+    private_mode = "--private" in sys.argv and not tor_mode  # private window: nothing is saved
+    argv = [a for a in sys.argv if a not in ("--tor", "--private")]
     tor = None
     if tor_mode:
         from wyrm.tor import TorManager, chromium_flags, free_port
@@ -144,7 +145,7 @@ def main():
         app.aboutToQuit.connect(tor.stop)
 
     from wyrm.window import MainWindow
-    win = MainWindow(tor=tor)
+    win = MainWindow(tor=tor, private=private_mode)
     rest = [a for a in argv[1:] if not a.startswith("--")]
     if rest:
         win.current_view().setUrl(QUrl(engines.resolve(" ".join(rest))))

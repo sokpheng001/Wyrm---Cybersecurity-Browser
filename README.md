@@ -135,6 +135,8 @@ rm -rf ~/.local/opt/hiddenbrowser ~/.local/bin/Wyrm ~/.local/share/applications/
 - **Anti-fingerprinting** (canvas/WebGL/audio noise + attribute normalization)
 - **HTTPS-Only** mode and **encrypted DNS (DNS-over-HTTPS)**
 - **Smart Link Check** — dangerous/suspicious links are paused with the reasons shown
+- **Private windows** (⋮ → New private window, `Ctrl+Shift+N` / `⇧⌘N`): like incognito — an in-memory
+  profile; history, cookies and site data are deleted when the window closes
 - **Tor windows** (⋮ → New Tor window): routes through the Tor network, nothing saved to disk;
   Tor is downloaded from torproject.org and checksum-verified on first use
 - Live **CISA KEV** feed (latest exploited-in-the-wild CVEs) on every new tab
@@ -190,6 +192,23 @@ Linux. **Only if all builds succeed** is it released, numbered automatically as 
 (Windows: silent installer; macOS: the app is replaced and relaunched). Only the newest release is kept.
 Add `[skip release]` to a commit message to push without releasing; bump `__version__` in
 `wyrm/__init__.py` yourself only for a bigger jump (e.g. 0.1.0).
+
+## Project structure
+
+```
+run.py                 app entry (normal, --private, --tor windows)
+wyrm/
+  mainwindow/          the main window, one module per area (tabs, search, session, home, privacy,
+                       engagement, appearance, docks, chrome, menu, updates, tor, downloads, papers, layout)
+  panels/              the Security panel, one module per tab (overview, traffic, recon, tools, findings,
+                       shields, sitemap, intruder, dom) + panel.py / common.py
+  browser/             web-engine pieces: injected scripts, request interceptor, tab view
+  ui/                  shared UI: icons/constants, one-click updater
+  security/            recon & analysis engines (no UI): secsearch, chaos, analyzer, intel, news, …
+  pages.py · scheme.py internal wyrm:// pages (start page, guide, search results)
+  theme.py · widgets.py styling and reusable widgets
+installer/ · build_*   installers and build scripts; .github/workflows/build.yml = automatic releases
+```
 
 ## Developers
 

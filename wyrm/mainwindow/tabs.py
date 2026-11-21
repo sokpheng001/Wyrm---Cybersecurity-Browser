@@ -1,0 +1,258 @@
+#------------------------------------------------------------------------------
+# Wyrm — wyrm/mainwindow/tabs.py
+# Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+# Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+# Authors: @oda, @sopi, @kwan
+#------------------------------------------------------------------------------
+"""Tabs, navigation state, loading, find bar helpers and offline handling."""
+from __future__ import annotations
+
+from urllib.parse import parse_qs, urlparse
+
+from PySide6.QtCore import QTimer, QUrl
+from PySide6.QtNetwork import QNetworkInformation
+from PySide6.QtWebEngineCore import QWebEngineLoadingInfo
+
+from .. import pages, theme
+from ..browser.view import BrowserView
+from ..ui.common import APP, HOME, make_icon
+
+
+class TabsMixin:
+    """Tabs, navigation state, loading, find bar helpers and offline handling. (Mixed into MainWindow.)"""
+
+    OFFLINE_CODES = {-106, -105, -109, -118, -21, -137, -130}
+
+    def open_url(self, url: str, new_tab: bool = False):
+        if new_tab or not self.current_view():
+            self.new_tab(QUrl(url))
+        else:
+            self.current_view().setUrl(QUrl(url))
+
+    # ================================================================ tabs
+    def current_view(self) -> BrowserView | None:
+        i = self.tabbar.currentIndex()
+        return self.tabbar.tabData(i) if i >= 0 else None
+
+    def _index_of(self, view) -> int:
+        for i in range(self.tabbar.count()):
+            if self.tabbar.tabData(i) is view:
+                return i
+        return -1
+
+    def new_tab(self, url: QUrl | None, popup: bool = False) -> BrowserView:
+        view = BrowserView(self, popup=popup)
+        self.stack.addWidget(view)
+        idx = self.tabbar.addTab("New tab")
+        self.tabbar.setTabData(idx, view)
+        self.tabbar.setCurrentIndex(idx)
+        self.stack.setCurrentWidget(view)
+        view.titleChanged.connect(lambda t, v=view: self._set_tab_text(v, t))
+        view.iconChanged.connect(lambda ic, v=view: self.tabbar.setTabIcon(self._index_of(v), ic))
+        view.urlChanged.connect(lambda u, v=view: v is self.current_view() and self._sync_chrome())
+        view.loadStarted.connect(lambda v=view: self._loading(v, True))
+        view.loadProgress.connect(lambda p, v=view: v is self.current_view() and self.loading_bar.set_progress(p))
+        view.loadFinished.connect(lambda ok, v=view: self._on_load_finished(v, ok))
+        view.page().loadingChanged.connect(lambda info, v=view: self._on_loading_info(v, info))
+        if url is not None:
+            view.setUrl(url)
+        return view
+
+    def _new_tab_focus(self):
+        self.new_tab(QUrl(HOME))
+        QTimer.singleShot(0, self.urlbar.setFocus)
+
+    def _reload_or_stop(self):
+        v = self.current_view()
+        if v in self._loading_views:
+            v.stop()
+        elif v in self._failed:
+            v.setUrl(self._failed[v])
+        else:
+            v.reload()
+
+    def _zoom(self, delta: float):
+        v = self.current_view()
+        if not v:
+            return
+        z = 1.0 if delta == 0 else min(3.0, max(0.3, round(v.zoomFactor() + delta, 2)))
+        v.setZoomFactor(z)
+        self.toast(f"Zoom {int(z * 100)}%", 1500)
+
+    def _loading(self, view, on: bool):
+        (self._loading_views.add if on else self._loading_views.discard)(view)
+        if view is not self.current_view():
+            return
+        self.loading_bar.start() if on else self.loading_bar.finish()
+        self.b_reload.setIcon(make_icon("stop" if on else "reload", theme.PALETTES[self.theme_name]["icon"]))
+
+    def _set_tab_text(self, view, title):
+        i = self._index_of(view)
+        if i >= 0:
+            self.tabbar.setTabText(i, title or "New tab")
+            self.tabbar.setTabToolTip(i, title)
+            if view is self.current_view():
+                self._set_window_title(title)
+
+    def _set_window_title(self, title: str):
+        prefix = f"[{self.engagement.name}] " if self.engagement else ""
+        self._set_title(prefix + (f"{title} - {APP}" if title and title != "New tab" else APP))
+
+    def _remove_tab(self, i):
+        view = self.tabbar.tabData(i)
+        self._failed.pop(view, None)
+        self._loading_views.discard(view)
+        self.tabbar.removeTab(i)
+        self.stack.removeWidget(view)
+        view.deleteLater()
+
+    def close_tab(self, i: int):
+        if i < 0:
+            return
+        view = self.tabbar.tabData(i)
+        if view is not None and not self.ephemeral:  # remember it for Ctrl+Shift+T (never in Tor/private)
+            u = view.url().toString()
+            if u and not u.startswith("wyrm://"):
+                self._closed_tabs.append(u)
+                del self._closed_tabs[:-25]
+        if self.tabbar.count() <= 1:
+            self.current_view().setUrl(QUrl(HOME))
+            return
+        self._remove_tab(i)
+
+    def reopen_closed_tab(self):
+        if self._closed_tabs:
+            self.new_tab(QUrl(self._closed_tabs.pop()))
+
+    def _cycle_tab(self, step: int):
+        n = self.tabbar.count()
+        if n:
+            self.tabbar.setCurrentIndex((self.tabbar.currentIndex() + step) % n)
+
+    def _goto_tab(self, i: int):
+        if 0 <= i < self.tabbar.count():
+            self.tabbar.setCurrentIndex(i)
+
+    def _stop_current(self):
+        v = self.current_view()
+        if v and v in self._loading_views:
+            v.stop()
+
+    def _toggle_fullscreen(self):
+        self.showNormal() if self.isFullScreen() else self.showFullScreen()
+
+    def _print_page(self):
+        v = self.current_view()
+        if not v:
+            return
+        from PySide6.QtPrintSupport import QPrintDialog, QPrinter
+        printer = QPrinter()
+        if QPrintDialog(printer, self).exec():
+            v.page().print(printer, lambda ok: self.toast("Printed" if ok else "Print failed"))
+
+    def _on_tab_changed(self, _i):
+        v = self.current_view()
+        if not v:
+            return
+        self.stack.setCurrentWidget(v)
+        self._sync_chrome()
+        self._set_window_title(v.title())
+        self.loading_bar.reset()
+        if v in self._loading_views:
+            self.loading_bar.start()
+        self.b_reload.setIcon(make_icon("stop" if v in self._loading_views else "reload",
+                                        theme.PALETTES[self.theme_name]["icon"]))
+        self._update_shield_button()
+        self._analyze_paper(v, count_visit=False)
+
+    def _sync_chrome(self):
+        v = self.current_view()
+        if not v:
+            return
+        url = self._failed.get(v) or v.url()
+        u = url.toString()
+        if url.scheme() == "wyrm" and url.host() == "search":
+            self.urlbar.setText("!r " + parse_qs(urlparse(u).query).get("q", [""])[0])
+        elif url.scheme() == "wyrm" and url.host() == "sec":
+            self.urlbar.setText(parse_qs(urlparse(u).query).get("q", [""])[0])
+        elif url.scheme() == "wyrm":
+            self.urlbar.setText("")
+        else:
+            self.urlbar.setText(u)
+        self.urlbar.setCursorPosition(0)
+        p = theme.PALETTES[self.theme_name]
+        icon = {"https": "lock", "http": "unlock"}.get(url.scheme(), "search")
+        self.url_icon.setPixmap(make_icon(icon, p["error"] if icon == "unlock" else p["muted"]).pixmap(18, 18))
+        self.url_icon.setToolTip({"lock": "Secure connection (HTTPS)", "unlock": "Not secure (plain HTTP)"}.get(icon, ""))
+        h = v.history()
+        self.b_back.setEnabled(h.canGoBack())
+        self.b_fwd.setEnabled(h.canGoForward())
+        self._update_scope_badge()
+
+    # ================================================================ errors / offline
+    def _on_loading_info(self, view, info):
+        status = info.status()
+        if status == QWebEngineLoadingInfo.LoadStatus.LoadStartedStatus:
+            if not info.url().toString().startswith("data:"):
+                self._failed.pop(view, None)
+        elif status == QWebEngineLoadingInfo.LoadStatus.LoadFailedStatus:
+            code = info.errorCode()
+            D = QWebEngineLoadingInfo.ErrorDomain
+            if code == -3 or info.errorDomain() in (D.HttpStatusCodeDomain, D.NoErrorDomain):
+                return  # user pressed stop, or the server sent its own error page: show it as-is
+            url = info.url().toString()
+            host = info.url().host()
+            self._failed[view] = QUrl(url)
+            reason = self.block_reasons.pop(url, None)
+            if reason:  # blocked by Shields / smart link check: explain why, offer a way through
+                self._failed.pop(view, None)
+                view.setHtml(pages.render_threat(url, reason[0], reason[1]), QUrl("data:text/html,blocked"))
+                return
+            if info.url().scheme() == "https" and host in self.upgraded_hosts and code not in self.OFFLINE_CODES:
+                view.setHtml(pages.render_https_unavailable(url), QUrl("data:text/html,https"))
+                return
+            eng = self.engagement
+            if eng and eng.block_out_of_scope and eng.in_scope(host) is False:
+                code = -20  # blocked by our scope guard (engine reports a generic access error)
+            offline = code in self.OFFLINE_CODES and not self._online()
+            html = pages.render_error(url, info.errorString() or "", code, offline,
+                                      self.engagement.name if self.engagement else None)
+            view.setHtml(html, QUrl("data:text/html,error"))
+            if offline:
+                self.offline_banner.set_offline(True)
+
+    def _online(self) -> bool:
+        ni = QNetworkInformation.instance()
+        if not ni:
+            return True
+        return ni.reachability() in (QNetworkInformation.Reachability.Online, QNetworkInformation.Reachability.Unknown)
+
+    def _on_reachability(self, r):
+        online = r != QNetworkInformation.Reachability.Disconnected
+        self.offline_banner.set_offline(not online)
+        was, self._is_online = self._is_online, online
+        if online:
+            QTimer.singleShot(800, self._retry_failed)
+            if not was:
+                QTimer.singleShot(1500, self._fetch_news)  # back online: get fresh headlines
+        elif was and self._news:
+            self._refresh_home_pages()  # offline: hide the news section
+
+    def _retry_failed(self):
+        for view, url in list(self._failed.items()):
+            view.setUrl(url)
+
+    def _on_load_finished(self, view, ok):
+        if view.popup:
+            view.popup = False
+            self._check_popup(view)
+        if ok:
+            self._apply_cosmetics(view)
+            QTimer.singleShot(4000, lambda v=view: self._index_of(v) >= 0 and self._apply_cosmetics(v))  # late content
+        if view is self.current_view():
+            self._update_shield_button()
+            self._loading(view, False)
+            self._sync_chrome()
+            self._analyze_paper(view, count_visit=True)
+            if view not in self._failed:
+                self.security.overview.page_loaded(view)

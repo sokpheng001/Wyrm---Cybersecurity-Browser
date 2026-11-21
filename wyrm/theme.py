@@ -78,6 +78,7 @@ QTabBar#MainTabs::close-button:hover { background: $shell_active; }
 #TabStrip { background: $shell; border-bottom: 1px solid $shell_border; }
 #Brand { padding: 0; }
 #TorTag { background: #8a3ffc; color: #ffffff; font-size: 12px; padding: 1px 8px; }
+#PrivateTag { background: #525252; color: #ffffff; font-size: 12px; font-weight: 600; padding: 1px 8px; }
 #BrandDivider { background: $shell_border; }
 #TabStrip QToolButton { border: none; border-radius: 0; padding: 0; background: transparent; min-width: 40px; min-height: 40px; }
 #TabStrip QToolButton:hover { background: $shell_hover; }

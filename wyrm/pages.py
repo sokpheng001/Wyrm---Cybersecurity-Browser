@@ -155,6 +155,9 @@ form.big{max-width:620px;margin:0 auto;position:relative;display:block}
 .credit b{color:var(--fg);font-weight:600}
 .credit a{color:inherit} .credit a:hover{text-decoration:underline}
 body.hasbg .credit a{color:#fff}
+.privnote{max-width:620px;margin:18px auto 0;padding:12px 16px;font-size:13px;line-height:1.5;text-align:left;
+  background:var(--layer);border-left:3px solid #8d8d8d;color:var(--fg)}
+body.hasbg .privnote{background:rgba(20,20,28,.72);color:#f4f4f4;backdrop-filter:blur(6px)}
 .copy{color:var(--helper);font-size:12px;margin:6px 0 24px;letter-spacing:.3px}
 body.hasbg .copy{color:#e0e0e0;text-shadow:0 1px 10px rgba(0,0,0,.6)}
 body.hasbg .copy a{color:#fff;text-decoration:underline}
@@ -377,6 +380,8 @@ def render_home(ctx: dict) -> str:
         "placeholder='Search the web, or a CVE, IP, domain or URL'>"
         "<button type='submit'>Search</button></form>"
         + examples + status
+        + ("<p class='privnote'><b>Private window</b> · pages you visit, cookies and site data are deleted when you "
+           "close this window. Downloads and bookmarks you save are kept.</p>" if ctx.get("private") else "")
         + f"<div class='grid'>{tiles}</div>"
         + news_html + feed
         + "<p class='foot'>Only test systems you own or are explicitly authorized to test.</p>"
