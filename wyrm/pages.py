@@ -53,6 +53,9 @@ input[type=text]:focus{outline:2px solid var(--focus);outline-offset:-2px}
 input::placeholder{color:var(--helper)}
 button{font:inherit;height:48px;padding:0 64px 0 16px;border:0;border-radius:0;background:var(--btn);color:#fff;cursor:pointer;text-align:left}
 button:hover{background:var(--btn-hover)}
+/* search boxes on the Papers / Security pages: keyword and button label centered */
+.qform input[type=text]{text-align:center}
+.qform button{padding:0 32px;text-align:center}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 0;align-items:center}
 .chip{font-size:12px;padding:2px 10px;border-radius:12px;background:var(--layer2);color:var(--fg)}
 .chip:hover{background:var(--hover);text-decoration:none}
@@ -257,10 +260,13 @@ def render_home(ctx: dict) -> str:
     if ctx.get("tor"):   # Tor window: purple + onion watermark background instead of a web photo
         html = _page("New tab", body, HOME_CSS + TOR_BG_CSS, "home")
         return html.replace("<body>", "<body class='hasbg tor'>", 1)
-    if bg:  # live random 4K tech/hacker wallpaper via wyrm://bg; auto-rotates every 30 min (no page reload)
+    if bg:  # 4K tech/hacker wallpaper via wyrm://bg; the same image for 30 min (reloads keep it), then a new one
         url = f"wyrm://bg?r={secrets.token_hex(6)}"
-        rot = ("<script>setInterval(function(){document.documentElement.style.setProperty("
-               "'--wyrm-bg',\"url('wyrm://bg?r=\"+Date.now()+\"')\");}," + str(BG_ROTATE_MS) + ");</script>")
+        # switch when the current wallpaper expires (time left comes from the handler), then every 30 min
+        left = int(ctx.get("bg_ms_left") or BG_ROTATE_MS) + 1000
+        rot = ("<script>(function(){function swap(){document.documentElement.style.setProperty("
+               "'--wyrm-bg',\"url('wyrm://bg?r=\"+Date.now()+\"')\");}"
+               f"setTimeout(function(){{swap();setInterval(swap,{BG_ROTATE_MS});}},{left});}})();</script>")
         html = _page("New tab", body + rot, HOME_CSS + f"\n:root{{--wyrm-bg:url('{url}')}}", "home")
         return html.replace("<body>", "<body class='hasbg'>", 1)
     return _page("New tab", body, HOME_CSS, "home")
@@ -268,7 +274,7 @@ def render_home(ctx: dict) -> str:
 
 # ====================================================================== paper search results
 def _search_form(q: str = "") -> str:
-    return ("<form action='wyrm://search' method='get'>"
+    return ("<form class='qform' action='wyrm://search' method='get'>"
             f"<input type='text' name='q' value='{escape(q, quote=True)}' placeholder='Search papers (arXiv + Semantic Scholar)'>"
             "<button>Search</button></form>")
 
@@ -351,7 +357,7 @@ KIND_LABEL = {"cve": "CVE", "cwe": "Weakness (CWE)", "attack": "ATT&CK technique
 
 
 def _sec_form(q: str = "") -> str:
-    return ("<form action='wyrm://sec' method='get'>"
+    return ("<form class='qform' action='wyrm://sec' method='get'>"
             f"<input type='text' name='q' value='{escape(q, quote=True)}' placeholder='CVE, product, IP, domain, hash, CWE, ATT&amp;CK ID…'>"
             "<button>Search</button></form>")
 

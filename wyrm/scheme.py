@@ -1,6 +1,7 @@
 """wyrm:// URL scheme: wyrm://home and wyrm://search?q=... served from Python."""
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from urllib.parse import parse_qs
 
@@ -13,6 +14,11 @@ from .security import secsearch
 
 SCHEME = b"wyrm"
 ASSETS = Path(__file__).parent / "assets"
+
+# Current new-tab wallpaper, in memory only and shared by every window: all pages and reloads reuse it
+# until it is BG_ROTATE_MS old.  bytes: image | None; at: time.monotonic() when its fetch started;
+# waiting: jobs parked on an in-flight fetch (None = no fetch running).
+_BG: dict = {"bytes": None, "at": 0.0, "waiting": None}
 
 
 def register_scheme():
@@ -32,6 +38,36 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
         self.home_context = home_context    # -> dict for the start page
         self._cache: dict[str, dict] = {}  # query -> search results (keeps back/forward instant)
         self._sec_cache: dict[str, dict] = {}
+
+    def bg_ms_left(self) -> int:
+        """Milliseconds until the current wallpaper expires (0 = expired / none yet)."""
+        if not _BG["bytes"]:
+            return 0
+        return max(0, int(pages.BG_ROTATE_MS - (time.monotonic() - _BG["at"]) * 1000))
+
+    def _serve_bg(self, job):
+        # a few seconds of slack so a page timer that fires right at expiry gets the new image
+        if _BG["bytes"] and self.bg_ms_left() > 5000:
+            self._reply(job, _BG["bytes"], b"image/jpeg")
+            return
+        if _BG["waiting"] is not None:  # another tab already started fetching the next one
+            _BG["waiting"].append(job)
+            return
+        _BG["waiting"] = [job]
+        started = time.monotonic()  # age counts from the request, so page timers line up with expiry
+
+        def done(ok, res):
+            waiting = _BG["waiting"] or []
+            _BG["waiting"] = None
+            if ok and res:
+                _BG["bytes"], _BG["at"] = res, started
+            # fetch failed: keep showing the previous wallpaper if there is one
+            for j in waiting:
+                if _BG["bytes"]:
+                    self._reply(j, _BG["bytes"], b"image/jpeg")
+                elif shiboken6.isValid(j):
+                    j.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
+        self.runner.run(self._fetch_bg, done)
 
     def requestStarted(self, job: QWebEngineUrlRequestJob):
         url = job.requestUrl()
@@ -54,13 +90,8 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
             if getattr(self, "actions", None):
                 self.actions("do:" + (params.get("a") or [""])[0], {})
             job.redirect(QUrl("wyrm://home"))
-        elif host == "bg":  # live random new-tab background, fetched into memory (never saved to disk)
-            def done(ok, res):
-                if ok and res:
-                    self._reply(job, res, b"image/jpeg")
-                else:
-                    job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
-            self.runner.run(self._fetch_bg, done)
+        elif host == "bg":  # random new-tab background, held in memory (never saved to disk), changes every 30 min
+            self._serve_bg(job)
         elif host == "assets":  # bundled fonts for internal pages
             name = url.path().rsplit("/", 1)[-1]
             f = ASSETS / "fonts" / name
@@ -71,10 +102,10 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
         elif host == "go" and q:  # start-page search box: same rules as the address bar
             job.redirect(QUrl(engines.resolve(q, self.engine_getter())))
         elif host in ("", "home", "go") or (host == "search" and not q):
-            self._reply(job, pages.render_home(self.home_context()))
+            self._reply(job, pages.render_home(self._home_ctx()))
         elif host == "sec":  # HackPi Security Search (default engine)
             if not q:
-                self._reply(job, pages.render_home(self.home_context()))
+                self._reply(job, pages.render_home(self._home_ctx()))
             elif q in self._sec_cache:
                 self._reply(job, pages.render_sec(self._sec_cache[q]))
             else:
@@ -90,6 +121,11 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
             self.runner.run(scholar.search, lambda ok, res: self._search_done(job, q, ok, res), q)
         else:
             job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
+
+    def _home_ctx(self) -> dict:
+        ctx = dict(self.home_context())
+        ctx["bg_ms_left"] = self.bg_ms_left()
+        return ctx
 
     def _search_done(self, job, q, ok, res):
         if ok:
