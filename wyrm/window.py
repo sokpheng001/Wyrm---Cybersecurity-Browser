@@ -59,6 +59,7 @@ ICONS = {
     "stop": "<path d='M18 6L6 18M6 6l12 12'/>",
     "home": "<path d='M3 11l9-8 9 8'/><path d='M5 10v10h5v-6h4v6h5V10'/>",
     "plus": "<path d='M12 5v14M5 12h14'/>",
+    "download": "<path d='M12 4v11'/><path d='M7 10l5 5 5-5'/><path d='M5 20h14'/>",
     "book": "<path d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z'/><path d='M4 19.5V21h16'/>",
     "search": "<circle cx='11' cy='11' r='7'/><path d='M21 21l-4.3-4.3'/>",
     "clock": "<circle cx='12' cy='12' r='9'/><path d='M12 7v5l3 2'/>",
@@ -429,8 +430,12 @@ class MainWindow(QMainWindow):
             self._news_timer = QTimer(self)
             self._news_timer.timeout.connect(self._fetch_news)
             self._news_timer.start(30 * 60 * 1000)  # refresh headlines every 30 minutes
-            if self.settings.value("updates/check", True, type=bool):  # quiet startup check; only prompts if newer
+            if self.settings.value("updates/check", True, type=bool):
+                # quiet checks (startup, then every 6 h): a newer release only shows the toolbar "Update" button
                 QTimer.singleShot(4000, lambda: self._check_updates(manual=False))
+                self._update_timer = QTimer(self)
+                self._update_timer.timeout.connect(lambda: self._check_updates(manual=False))
+                self._update_timer.start(6 * 60 * 60 * 1000)
 
         self._build_ui()
         self._setup_dock_titlebars()
@@ -1043,10 +1048,20 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "Updates", f"Could not check for updates:\n{info}")
             return
         if not info.get("newer"):
+            self._update_info = None
+            self.b_update.hide()  # nothing new: no button
             if manual:
                 QMessageBox.information(self, "Updates", f"You're on the latest version ({__version__}).")
             return
-        UpdateDialog(self, info).exec()
+        self._update_info = info
+        self.b_update.setToolTip(f"Wyrm {info.get('version')} is available — you have {__version__}. Click to update.")
+        self.b_update.show()
+        if manual:
+            self._open_update()
+
+    def _open_update(self):
+        if self._update_info:
+            UpdateDialog(self, self._update_info).exec()
 
     def _clear_history_confirm(self):
         if QMessageBox.question(self, "Clear history", "Clear the saved search & address-bar history?") \
@@ -1281,6 +1296,14 @@ class MainWindow(QMainWindow):
         self.b_menu.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.b_menu.setMenu(self._build_menu())
         self.b_menu.setStyleSheet("QToolButton::menu-indicator{image:none;width:0}")
+        # "Update" pill (like Brave): hidden until a newer release is found on our GitHub Releases
+        self._update_info = None
+        self.b_update = QPushButton("  Update", objectName="UpdateButton")
+        self.b_update.setIcon(make_icon("download", "#ffffff", 32))
+        self.b_update.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.b_update.clicked.connect(self._open_update)
+        self.b_update.hide()
+        n.addWidget(self.b_update, 0, Qt.AlignmentFlag.AlignVCenter)
         n.addWidget(self.b_menu)
         tb = QToolBar(objectName="NavToolBar", movable=False, floatable=False)
         tb.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)

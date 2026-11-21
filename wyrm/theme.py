@@ -92,6 +92,10 @@ QTabBar#MainTabs::tab:selected { background: $layer; color: $text; border-top: 3
 /* fixed 40x40 squares, no margin: the hover/checked background is always a square with the icon dead-centre */
 #NavBar QToolButton { border: none; border-radius: 0; padding: 0; background: transparent; min-width: 40px; min-height: 40px; max-width: 40px; max-height: 40px; margin: 0; }
 #NavBar QToolButton:hover { background: $hover; }
+/* "Update" pill, shown only when a newer release exists (like Brave's) */
+#NavBar QPushButton#UpdateButton { background: $button; color: #ffffff; font-weight: 600; font-size: 13px;
+    border: none; border-radius: 15px; padding: 0 14px 0 10px; min-height: 30px; max-height: 30px; margin: 0 6px; }
+#NavBar QPushButton#UpdateButton:hover { background: $button_hover; }
 #NavBar QLabel#Badge { background: $interactive; color: #ffffff; font-size: 10px; font-weight: 600;
     border-radius: 8px; padding: 0 4px; min-width: 8px; }
 #NavBar QToolButton:checked { background: $selected; }

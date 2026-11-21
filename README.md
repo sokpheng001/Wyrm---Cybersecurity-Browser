@@ -122,6 +122,7 @@ rm -rf ~/.local/opt/hiddenbrowser ~/.local/bin/Wyrm ~/.local/share/applications/
 - **Light / Dark / Follow-system** themes
 - **Customize the start page background** (bottom-right **Customize** button): rotating cybersecurity
   wallpapers (change every 5 min … daily — your choice), color themes, your own image, or none
+- **Update button** (top-right, like Brave): appears only when a newer release is published here
 - **Built-in guide**: ⋮ → **Help — how to use Wyrm**, `F1`, or the *How to use Wyrm* link on the start page
 - **Latest cybersecurity news** on the start page (The Hacker News, BleepingComputer, Krebs, SecurityWeek,
   Dark Reading, The Record) — shown while online, refreshed every 30 minutes

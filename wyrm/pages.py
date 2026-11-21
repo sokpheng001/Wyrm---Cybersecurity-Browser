@@ -892,7 +892,9 @@ emphasis and accent color. ⋮ → <b>Theme</b> chooses Light, Dark or Follow sy
 </table>"""),
         ("trouble", "Install, updates &amp; troubleshooting", """
 <ul>
-<li><b>Updates</b>: Wyrm checks quietly at startup; or use ⋮ → <b>Check for updates…</b>.</li>
+<li><b>Updates</b>: Wyrm checks quietly at startup and every few hours. When a new version is out, a blue
+<b>Update</b> button appears at the top right of the toolbar — click it to download and install. You can also use
+⋮ → <b>Check for updates…</b> any time.</li>
 <li><b>A site doesn't work</b>: turn off <i>Shields up for this site</i> in Security panel → Shields, then reload.</li>
 <li><b>No news on the start page</b>: you are offline, or the news sites could not be reached — it appears automatically when you reconnect.</li>
 <li><b>macOS says “damaged” or “can't be verified”</b> after installing: open Terminal and run the command below,
