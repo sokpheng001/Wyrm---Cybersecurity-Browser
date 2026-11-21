@@ -182,3 +182,9 @@ Qt WebEngine (Chromium) · ad/tracker blocking via community filter lists (EasyL
 URLhaus, phishing-filter) · Tor Project (Tor, stem) · NVD, CISA KEV, FIRST EPSS, OSV, Shodan InternetDB ·
 IBM Plex fonts · Carbon Design System. Research informing the design: PriVaricator (anti-fingerprinting),
 CSP Is Dead Long Live CSP (CCS 2016), EPSS (FIRST), CiteSee (CHI 2023).
+
+## License
+
+Wyrm is released under the [MIT License](LICENSE) — Copyright © 2021–2026 **ByKh R&D Group**.
+You may use, modify and redistribute it, including commercially, as long as the copyright and license
+notice are kept. It comes with no warranty.
