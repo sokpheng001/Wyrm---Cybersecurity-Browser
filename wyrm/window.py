@@ -8,7 +8,9 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from PySide6.QtCore import QBuffer, QByteArray, QEvent, QIODevice, QProcess, QSettings, QSize, QStandardPaths, Qt, QTimer, QUrl
+from PySide6.QtCore import (
+    QBuffer, QByteArray, QEvent, QIODevice, QProcess, QSettings, QSize, QStandardPaths, Qt, QTimer, QUrl, Signal,
+)
 from PySide6.QtGui import QAction, QActionGroup, QColor, QGuiApplication, QIcon, QKeySequence, QPainter, QPixmap
 from PySide6.QtNetwork import QNetworkInformation
 from PySide6.QtSvg import QSvgRenderer
@@ -18,9 +20,12 @@ from PySide6.QtWebEngineCore import (
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
-    QApplication, QComboBox, QCompleter, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QSizePolicy,
-    QStackedWidget, QTabBar, QToolBar, QToolButton, QVBoxLayout, QWidget,
+    QApplication, QComboBox, QCompleter, QDialog, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
+    QProgressBar, QPushButton, QSizePolicy, QStackedWidget, QTabBar, QTextBrowser, QToolBar, QToolButton, QVBoxLayout,
+    QWidget,
 )
+
+from html import escape
 
 from . import __version__, engines, linkguard, pages, scholar, theme, winframe
 from . import shields as shields_mod
@@ -235,6 +240,96 @@ class BrowserView(QWebEngineView):
         menu.exec(event.globalPos())
 
 
+class UpdateDialog(QDialog):
+    """Shows an available release and installs it in place (download → silent installer → relaunch)."""
+    _progress = Signal(int)
+    _finished = Signal(bool, str)
+
+    def __init__(self, win, info: dict):
+        super().__init__(win)
+        self.win = win
+        self.info = info
+        self.setWindowTitle("Update Wyrm")
+        self.setMinimumWidth(460)
+        v = QVBoxLayout(self)
+        v.setContentsMargins(22, 20, 22, 18)
+        from . import __version__
+        head = QLabel(f"<b style='font-size:16px'>Wyrm {escape(info.get('version',''))} is available</b>"
+                      f"<br><span style='color:gray'>You have {__version__}.</span>")
+        head.setWordWrap(True)
+        v.addWidget(head)
+        notes = QTextBrowser()
+        notes.setOpenExternalLinks(True)
+        notes.setPlainText((info.get("notes") or "No release notes provided.")[:4000])
+        notes.setFixedHeight(180)
+        v.addWidget(notes)
+        self.status = QLabel("")
+        self.status.setObjectName("Muted")
+        v.addWidget(self.status)
+        self.bar = QProgressBar()
+        self.bar.setTextVisible(True)
+        self.bar.hide()
+        v.addWidget(self.bar)
+        row = QHBoxLayout()
+        self.b_page = QPushButton("Release page")
+        self.b_page.clicked.connect(lambda: (win.open_url(info.get("html_url"), new_tab=True), self.reject()))
+        self.b_later = QPushButton("Later")
+        self.b_later.clicked.connect(self.reject)
+        self.b_go = QPushButton("Download && install")
+        self.b_go.setObjectName("Primary")
+        self.b_go.setDefault(True)
+        self.b_go.clicked.connect(self._install)
+        row.addWidget(self.b_page)
+        row.addStretch(1)
+        row.addWidget(self.b_later)
+        row.addWidget(self.b_go)
+        v.addLayout(row)
+        self._progress.connect(self.bar.setValue)
+        self._finished.connect(self._on_finished)
+
+    def _install(self):
+        from . import updater
+        url = self.info.get("asset_url")
+        if not url:  # no installer asset for this OS — send them to the web page
+            self.win.open_url(self.info.get("html_url"), new_tab=True)
+            self.reject()
+            return
+        self.b_go.setEnabled(False)
+        self.b_page.setEnabled(False)
+        self.bar.show()
+        self.status.setText("Downloading update…")
+        tmp = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.TempLocation))
+        dest = tmp / (self.info.get("asset_name") or "wyrm-update.bin")
+        px, verify = self.win.proxies(), self.win.verify_tls()
+
+        def work():
+            updater.download(url, dest, px, verify, progress=lambda pct, *_: self._progress.emit(pct))
+            return str(dest)
+
+        def done(ok, res):
+            if ok:
+                self._finished.emit(True, res)
+            else:
+                self._finished.emit(False, str(res))
+        self.win.runner.run(work, done)
+
+    def _on_finished(self, ok, res):
+        from . import updater
+        if not ok:
+            self.status.setText(f"Download failed: {res}")
+            self.b_go.setEnabled(True)
+            self.b_page.setEnabled(True)
+            return
+        self.status.setText("Launching installer — Wyrm will close and reopen on the new version…")
+        try:
+            updater.run_installer(Path(res))
+        except Exception as e:  # noqa: BLE001
+            self.status.setText(f"Could not start the installer: {e}")
+            self.b_page.setEnabled(True)
+            return
+        QTimer.singleShot(800, QApplication.instance().quit)
+
+
 class MainWindow(QMainWindow):
     OFFLINE_CODES = {-106, -105, -109, -118, -21, -137, -130}
 
@@ -302,6 +397,8 @@ class MainWindow(QMainWindow):
             self.runner.run(secsearch.recent_kev, self._kev_ready)
             if self.settings.value("home/background", True, type=bool):
                 self._load_background()
+            if self.settings.value("updates/check", True, type=bool):  # quiet startup check; only prompts if newer
+                QTimer.singleShot(4000, lambda: self._check_updates(manual=False))
 
         self._build_ui()
         self._setup_dock_titlebars()
@@ -469,7 +566,7 @@ class MainWindow(QMainWindow):
         name = engines.ENGINES.get(self.default_engine(), engines.ENGINES[engines.DEFAULT_ENGINE]).name
         return {"engagement": eng, "counts": self.store.counts(e.id) if e else {}, "engine_name": name,
                 "saved": self.library.saved(), "kev": self._kev_recent, "mode": self.mode,
-                "background": self._bg_uri}
+                "background": self._bg_uri, "tor": bool(self.tor)}
 
     # ================================================================ profiles / engagements
     def _profile_for(self, eng) -> QWebEngineProfile:
@@ -703,6 +800,24 @@ class MainWindow(QMainWindow):
         dock.setProperty("detached", bool(floating))
         dock.style().unpolish(dock)
         dock.style().polish(dock)
+        if floating:  # give the detached window a soft drop shadow so it reads as a separate window
+            QTimer.singleShot(0, lambda: self._native_window_shadow(dock))
+
+    @staticmethod
+    def _native_window_shadow(w):
+        """Best-effort native drop shadow for a floating window (Windows DWM). No-op elsewhere."""
+        if sys.platform != "win32":
+            return
+        try:
+            import ctypes
+
+            class _MARGINS(ctypes.Structure):
+                _fields_ = [("l", ctypes.c_int), ("r", ctypes.c_int), ("t", ctypes.c_int), ("b", ctypes.c_int)]
+            hwnd = int(w.winId())
+            # a 1px extended frame makes DWM composite a drop shadow around the window
+            ctypes.windll.dwmapi.DwmExtendFrameIntoClientArea(hwnd, ctypes.byref(_MARGINS(1, 1, 1, 1)))
+        except Exception:  # noqa: BLE001 - purely cosmetic
+            pass
 
     def _toggle_float(self, dock):
         floating = not dock.isFloating()
@@ -726,6 +841,7 @@ class MainWindow(QMainWindow):
         a.setEnabled(not self.tor)
         if self.tor:
             m.addAction("New Tor identity (new circuit)", self.tor_new_identity)
+            m.addAction("Disconnect Tor && close window", self.disconnect_tor)
         m.addSeparator()
         mm = m.addMenu("Mode")
         mgroup = QActionGroup(self)
@@ -752,8 +868,28 @@ class MainWindow(QMainWindow):
         m.addAction("Shields && privacy panel", lambda: self.security.show_tab("Shields"))
         m.addAction("Clear search && address history", self._clear_history_confirm)
         m.addSeparator()
+        m.addAction("Check for updates…", self._check_updates)
         m.addAction("About Wyrm", self._about)
         return m
+
+    def _check_updates(self, manual=True):
+        from . import updater
+        if manual:
+            self.toast("Checking for updates…", 3000)
+        px, verify = self.proxies(), self.verify_tls()
+        self.runner.run(lambda: updater.check(__version__, px, verify),
+                        lambda ok, r: self._updates_checked(ok, r, manual))
+
+    def _updates_checked(self, ok, info, manual):
+        if not ok:
+            if manual:
+                QMessageBox.warning(self, "Updates", f"Could not check for updates:\n{info}")
+            return
+        if not info.get("newer"):
+            if manual:
+                QMessageBox.information(self, "Updates", f"You're on the latest version ({__version__}).")
+            return
+        UpdateDialog(self, info).exec()
 
     def _clear_history_confirm(self):
         if QMessageBox.question(self, "Clear history", "Clear the saved search & address-bar history?") \
@@ -783,6 +919,16 @@ class MainWindow(QMainWindow):
             self.toast("New Tor identity: new circuits for all tabs")
         except Exception as e:  # noqa: BLE001
             self.toast(f"Couldn't get a new identity: {e}")
+
+    def disconnect_tor(self):
+        """Close the Tor window and tear down the Tor process (the window IS the Tor session)."""
+        if not self.tor:
+            return
+        if QMessageBox.question(self, "Disconnect Tor",
+                                "Disconnect from the Tor network and close this private window?",
+                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+            self.close()  # app.aboutToQuit → tor.stop() tears down the Tor process
 
     def _open_settings(self):
         SettingsDialog(self).exec()

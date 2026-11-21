@@ -1403,7 +1403,8 @@ class ShieldsTab(QWidget):
         foot.addWidget(self.lists, 1)
         upd = QPushButton("Update lists")
         upd.clicked.connect(self._update_lists)
-        foot.addWidget(upd)
+        upd.setMinimumWidth(130)
+        foot.addWidget(upd, 0, Qt.AlignmentFlag.AlignRight)
         v.addLayout(foot)
         if win.tor:
             trow = QHBoxLayout()
@@ -1412,7 +1413,12 @@ class ShieldsTab(QWidget):
             trow.addWidget(self.tor_label, 1)
             nb = QPushButton("New identity")
             nb.clicked.connect(win.tor_new_identity)
-            trow.addWidget(nb)
+            db = QPushButton("Disconnect Tor")
+            db.setObjectName("Danger")
+            db.clicked.connect(win.disconnect_tor)
+            for b in (nb, db):  # same width + same (right) side, aligned with Update lists above
+                b.setMinimumWidth(130)
+                trow.addWidget(b, 0, Qt.AlignmentFlag.AlignRight)
             v.addLayout(trow)
         self.refresh()
 
@@ -2159,11 +2165,17 @@ class SecurityPanel(QDockWidget):
         self._nav_rows: dict[str, int] = {}   # name -> nav list row
         self._page_index: dict[str, int] = {}  # name -> stack index
         from PySide6.QtCore import QSize
-        for title, items in groups:
+        for gi, (title, items) in enumerate(groups):
             head = QListWidgetItem()
             head.setFlags(Qt.ItemFlag.NoItemFlags)  # non-selectable, non-hoverable group caption
             cap = QLabel(title, objectName="NavGroup")
-            head.setSizeHint(QSize(0, cap.sizeHint().height() + 15))
+            cap.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            f = cap.font()
+            f.setBold(True)
+            f.setPointSizeF(max(7.0, f.pointSizeF() - 2.5))  # small caption, set in code so metrics are exact
+            cap.setFont(f)
+            cap.setContentsMargins(10, 14 if gi else 6, 10, 4)  # less top padding on the very first caption
+            head.setSizeHint(QSize(0, cap.sizeHint().height() + 2))  # label includes its margins; +2 avoids any clip
             self.nav.addItem(head)
             self.nav.setItemWidget(head, cap)
             for name, widget in items:

@@ -1,6 +1,7 @@
 """HTML for internal wyrm:// pages (start page, paper search, error pages), Carbon-style."""
 from __future__ import annotations
 
+import base64
 from html import escape
 from urllib.parse import urlparse
 
@@ -137,6 +138,21 @@ body.hasbg .feed .nm{color:#f4f4f4}
 body.hasbg .ex a{background:rgba(255,255,255,.12);color:#f4f4f4}
 """
 
+# Tor window start page: purple field + a faint onion watermark, drawn with inline SVG (no network).
+_TOR_ONION_SVG = (
+    "<svg xmlns='http://www.w3.org/2000/svg' width='340' height='340' viewBox='0 0 24 24' fill='none' "
+    "stroke='#9b5de5' stroke-width='0.6' opacity='0.55'>"
+    "<circle cx='12' cy='13' r='8.2'/><circle cx='12' cy='13' r='5.4'/><circle cx='12' cy='13' r='2.6'/>"
+    "<path d='M12 4.8V2'/><path d='M9.2 5.4C9.2 3.8 10.3 3 12 3'/><path d='M14.8 5.4C14.8 3.8 13.7 3 12 3'/>"
+    "</svg>")
+_TOR_ONION = "data:image/svg+xml;base64," + base64.b64encode(_TOR_ONION_SVG.encode()).decode()
+TOR_BG_CSS = (
+    "body.tor::before{background:radial-gradient(circle at 50% 30%,#3c2252 0%,#20122e 55%,#0e0818 100%)!important}"
+    f"body.tor::after{{background:url('{_TOR_ONION}') center 24%/300px no-repeat,"
+    "linear-gradient(180deg,rgba(14,8,24,.25),rgba(14,8,24,.55))!important}"
+    "body.tor .wordmark b{color:#c9a6ff}"
+)
+
 def _ico(paths: str) -> str:
     return ("<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.7' "
             f"stroke-linecap='round' stroke-linejoin='round'>{paths}</svg>")
@@ -220,6 +236,9 @@ def render_home(ctx: dict) -> str:
         + "<p class='credit'>Built by <b>ByKh R&amp;D Group</b> · <b>HackPi</b> — Ethical Hackers Group</p>"
     )
     bg = ctx.get("background")
+    if ctx.get("tor"):   # Tor window: purple + onion watermark background instead of a web photo
+        html = _page("New tab", body, HOME_CSS + TOR_BG_CSS, "home")
+        return html.replace("<body>", "<body class='hasbg tor'>", 1)
     extra_css = HOME_CSS + (f"\n:root{{--wyrm-bg:url('{bg}')}}" if bg else "")
     html = _page("New tab", body, extra_css, "home")
     if bg:  # add the background class to <body> so the photo + scrim apply
