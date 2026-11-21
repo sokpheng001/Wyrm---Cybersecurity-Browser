@@ -16,7 +16,7 @@ from string import Template
 
 from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
-from PySide6.QtWidgets import QComboBox, QMenu, QProxyStyle
+from PySide6.QtWidgets import QComboBox, QMenu, QMessageBox, QProxyStyle
 
 FONT_DIR = Path(__file__).parent / "assets" / "fonts"
 SANS = "IBM Plex Sans"
@@ -172,6 +172,7 @@ QLineEdit:focus, QPlainTextEdit:focus, QSpinBox:focus, QComboBox:focus { border:
 /* combobox-popup: 0 = plain drop-down list BELOW the box on every OS (macOS otherwise pops the list over
    the box, centred on the current item, covering the input) */
 QComboBox { combobox-popup: 0; }
+QMessageBox { border: 1px solid $border; }  /* frameless message boxes keep a visible edge */
 QComboBox::drop-down { border: none; width: 24px; }
 QComboBox::down-arrow { image: url("$chevron"); width: 12px; height: 12px; }
 QComboBox QAbstractItemView { background: $layer; border: 1px solid $border; border-radius: 0;
@@ -336,6 +337,10 @@ class AppStyle(QProxyStyle):
     def polish(self, *args):
         res = super().polish(*args)
         w = args[0] if args else None
+        if isinstance(w, QMessageBox) and not w.property("wyrm_frameless"):
+            # message boxes have their own Cancel / Close buttons: no OS title bar with a second close button
+            w.setProperty("wyrm_frameless", True)
+            w.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
         if isinstance(w, QMenu):
             if AppStyle._menu_filter is None:
                 AppStyle._menu_filter = _MenuInWindow()  # one shared instance, kept alive on the class
