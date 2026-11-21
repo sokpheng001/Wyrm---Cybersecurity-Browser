@@ -16,7 +16,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, QTimer, Qt
 from PySide6.QtWidgets import (QCheckBox, QDialog, QFileDialog, QHBoxLayout, QInputDialog, QLabel, QListWidget,
                                QListWidgetItem, QPushButton, QVBoxLayout, QWidget)
 
@@ -78,6 +78,12 @@ class ExtensionsMixin:
                 self.toast(f"Extension {info.name() or folder} could not load: {info.error()}", 8000)
             return
         if folder in self._ext_enabled() and not info.isEnabled():
+            # not from inside Qt's own signal handler: re-enter the manager once the event loop is back
+            QTimer.singleShot(0, lambda m=mgr, f=folder: self._ext_enable_now(m, f))
+
+    def _ext_enable_now(self, mgr, folder: str):
+        info = self._ext_info(mgr, folder)
+        if info is not None and info.isLoaded() and not info.isEnabled() and folder in self._ext_enabled():
             mgr.setExtensionEnabled(info, True)
 
     def _ext_load_everywhere(self, folder: str, enable: bool = True):

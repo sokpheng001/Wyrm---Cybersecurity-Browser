@@ -19,6 +19,26 @@ from ..browser.scripts import FINGERPRINT_JS, YOUTUBE_JS
 from ..ui.common import HOME
 
 
+def _persistent_profile(name: str, storage: str, cache: str, parent) -> QWebEngineProfile:
+    """A disk-backed profile with its storage and cache folders set AT CREATION (QWebEngineProfileBuilder).
+
+    Calling setPersistentStoragePath() on an already-created profile leaves Qt WebEngine's extension system in a
+    broken state: QWebEngineExtensionManager.setExtensionEnabled() then crashes the whole browser (Qt 6.10-6.12,
+    reproduced with Chromium's built-in PDF extension too). The builder avoids it; same folders, so existing
+    cookies, logins and history are kept."""
+    try:
+        from PySide6.QtWebEngineCore import QWebEngineProfileBuilder
+    except ImportError:  # Qt < 6.9: no builder (and no extensions either)
+        prof = QWebEngineProfile(name, parent)
+        prof.setPersistentStoragePath(storage)
+        prof.setCachePath(cache)
+        return prof
+    b = QWebEngineProfileBuilder()
+    b.setPersistentStoragePath(storage)
+    b.setCachePath(cache)
+    return b.createProfile(name, parent)
+
+
 class EngagementMixin:
     """Engagements (authorized scope), isolated profiles, scope badge and findings. (Mixed into MainWindow.)"""
 
@@ -30,9 +50,8 @@ class EngagementMixin:
         if self.ephemeral:
             prof = QWebEngineProfile(self)  # off-the-record: no cookies, cache or history touch the disk
         else:
-            prof = QWebEngineProfile(f"Wyrm-{key}", self)
-            prof.setPersistentStoragePath(str(self.data_dir / "profiles" / key))
-            prof.setCachePath(str(self.data_dir / "cache" / key))
+            prof = _persistent_profile(f"Wyrm-{key}", str(self.data_dir / "profiles" / key),
+                                       str(self.data_dir / "cache" / key), self)
         def inject(name, source, subframes=False):
             sc = QWebEngineScript()
             sc.setName(name)

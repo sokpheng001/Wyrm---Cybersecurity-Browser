@@ -4,6 +4,13 @@ What's new in each version of Wyrm Browser. The release workflow publishes the s
 version (from `wyrm/__init__.py`) as the release description and the in-app **Update** tooltip, so keep the
 most important points first. Each build of a version adds an "Also in this build" list automatically.
 
+## v0.0.4
+
+- Fixed: the browser froze or closed after adding an extension, and when it started with one switched on.
+  Extensions such as Wappalyzer now install, stay on after a restart and open their popup (⋮ → Extensions)
+- Note: Qt WebEngine supports only part of Chrome's extension features, so some extensions may not work
+  fully (for example Wappalyzer's toolbar badge); their popups and page features work
+
 ## v0.0.3
 
 - Extensions: add Chrome extensions (Manifest V3) from the Chrome Web Store, a .zip / .crx file or a folder
