@@ -95,6 +95,19 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: "What's new (commit titles since the previous release; shown in the app's Update tooltip)"
+        run: |
+          git fetch --tags --force
+          prev=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          {
+            echo "## What's new in Wyrm Browser v$VERSION"
+            echo
+            if [ -n "$prev" ]; then range="$prev..${{ github.sha }}"; else range="-15 ${{ github.sha }}"; fi
+            git log $range --no-merges --format='- %s' | grep -v -i 'skip release' | head -30
+          } > notes.md
+          cat notes.md
       - uses: actions/download-artifact@v4
         with: { path: dist, merge-multiple: true }
       - run: ls -R dist
@@ -103,7 +116,7 @@ jobs:
           tag_name: v${{ needs.version.outputs.version }}
           target_commitish: ${{ github.sha }}
           name: Wyrm Browser v${{ needs.version.outputs.version }}
-          generate_release_notes: true
+          body_path: notes.md
           make_latest: true
           files: dist/*
       - name: Keep only the newest release

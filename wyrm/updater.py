@@ -75,6 +75,25 @@ def check(current: str, proxies=None, verify=True) -> dict:
     }
 
 
+def whats_new(notes: str, limit: int = 10) -> list[str]:
+    """Plain 'what's new' lines from release notes: bullet lines only, links and markdown removed (the app
+    never shows repository links)."""
+    out = []
+    for line in (notes or "").splitlines():
+        line = line.strip()
+        if not line.startswith(("- ", "* ")):
+            continue
+        line = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", line[2:])   # [text](url) -> text
+        line = re.sub(r"https?://\S+", "", line)                       # bare links
+        line = re.sub(r"\s+by @\S+.*$|\s+in\s*$", "", line)           # GitHub's "by @x in <url>" tails
+        line = re.sub(r"[*_`]", "", line).strip(" -–—:")
+        if line:
+            out.append(line)
+        if len(out) >= limit:
+            break
+    return out
+
+
 def download(url: str, dest: Path, proxies=None, verify=True, progress=None) -> Path:
     from urllib.parse import urlparse
     if urlparse(url).hostname not in _ALLOWED_HOSTS:
