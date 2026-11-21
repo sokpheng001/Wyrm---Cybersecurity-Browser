@@ -11,8 +11,8 @@ from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyMod
 from PySide6.QtGui import QAction, QBrush, QColor, QGuiApplication
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDockWidget, QFileDialog, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QListWidget, QListWidgetItem, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QTableView, QTabWidget,
-    QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QListWidget, QListWidgetItem, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QStackedWidget,
+    QTabBar, QTableView, QTabWidget, QTextBrowser, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from . import theme
@@ -555,6 +555,8 @@ class ReconTab(QWidget):
         v.addLayout(row3)
         self.list = mono(QListWidget())
         self.list.itemDoubleClicked.connect(self._open)
+        self.list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.list.customContextMenuRequested.connect(self._list_menu)
         v.addWidget(self.list, 1)
         self.busy = BusyOverlay(self.list)
         self.status = QLabel("Passive sources only: certificate transparency logs and the Internet Archive.")
@@ -651,21 +653,71 @@ class ReconTab(QWidget):
         url = t if "://" in t else f"https://{t}"
         self.win.open_url(url, new_tab=True)
 
+    def _host_of(self, it) -> str:
+        t = it.text().strip()
+        if t.startswith("──"):
+            return ""
+        return urlparse(t if "://" in t else "https://" + t).hostname or t
+
+    def _list_menu(self, pos):
+        it = self.list.itemAt(pos)
+        if not it or it.text().strip().startswith("──"):
+            return
+        t = it.text().strip()
+        url = t if "://" in t else f"https://{t}"
+        host = self._host_of(it)
+        m = QMenu(self)
+        m.addAction("Open in new tab", lambda: self.win.open_url(url, new_tab=True))
+        m.addAction("Scan this host", lambda: (self.win.open_url(url, new_tab=True),
+                                               self.win.security.show_tab("Overview")))
+        m.addSeparator()
+        m.addAction("Copy", lambda: QGuiApplication.clipboard().setText(t))
+        m.addAction("Copy all shown", lambda: QGuiApplication.clipboard().setText(
+            "\n".join(x for x, _ in self._visible())))
+        eng = self.win.engagement
+        if eng and host and not eng.in_scope(host):
+            m.addSeparator()
+            m.addAction(f"Add {host} to engagement scope", lambda: self._add_scope(host))
+        m.exec(self.list.viewport().mapToGlobal(pos))
+
+    def _add_scope(self, host):
+        eng = self.win.engagement
+        if eng and host not in eng.scope:
+            eng.scope.append(host)
+            self.win.store.save_engagement(eng)
+            self.win.toast(f"Added {host} to scope of '{eng.name}'")
+            self._render()
+
 
 # =================================================================== Tools
-class ToolsTab(QTabWidget):
+class ToolsTab(QWidget):
     def __init__(self, win):
         super().__init__()
         self.win = win
         self._confirmed_hosts: set[str] = set()  # out-of-scope hosts the user already OK'd in the Repeater
-        self.addTab(self._decoder(), "Decoder")
-        self.addTab(self._jwt(), "JWT")
-        self.addTab(self._hash(), "Hash")
-        self.addTab(self._repeater(), "Repeater")
-        self.addTab(self._rewrite(), "Match & Replace")
-        self.addTab(self._comparer(), "Comparer")
-        self.addTab(self._sequencer(), "Sequencer")
-        self.addTab(self._triage(), "AI Triage")
+        v = QVBoxLayout(self)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(6)
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Tool"))
+        self._sel = QComboBox()  # compact selector instead of overflowing horizontal tabs
+        self._sel.currentIndexChanged.connect(lambda i: self._stack.setCurrentIndex(i))
+        row.addWidget(self._sel, 1)
+        v.addLayout(row)
+        self._stack = QStackedWidget()
+        v.addWidget(self._stack, 1)
+        self._tool_names = []
+        for name, builder in (("Decoder", self._decoder), ("JWT", self._jwt), ("Hash", self._hash),
+                              ("Repeater", self._repeater), ("Match & Replace", self._rewrite),
+                              ("Comparer", self._comparer), ("Sequencer", self._sequencer),
+                              ("AI Triage", self._triage)):
+            self._stack.addWidget(builder())
+            self._sel.addItem(name)
+            self._tool_names.append(name)
+
+    def _select_tool(self, name):
+        if name in self._tool_names:
+            self._sel.setCurrentIndex(self._tool_names.index(name))
 
     # ---------------------------------------------------------------- AI Triage (scope-gated, HITL)
     def _triage(self):
@@ -874,6 +926,28 @@ class ToolsTab(QTabWidget):
     def _repeater(self):
         w = QWidget()
         v = QVBoxLayout(w)
+        # --- session tabs: each request is its own tab, like Burp/Caido Repeater, so opening a new
+        #     one (or sending from Traffic) never overwrites an existing test. State is kept per tab.
+        self.r_sessions: list[dict] = []
+        self.r_current = -1
+        self._r_switching = False
+        tabrow = QHBoxLayout()
+        tabrow.setSpacing(2)
+        self.r_tabs = QTabBar()
+        self.r_tabs.setTabsClosable(True)
+        self.r_tabs.setExpanding(False)
+        self.r_tabs.setElideMode(Qt.TextElideMode.ElideRight)
+        self.r_tabs.setUsesScrollButtons(True)
+        self.r_tabs.currentChanged.connect(self._r_tab_changed)
+        self.r_tabs.tabCloseRequested.connect(self._r_close_tab)
+        tabrow.addWidget(self.r_tabs, 1)
+        r_add = QToolButton()
+        r_add.setText("+")
+        r_add.setToolTip("New Repeater tab")
+        r_add.setFixedSize(26, 24)
+        r_add.clicked.connect(lambda: self._r_new_session())
+        tabrow.addWidget(r_add, 0)
+        v.addLayout(tabrow)
         row = QHBoxLayout()
         self.r_method = QComboBox()
         self.r_method.addItems(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])
@@ -887,18 +961,58 @@ class ToolsTab(QTabWidget):
         self.r_send.clicked.connect(self._send)
         row.addWidget(self.r_send)
         v.addLayout(row)
+
+        def pane(title, widget, extra=None):
+            box = QWidget()
+            bl = QVBoxLayout(box)
+            bl.setContentsMargins(0, 0, 0, 0)
+            bl.setSpacing(3)
+            head = QHBoxLayout()
+            lab = QLabel(title)
+            lab.setObjectName("PaneLabel")
+            head.addWidget(lab)
+            head.addStretch(1)
+            if extra:
+                extra(head)
+            bl.addLayout(head)
+            bl.addWidget(widget, 1)
+            return box
+
         split = QSplitter(Qt.Orientation.Vertical)
         self.r_headers = mono(QPlainTextEdit())
         self.r_headers.setPlaceholderText("Header: value (one per line)")
         self._hdr_hl = HeaderHighlighter(self.r_headers)  # colorize header names
         self.r_body = mono(QPlainTextEdit())
         self.r_body.setPlaceholderText("Request body")
+        # response area with a Raw / Preview toggle (Preview renders HTML with JavaScript OFF — safe)
+        from PySide6.QtWebEngineWidgets import QWebEngineView
+        from PySide6.QtWebEngineCore import QWebEngineSettings
         self.r_resp = mono(QTextBrowser())
         self.r_resp.setOpenLinks(False)
-        self.r_busy = BusyOverlay(self.r_resp)
-        for x in (self.r_headers, self.r_body, self.r_resp):
-            split.addWidget(x)
-        split.setSizes([90, 70, 300])
+        self.r_preview = QWebEngineView()
+        self.r_preview.settings().setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, False)
+        self.r_resp_stack = QStackedWidget()
+        self.r_resp_stack.addWidget(self.r_resp)
+        self.r_resp_stack.addWidget(self.r_preview)
+        self.r_busy = BusyOverlay(self.r_resp_stack)
+        self.r_seg = {}
+
+        def resp_toggle(head):
+            for key, label in (("raw", "Raw"), ("preview", "Preview")):
+                b = QPushButton(label)
+                b.setObjectName("Segment")
+                b.setCheckable(True)
+                b.setFixedHeight(24)
+                b.setMaximumWidth(80)
+                b.clicked.connect(lambda _c, k=key: self._resp_view(k))
+                head.addWidget(b)
+                self.r_seg[key] = b
+            self.r_seg["raw"].setChecked(True)
+
+        split.addWidget(pane("Request headers", self.r_headers))
+        split.addWidget(pane("Request body", self.r_body))
+        split.addWidget(pane("Response", self.r_resp_stack, resp_toggle))
+        split.setSizes([120, 80, 340])
         v.addWidget(split, 1)
         row2 = QHBoxLayout()
         self.r_follow = QCheckBox("Follow redirects")
@@ -910,7 +1024,90 @@ class ToolsTab(QTabWidget):
             self.r_body.toPlainText())))
         row2.addWidget(curl)
         v.addLayout(row2)
+        # relabel the active tab as the target changes, so tabs stay recognizable
+        self.r_url.editingFinished.connect(self._r_relabel)
+        self.r_method.currentTextChanged.connect(lambda *_: self._r_relabel())
+        self._r_new_session()  # start with one empty session
         return w
+
+    # ---------------------------------------------------------------- Repeater sessions
+    def _r_label(self, method, url):
+        host = urlparse(url).hostname or ""
+        tail = ((host + (urlparse(url).path or "")).rstrip("/"))[:24]
+        return (f"{method} {tail}".strip() if tail else f"{method} (empty)")
+
+    def _r_blank(self):
+        return {"method": "GET", "url": "", "headers": "", "body": "", "follow": False,
+                "resp_html": "", "last_body": ""}
+
+    def _r_capture(self):
+        """Write the live editors into the current session dict."""
+        if 0 <= self.r_current < len(self.r_sessions):
+            s = self.r_sessions[self.r_current]
+            s["method"] = self.r_method.currentText()
+            s["url"] = self.r_url.text()
+            s["headers"] = self.r_headers.toPlainText()
+            s["body"] = self.r_body.toPlainText()
+            s["follow"] = self.r_follow.isChecked()
+            s["resp_html"] = self.r_resp.toHtml()
+            s["last_body"] = getattr(self, "_last_body", "")
+
+    def _r_restore(self, i):
+        """Load session i into the live editors."""
+        s = self.r_sessions[i]
+        self.r_method.setCurrentText(s["method"])
+        self.r_url.setText(s["url"])
+        self.r_headers.setPlainText(s["headers"])
+        self.r_body.setPlainText(s["body"])
+        self.r_follow.setChecked(s["follow"])
+        self._last_body = s["last_body"]
+        if s["resp_html"]:
+            self.r_resp.setHtml(s["resp_html"])
+        else:
+            self.r_resp.clear()
+        self._resp_view("raw")
+
+    def _r_tab_changed(self, i):
+        if self._r_switching or i < 0 or i >= len(self.r_sessions):
+            return
+        self.r_current = i
+        self._r_switching = True   # suppress relabel churn while we repopulate the editors
+        self._r_restore(i)
+        self._r_switching = False
+
+    def _r_new_session(self, method="GET", url="", headers="", body=""):
+        self._r_capture()
+        self.r_sessions.append({**self._r_blank(), "method": method or "GET",
+                                "url": url, "headers": headers, "body": body})
+        self._r_switching = True
+        idx = self.r_tabs.addTab(self._r_label(method or "GET", url))
+        self.r_tabs.setCurrentIndex(idx)
+        self.r_current = idx
+        self._r_restore(idx)
+        self._r_switching = False
+
+    def _r_close_tab(self, i):
+        if i < 0 or i >= len(self.r_sessions):
+            return
+        if len(self.r_sessions) == 1:  # keep one tab alive — just reset it
+            self.r_sessions[0] = self._r_blank()
+            self._last_body = ""
+            self._r_restore(0)
+            self.r_tabs.setTabText(0, self._r_label("GET", ""))
+            return
+        del self.r_sessions[i]
+        self._r_switching = True
+        self.r_tabs.removeTab(i)
+        self._r_switching = False
+        self.r_current = self.r_tabs.currentIndex()
+        if 0 <= self.r_current < len(self.r_sessions):
+            self._r_restore(self.r_current)
+
+    def _r_relabel(self):
+        if self._r_switching:
+            return
+        if 0 <= self.r_current < self.r_tabs.count():
+            self.r_tabs.setTabText(self.r_current, self._r_label(self.r_method.currentText(), self.r_url.text()))
 
     # ---------------------------------------------------------------- Match & Replace
     def _rewrite(self):
@@ -985,10 +1182,10 @@ class ToolsTab(QTabWidget):
                 self._rw_refresh()
 
     def load_request(self, method, url, headers: dict):
-        self.setCurrentIndex(3)
-        self.r_method.setCurrentText(method or "GET")
-        self.r_url.setText(url)
-        self.r_headers.setPlainText("\n".join(f"{k}: {v}" for k, v in headers.items()))
+        self._select_tool("Repeater")
+        # open each sent request in its own tab so earlier ones are never lost
+        self._r_new_session(method or "GET", url, "\n".join(f"{k}: {v}" for k, v in headers.items()))
+        self._r_relabel()
 
     def _send(self):
         url = self.r_url.text().strip()
@@ -1015,9 +1212,25 @@ class ToolsTab(QTabWidget):
         def done(ok, r):
             self.r_send.setEnabled(True)
             self.r_busy.stop()
-            self.r_resp.setHtml(_format_response(r) if ok else
-                                f"<pre style='color:#da1e28'>Error: {escape(str(r))}</pre>")
+            if ok:
+                self.r_resp.setHtml(_format_response(r))
+                self._last_body = r.get("body", "")
+            else:
+                self.r_resp.setHtml(f"<pre style='color:#da1e28'>Error: {escape(str(r))}</pre>")
+                self._last_body = ""
+            self._resp_view("raw")
+            self._r_capture()   # keep the response with its session tab
+            self._r_relabel()
         self.win.runner.run(lambda: tools.send_request(*args), done)
+
+    def _resp_view(self, key):
+        for k, b in self.r_seg.items():
+            b.setChecked(k == key)
+        if key == "preview":
+            self.r_resp_stack.setCurrentWidget(self.r_preview)
+            self.r_preview.setHtml(getattr(self, "_last_body", "") or "<p style='color:gray'>No response yet.</p>")
+        else:
+            self.r_resp_stack.setCurrentWidget(self.r_resp)
 
 
 # =================================================================== Findings
@@ -1340,13 +1553,17 @@ class SiteMapTab(QWidget):
 
 
 class SecurityPanel(QDockWidget):
+    """Grouped vertical navigation (Protection / Website Intelligence / Traffic / Testing / Findings)
+    over a stacked content area — reuses every existing tab widget, no horizontal tab overflow."""
+
     def __init__(self, win):
         super().__init__("Security", win)
         self.setObjectName("SecurityPanel")
-        self.setMinimumWidth(480)
-        self.tabs = QTabWidget()
-        self.tabs.setElideMode(Qt.TextElideMode.ElideNone)
-        self.tabs.tabBar().setUsesScrollButtons(True)
+        self.setMinimumWidth(520)
+        self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable
+                         | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+                         | QDockWidget.DockWidgetFeature.DockWidgetClosable)
+        self.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
         self.overview = OverviewTab(win)
         self.traffic = TrafficTab(win)
         self.sitemap = SiteMapTab(win)
@@ -1354,33 +1571,66 @@ class SecurityPanel(QDockWidget):
         self.tools_tab = ToolsTab(win)
         self.findings = FindingsTab(win)
         self.shields = ShieldsTab(win)
-        for w, name in ((self.shields, "Shields"), (self.overview, "Overview"), (self.traffic, "Traffic"),
-                        (self.sitemap, "Site map"), (self.recon, "Recon"), (self.tools_tab, "Tools"),
-                        (self.findings, "Findings")):
-            self.tabs.addTab(w, name)
-        self.setWidget(self.tabs)
-        self.tabs.currentChanged.connect(self._fade_tab)
+        groups = [
+            ("PROTECTION", [("Shields", self.shields)]),
+            ("INTELLIGENCE", [("Overview", self.overview), ("Site map", self.sitemap), ("Recon", self.recon)]),
+            ("TRAFFIC", [("Traffic", self.traffic)]),
+            ("TESTING", [("Tools", self.tools_tab)]),
+            ("FINDINGS", [("Findings", self.findings)]),
+        ]
+        root = QWidget()
+        h = QHBoxLayout(root)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(0)
+        self.nav = QListWidget(objectName="PanelNav")
+        self.nav.setFixedWidth(136)
+        self.nav.setFrameShape(self.nav.Shape.NoFrame)
+        self.stack = QStackedWidget()
+        self._nav_rows: dict[str, int] = {}   # name -> nav list row
+        self._page_index: dict[str, int] = {}  # name -> stack index
+        for title, items in groups:
+            head = QListWidgetItem(title)
+            head.setFlags(Qt.ItemFlag.NoItemFlags)  # non-selectable group header
+            f = head.font()
+            f.setPointSizeF(f.pointSizeF() - 1.5)
+            f.setBold(True)
+            head.setFont(f)
+            self.nav.addItem(head)
+            for name, widget in items:
+                it = QListWidgetItem("   " + name)
+                self.nav.addItem(it)
+                self._nav_rows[name] = self.nav.row(it)
+                self._page_index[name] = self.stack.addWidget(widget)
+        self.nav.currentRowChanged.connect(self._on_nav)
+        h.addWidget(self.nav)
+        h.addWidget(self.stack, 1)
+        self.setWidget(root)
+        self.show_tab("Shields")
 
-    def _fade_tab(self, idx):
-        """Quick fade-in of the newly selected tab (animation when switching panels)."""
+    def _on_nav(self, row):
+        for name, r in self._nav_rows.items():
+            if r == row:
+                self.stack.setCurrentIndex(self._page_index[name])
+                self._fade(self.stack.currentWidget())
+                return
+
+    def show_tab(self, name):
+        self.show()
+        if name in self._nav_rows:
+            self.nav.setCurrentRow(self._nav_rows[name])
+
+    def _fade(self, w):
         from PySide6.QtCore import QEasingCurve, QPropertyAnimation
         from PySide6.QtWidgets import QGraphicsOpacityEffect
-        w = self.tabs.widget(idx)
         if not w:
             return
         eff = QGraphicsOpacityEffect(w)
         w.setGraphicsEffect(eff)
         anim = QPropertyAnimation(eff, b"opacity", self)
-        anim.setDuration(160)
+        anim.setDuration(150)
         anim.setStartValue(0.0)
         anim.setEndValue(1.0)
         anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        anim.finished.connect(lambda: w.setGraphicsEffect(None))  # remove effect so repaints stay cheap
-        self._tab_anim = anim  # keep a ref so it isn't GC'd
+        anim.finished.connect(lambda: w.setGraphicsEffect(None))
+        self._nav_anim = anim
         anim.start()
-
-    def show_tab(self, name):
-        self.show()
-        for i in range(self.tabs.count()):
-            if self.tabs.tabText(i) == name:
-                self.tabs.setCurrentIndex(i)

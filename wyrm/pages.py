@@ -165,7 +165,6 @@ def render_home(ctx: dict) -> str:
     status = ("<div class='status'>"
               "<span class='pill'><span class='dot'></span>Shields on</span>"
               "<span class='pill'><span class='dot'></span>HTTPS-Only</span>"
-              f"<span class='pill'>Search: <b>{escape(ctx.get('engine_name', ''))}</b></span>"
               f"{eng_pill}</div>")
     examples = ("<div class='ex'><span class='lbl'>Try:</span>"
                 "<a href='wyrm://sec?q=CVE-2021-44228'>CVE-2021-44228</a>"

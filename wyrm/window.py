@@ -370,7 +370,7 @@ class MainWindow(QMainWindow):
         host = v.url().host() if v else ""
         off = bool(host) and not self.shields.site_enabled(host)
         self.b_shield.setToolTip(f"Shields: {n} blocked on this page" + (" (Shields are OFF for this site)" if off else ""))
-        if self.security.isVisible() and self.security.tabs.currentWidget() is self.security.shields:
+        if self.security.isVisible() and self.security.stack.currentWidget() is self.security.shields:
             self.security.shields.refresh()
 
     def on_link_hovered(self, url: str):
@@ -659,8 +659,8 @@ class MainWindow(QMainWindow):
         lbl = QLabel(title, objectName="DockTitleLabel")
         h.addWidget(lbl, 1)
         b_float = QToolButton()
-        b_float.setToolTip("Float / dock")
-        b_float.clicked.connect(lambda: dock.setFloating(not dock.isFloating()))
+        b_float.setToolTip("Detach into its own window / dock back")
+        b_float.clicked.connect(lambda: self._toggle_float(dock))
         b_close = QToolButton(objectName="DockClose")
         b_close.setToolTip("Close panel")
         b_close.clicked.connect(dock.close)
@@ -676,6 +676,16 @@ class MainWindow(QMainWindow):
             make_icon("win_close", theme.PALETTES[self.theme_name]["icon"]))
         bar.setFixedHeight(42)
         dock.setTitleBarWidget(bar)
+
+    def _toggle_float(self, dock):
+        floating = not dock.isFloating()
+        dock.setFloating(floating)
+        if floating:  # give the detached window a comfortable size and center it on the main window
+            dock.resize(760, max(640, int(self.height() * 0.8)))
+            c = self.geometry().center()
+            dock.move(c.x() - dock.width() // 2, c.y() - dock.height() // 2)
+            dock.raise_()
+            dock.activateWindow()
 
     def _setup_dock_titlebars(self):
         self._dock_titlebar(self.security, "Security")
@@ -949,6 +959,9 @@ class MainWindow(QMainWindow):
             (["Ctrl+Shift+Tab"], lambda: self.tabbar.setCurrentIndex((self.tabbar.currentIndex() - 1) % self.tabbar.count())),
             (["F12", "Ctrl+Shift+I"], lambda: self.inspect(element=False)),
             (["Ctrl+U"], lambda: self.current_view() and self.open_url("view-source:" + self.current_view().url().toString(), new_tab=True)),
+            (["Ctrl++", "Ctrl+="], lambda: self._zoom(0.1)),
+            (["Ctrl+-"], lambda: self._zoom(-0.1)),
+            (["Ctrl+0"], lambda: self._zoom(0)),
         ):
             a = QAction(self)
             a.setShortcuts([QKeySequence(k) for k in keys])
@@ -1051,6 +1064,14 @@ class MainWindow(QMainWindow):
             v.setUrl(self._failed[v])
         else:
             v.reload()
+
+    def _zoom(self, delta: float):
+        v = self.current_view()
+        if not v:
+            return
+        z = 1.0 if delta == 0 else min(3.0, max(0.3, round(v.zoomFactor() + delta, 2)))
+        v.setZoomFactor(z)
+        self.toast(f"Zoom {int(z * 100)}%", 1500)
 
     def navigate(self, text: str):
         self._record_history(text.strip())

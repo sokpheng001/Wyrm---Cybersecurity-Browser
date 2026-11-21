@@ -142,9 +142,22 @@ class TorManager:
                     pct = 0
                 log(10 + int(pct * 0.9), line.split("]", 1)[-1].strip())
         log(10, "Starting Tor…")
-        self.process = stem.process.launch_tor_with_config(config=cfg, tor_cmd=tor, init_msg_handler=on_line,
-                                                           take_ownership=True,
-                                                           timeout=None if sys.platform == "win32" else 180)
+        # On Windows tor.exe is a console app; launched from a GUI process it pops a terminal window.
+        # Patch Popen for the duration of launch to add CREATE_NO_WINDOW so nothing visible appears.
+        import subprocess
+        orig_popen = subprocess.Popen
+        if sys.platform == "win32":
+            class _HiddenPopen(subprocess.Popen):
+                def __init__(self, *a, **k):
+                    k["creationflags"] = k.get("creationflags", 0) | 0x08000000  # CREATE_NO_WINDOW
+                    super().__init__(*a, **k)
+            subprocess.Popen = _HiddenPopen
+        try:
+            self.process = stem.process.launch_tor_with_config(config=cfg, tor_cmd=tor, init_msg_handler=on_line,
+                                                               take_ownership=True,
+                                                               timeout=None if sys.platform == "win32" else 180)
+        finally:
+            subprocess.Popen = orig_popen
         # one long-lived control connection: with take_ownership, tor exits when it closes (i.e. with us)
         from stem.control import Controller
         self.controller = Controller.from_port(address="127.0.0.1", port=self.control_port)

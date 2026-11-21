@@ -112,6 +112,10 @@ LoadingBar { background: $layer; }
 
 /* ---------- panels ---------- */
 QDockWidget { color: $text; font-size: 14px; }
+QListWidget#PanelNav { background: $layer; border: none; border-right: 1px solid $border; outline: none; padding: 4px 0; }
+QListWidget#PanelNav::item { padding: 8px 10px; border: none; color: $muted; }
+QListWidget#PanelNav::item:selected { background: $hover; color: $text; border-left: 3px solid $interactive; }
+QListWidget#PanelNav::item:hover:!selected { background: $hover; color: $text; }
 #DockTitle { background: $bg; }
 #DockTitleLabel { font-size: 14px; font-weight: 600; color: $text; }
 #DockTitle QToolButton { background: transparent; border: none; border-radius: 0; }
@@ -171,6 +175,10 @@ QHeaderView::section { background: transparent; color: $muted; border: none; pad
 /* ---------- misc ---------- */
 QLabel#LinkBubble { background: $layer; color: $text; border: 1px solid $border; border-radius: 0; padding: 5px 10px; font-size: 12px; }
 QLabel#Muted { color: $muted; font-size: 12px; }
+QLabel#PaneLabel { color: $muted; font-size: 11px; font-weight: 600; }
+QPushButton#Segment { background: $layer2; color: $muted; border: none; border-radius: 0; padding: 3px 10px; font-size: 12px; }
+QPushButton#Segment:hover { background: $hover; color: $text; }
+QPushButton#Segment:checked { background: $interactive; color: #ffffff; }
 QMenu { background: $layer; border: 1px solid $border; border-radius: 0; padding: 6px; }
 QMenu::item { padding: 8px 18px; border-radius: 0; }
 QMenu::item:selected { background: $hover; }

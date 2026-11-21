@@ -52,6 +52,7 @@ class TorDialog(QDialog):
         self.resize(560, 320)
         self.setMinimumSize(420, 240)
         self.setSizeGripEnabled(True)   # resizable so long messages can be read in full
+        self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         v = QVBoxLayout(self)
         v.setContentsMargins(24, 24, 24, 24)
         title = QLabel("<span style='font-size:20px;font-weight:300'>Connecting to the Tor network</span>")

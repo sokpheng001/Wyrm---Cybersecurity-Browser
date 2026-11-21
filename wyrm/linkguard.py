@@ -35,8 +35,15 @@ RISKY_TLDS = {"zip", "mov", "xyz", "top", "tk", "ml", "ga", "cf", "gq", "click",
               "support", "icu", "cyou", "buzz", "monster", "sbs", "quest", "cfd", "lol", "bond", "beauty", "hair"}
 SHORTENERS = {"bit.ly", "tinyurl.com", "t.co", "goo.gl", "is.gd", "ow.ly", "buff.ly", "rebrand.ly", "cutt.ly", "rb.gy",
               "shorturl.at", "s.id", "t.ly", "tiny.cc", "lnkd.in", "qrco.de", "bit.do"}
-MULTI_SUFFIX = {"co.uk", "org.uk", "ac.uk", "com.au", "net.au", "co.jp", "ne.jp", "co.kr", "or.kr", "ac.kr", "go.kr",
-                "com.br", "com.cn", "com.tw", "co.in", "co.nz", "com.sg", "com.mx", "co.za", "com.tr", "com.vn"}
+# Common two-level public suffixes (so e.g. cadt.edu.kh is kept whole, not collapsed to edu.kh).
+# A pragmatic subset of the Mozilla Public Suffix List covering the most-hit ccSLDs.
+_SLD = ("com net org edu gov mil ac co or ne go re pe biz info name int")  # second-level labels…
+_CCTLD = ("kh uk au jp kr cn tw in nz sg mx br za tr vn id th il sa ph pk bd np lk ke ng gh my hk "
+          "ua ar cl pe ve ru pl ro gr es it fr nl be se no fi dk pt cz hu")  # …under these ccTLDs
+MULTI_SUFFIX = {f"{s}.{c}" for c in _CCTLD.split() for s in _SLD.split()} | {
+    "co.uk", "org.uk", "ac.uk", "gov.uk", "me.uk", "ltd.uk", "plc.uk",  # UK specials
+    "com.kh", "edu.kh", "gov.kh", "net.kh", "org.kh", "mil.kh", "per.kh",
+}
 CRED_WORDS = re.compile(r"log-?in|sign-?in|verify|verification|account|update|secure|wallet|password|passwd|banking|"
                         r"unlock|suspend|confirm|billing|invoice|recover|seed|2fa|otp", re.I)
 TRACKING_PARAMS = re.compile(r"^(utm_[a-z_]+|fbclid|gclid|gclsrc|dclid|gbraid|wbraid|msclkid|mc_eid|mc_cid|igshid|"

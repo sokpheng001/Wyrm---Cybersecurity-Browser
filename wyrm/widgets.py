@@ -1,6 +1,8 @@
 """Animated chrome widgets: top loading bar, offline banner, and a centered busy spinner."""
 from __future__ import annotations
 
+import math
+
 from PySide6.QtCore import QEasingCurve, QEvent, QRectF, Qt, QTimer, QVariantAnimation
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen
 from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QPushButton, QWidget
@@ -16,7 +18,8 @@ class BusyOverlay(QWidget):
     def __init__(self, parent: QWidget):
         super().__init__(parent)
         self._angle = 0
-        self._label = ""
+        self._phase = 0.0
+        self._label = "Loading…"
         self._timer = QTimer(self)
         self._timer.setInterval(16)  # ~60fps
         self._timer.timeout.connect(self._tick)
@@ -42,6 +45,7 @@ class BusyOverlay(QWidget):
 
     def _tick(self):
         self._angle = (self._angle + 6) % 360
+        self._phase = (self._phase + 0.05) % (2 * math.pi)
         self.update()
 
     def paintEvent(self, _e):
@@ -49,23 +53,34 @@ class BusyOverlay(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         # faint scrim so the spinner reads over any content
         scrim = self.palette().color(self.backgroundRole())
-        scrim.setAlpha(140)
+        scrim.setAlpha(150)
         p.fillRect(self.rect(), scrim)
         accent = QApplication.palette().highlight().color()  # matches blue/red mode
         cx, cy = self.width() / 2, self.height() / 2 - 10
-        r = 18
+        pulse = 0.5 + 0.5 * math.sin(self._phase)      # 0..1 pulse
+        r = 16 + 3 * pulse                              # ring gently pulses in size
+        # pulsing halo
+        halo = QColor(accent)
+        halo.setAlpha(int(40 * (1 - pulse)))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(halo)
+        p.drawEllipse(QRectF(cx - r - 8, cy - r - 8, 2 * (r + 8), 2 * (r + 8)))
+        # track + spinning arc
         track = QColor(accent)
         track.setAlpha(45)
+        p.setBrush(Qt.BrushStyle.NoBrush)
         p.setPen(QPen(track, 3))
         p.drawEllipse(QRectF(cx - r, cy - r, 2 * r, 2 * r))
-        p.setPen(QPen(accent, 3, cap=Qt.PenCapStyle.RoundCap))
+        arc = QColor(accent)
+        arc.setAlpha(int(160 + 95 * pulse))            # arc opacity pulses too
+        p.setPen(QPen(arc, 3, cap=Qt.PenCapStyle.RoundCap))
         p.drawArc(QRectF(cx - r, cy - r, 2 * r, 2 * r), -self._angle * 16, 110 * 16)
-        if self._label:
-            p.setPen(self.palette().color(self.foregroundRole()))
-            f = QFont(self.font())
-            f.setPointSizeF(f.pointSizeF() + 0.5)
-            p.setFont(f)
-            p.drawText(QRectF(0, cy + r + 8, self.width(), 24), Qt.AlignmentFlag.AlignHCenter, self._label)
+        # label
+        p.setPen(self.palette().color(self.foregroundRole()))
+        f = QFont(self.font())
+        f.setPointSizeF(f.pointSizeF() + 1)
+        p.setFont(f)
+        p.drawText(QRectF(0, cy + r + 10, self.width(), 24), Qt.AlignmentFlag.AlignHCenter, self._label or "Loading…")
         p.end()
 
 
