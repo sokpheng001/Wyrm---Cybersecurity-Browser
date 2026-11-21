@@ -1,4 +1,4 @@
-PySide6>=6.7
+PySide6>=6.10   # 6.10+: browser extensions (QWebEngineExtensionManager)
 requests>=2.31
 adblock>=0.6
 stem>=1.8

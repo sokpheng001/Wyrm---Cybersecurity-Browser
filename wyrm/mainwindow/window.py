@@ -32,6 +32,7 @@ from .browsing_data import BrowsingDataMixin
 from .tabs import TabsMixin
 from .tor import TorMixin
 from .updates import UpdatesMixin
+from .extensions import ExtensionsMixin
 from .. import shields as shields_mod, winframe
 from ..async_util import Runner
 from ..library import Library
@@ -61,6 +62,7 @@ class MainWindow(
     DownloadsMixin,
     SessionMixin,
     BrowsingDataMixin,
+    ExtensionsMixin,
     QMainWindow,
 ):
     def __init__(self, tor=None, private: bool = False):

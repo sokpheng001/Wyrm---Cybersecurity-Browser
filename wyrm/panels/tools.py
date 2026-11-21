@@ -11,7 +11,7 @@ import json
 from html import escape
 from urllib.parse import urlparse
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QStackedWidget, QTabBar, QTextBrowser, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
@@ -312,6 +312,10 @@ class ToolsTab(QWidget):
         self.r_resp_stack.addWidget(self.r_resp)
         self.r_resp_stack.addWidget(self.r_preview)
         self.r_busy = BusyOverlay(self.r_resp_stack)
+        # Preview: spinner while the HTML (and its images/CSS) renders; a timer stops it if a resource hangs
+        self._preview_timeout = QTimer(self, singleShot=True, interval=15000)
+        self._preview_timeout.timeout.connect(self._preview_done)
+        self.r_preview.loadFinished.connect(self._preview_done)
         self.r_seg = {}
 
         def resp_toggle(head):
@@ -545,6 +549,19 @@ class ToolsTab(QWidget):
             b.setChecked(k == key)
         if key == "preview":
             self.r_resp_stack.setCurrentWidget(self.r_preview)
-            self.r_preview.setHtml(getattr(self, "_last_body", "") or "<p style='color:gray'>No response yet.</p>")
+            body = getattr(self, "_last_body", "")
+            if body:
+                self._previewing = True
+                self.r_busy.start("Rendering preview…")
+                self._preview_timeout.start()
+            self.r_preview.setHtml(body or "<p style='color:gray'>No response yet.</p>")
         else:
+            self._preview_done()
             self.r_resp_stack.setCurrentWidget(self.r_resp)
+
+    def _preview_done(self, *_):
+        # only our own spinner: never hide the "Sending request…" one
+        if getattr(self, "_previewing", False):
+            self._previewing = False
+            self._preview_timeout.stop()
+            self.r_busy.stop()

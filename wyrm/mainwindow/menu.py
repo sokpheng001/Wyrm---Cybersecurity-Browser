@@ -58,6 +58,8 @@ class MenuMixin:
         hk = QKeySequence(self.HISTORY_KEYS[0]).toString(QKeySequence.SequenceFormat.NativeText)
         m.addAction(f"History   {hk}", self.open_history)
         m.addAction("Clear browsing data…", self.clear_browsing_data)
+        em = m.addMenu("Extensions")
+        em.aboutToShow.connect(lambda menu=em: self._ext_fill_menu(menu))
         m.addSeparator()
         m.addAction("Help — how to use Wyrm (F1)", self.open_help)
         m.addAction("Check for updates…", self._check_updates)

@@ -11,16 +11,19 @@ import os
 from html import escape
 
 from PySide6.QtCore import QStandardPaths
-from PySide6.QtWidgets import QMessageBox
+
+from ..ui.dialogs import ask, security_warning
 
 
 class DownloadsMixin:
     """Downloads: dangerous-file guard, hashing and VirusTotal lookup. (Mixed into MainWindow.)"""
 
     # ================================================================ downloads / lifecycle
-    RISKY_EXT = {".exe", ".msi", ".msix", ".bat", ".cmd", ".com", ".scr", ".pif", ".ps1", ".vbs", ".vbe",
-                 ".js", ".jse", ".jar", ".hta", ".cpl", ".dll", ".apk", ".dmg", ".pkg", ".deb", ".rpm",
-                 ".sh", ".run", ".reg", ".lnk", ".iso", ".img"}
+    RISKY_EXT = {".exe", ".msi", ".msix", ".msp", ".appx", ".bat", ".cmd", ".com", ".scr", ".pif", ".ps1", ".psm1",
+                 ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".jar", ".hta", ".cpl", ".dll", ".sys", ".apk",
+                 ".dmg", ".pkg", ".app", ".deb", ".rpm", ".appimage", ".sh", ".run", ".bin", ".reg", ".lnk", ".url",
+                 ".iso", ".img", ".vhd", ".vhdx", ".crx", ".xpi",
+                 ".docm", ".xlsm", ".pptm", ".dotm", ".xltm", ".xlam", ".ppam"}   # Office files with macros
 
     def _on_download(self, dl):
         from pathlib import PurePosixPath
@@ -33,34 +36,33 @@ class DownloadsMixin:
         threat = self.shields.check(url, url, "MainFrame", host) if host not in self.shields.malware_allow else None
         risky = ext in self.RISKY_EXT
         if threat in ("malware", "phishing"):
-            m = QMessageBox(self)
-            m.setIcon(QMessageBox.Icon.Critical)
-            m.setWindowTitle("Dangerous download blocked")
-            m.setText(f"<b>{escape(name)}</b> is being downloaded from <b>{escape(host)}</b>, which is on a "
-                      f"{threat} blocklist.")
-            m.setInformativeText("This file may be malware. Downloading is strongly discouraged.")
-            keep = m.addButton("Download anyway", QMessageBox.ButtonRole.DestructiveRole)
-            m.addButton("Block", QMessageBox.ButtonRole.RejectRole)
-            m.setDefaultButton(m.buttons()[-1])
-            m.exec()
-            if m.clickedButton() is not keep:
+            if not security_warning(
+                    self, "danger", "Dangerous download blocked",
+                    f"<b>{escape(name)}</b> is coming from <b>{escape(host)}</b>, a site on Wyrm's {threat} "
+                    "blocklist. Files from sites like this are often used to infect computers or steal accounts.",
+                    ["It may install malware, ransomware or spyware",
+                     "It may steal your passwords, files or banking details"],
+                    proceed="Download anyway", back="Block download"):
                 dl.cancel()
                 self.toast(f"Blocked download from {host} ({threat})")
                 return
         elif risky:
             insecure = dl.url().scheme() == "http"
-            m = QMessageBox(self)
-            m.setIcon(QMessageBox.Icon.Warning)
-            m.setWindowTitle("Keep this file?")
-            m.setText(f"<b>{escape(name)}</b> is an executable or script that can run code on your computer.")
-            m.setInformativeText(f"Source: {escape(host or url)}"
-                                 + ("<br><b>Served over plain HTTP — it could be tampered with in transit.</b>" if insecure else "")
-                                 + "<br><br>Only keep it if you trust the source. You can verify it on VirusTotal after.")
-            keep = m.addButton("Keep", QMessageBox.ButtonRole.AcceptRole)
-            m.addButton("Discard", QMessageBox.ButtonRole.RejectRole)
-            m.exec()
-            if m.clickedButton() is not keep:
+            risks = ["It can run programs and change your computer when opened",
+                     "Malware often hides in files like this, even ones that look harmless"]
+            if ext in {".docm", ".xlsm", ".pptm", ".dotm", ".xltm", ".xlam", ".ppam"}:
+                risks[0] = "It contains macros: code that runs when the document is opened"
+            if ext in {".crx", ".xpi"}:
+                risks[0] = "It's a browser extension: add extensions via ⋮ → Extensions, where Wyrm checks them"
+            if insecure:
+                risks.append("It's sent over plain HTTP, so it could have been altered on the way")
+            if not security_warning(
+                    self, "danger" if insecure else "caution", f"Keep {name}?",
+                    f"This type of file can harm your computer. Source: <b>{escape(host or url)}</b>"
+                    "<br>Only keep it if you trust this site and expected this download.",
+                    risks, proceed="Keep file", back="Discard"):
                 dl.cancel()
+                self.toast(f"Discarded {name}")
                 return
         folder = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DownloadLocation)
         dl.setDownloadDirectory(folder)
@@ -88,13 +90,9 @@ class DownloadsMixin:
         return h.hexdigest()
 
     def _offer_vt(self, name, digest):
-        m = QMessageBox(self)
-        m.setIcon(QMessageBox.Icon.Information)
-        m.setWindowTitle("Download finished")
-        m.setText(f"<b>{escape(name)}</b> downloaded.")
-        m.setInformativeText("It's an executable. Check its reputation on VirusTotal before running?")
-        vt = m.addButton("Check on VirusTotal", QMessageBox.ButtonRole.AcceptRole)
-        m.addButton("Not now", QMessageBox.ButtonRole.RejectRole)
-        m.exec()
-        if m.clickedButton() is vt:
+        ok, _ = ask(self, f"{name} downloaded",
+                    "It's a file that can run code. Check its reputation on VirusTotal before you open it? "
+                    "Only its fingerprint (SHA-256) is looked up; the file itself is not uploaded.",
+                    "Check on VirusTotal", cancel="Not now", window_title="Download finished")
+        if ok:
             self.open_url(f"https://www.virustotal.com/gui/file/{digest}", new_tab=True)

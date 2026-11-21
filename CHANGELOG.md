@@ -6,6 +6,15 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.0.3
 
+- Extensions: add Chrome extensions (Manifest V3) from the Chrome Web Store, a .zip / .crx file or a folder
+  (⋮ → Extensions); switch them on/off or remove them; never run in private or Tor windows
+- Wyrm Shield warnings before adding an extension (what it will be able to do) and before keeping files that
+  can run code (programs, scripts, installers, macro documents); the safe choice is always the default
+- Security tools: dnsx, tlsx, cdncheck, alterx and katana fixed for the latest tool versions; asnmap
+  explains that it needs a free ProjectDiscovery Cloud API key
+- Repeater: loading animation while the response Preview renders
+- Security tools: fixed "charmap codec can't decode" errors; Stop works instantly; failures say why
+- Updates are checked against the release's SHA-256 before installing; Linux now updates in place too
 - ProjectDiscovery tools now come built in: subfinder, dnsx, naabu, httpx, katana, nuclei, tlsx, asnmap,
   cdncheck, uncover, mapcidr and alterx are installed with the browser — nothing extra to set up; developer: @kwan
 - Windows installer: the security tools are optional ("Browser only"), in case your antivirus objects to them

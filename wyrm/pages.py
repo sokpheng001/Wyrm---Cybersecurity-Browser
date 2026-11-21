@@ -861,6 +861,9 @@ strip tracking parameters from links and resist browser fingerprinting.</p>
 <li><b>History</b>: ⋮ → History shows the pages you visited, by day — search it or remove entries.</li>
 <li><b>Clear browsing data</b>: ⋮ → Clear browsing data… removes history, address-bar history, cookies and cached
 files (choose which).</li>
+<li><b>Extensions</b>: ⋮ → Extensions → Manage extensions… adds Chrome extensions (Manifest V3) from the Chrome
+Web Store (paste the link), a .zip / .crx file or an unpacked folder. Switch each on or off, or remove it; an
+extension's popup opens from ⋮ → Extensions. Extensions never run in private or Tor windows.</li>
 </ul>"""),
         ("tor", "Tor windows", f"""
 <p>⋮ → <b>New Tor window</b> ({k(mod, alt, "N")}) opens a purple window that routes all traffic through the Tor

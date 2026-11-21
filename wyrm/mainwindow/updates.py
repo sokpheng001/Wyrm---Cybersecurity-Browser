@@ -90,20 +90,14 @@ class UpdatesMixin:
         self._ask_restart()
 
     def _ask_restart(self):
-        from PySide6.QtWidgets import QMessageBox
+        from ..ui.dialogs import ask
         from ..ui.update_runner import install_and_quit
         ver = (self._update_info or {}).get("version", "")
-        box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Information)
-        box.setText(f"Wyrm Browser {ver} is ready to install")
-        box.setInformativeText("Restart now to finish updating and get the latest features. Your open tabs will "
-                               "reopen.\n\nChoose Later to keep browsing — the update installs when you close "
-                               "Wyrm Browser.")
-        now = box.addButton("Restart now", QMessageBox.ButtonRole.AcceptRole)
-        box.addButton("Later", QMessageBox.ButtonRole.RejectRole)
-        box.setDefaultButton(now)
-        box.exec()
-        if box.clickedButton() is now:
+        now, _ = ask(self, f"Wyrm Browser {ver} is ready to install",
+                     "Restart now to finish updating and get the latest features. Your open tabs will reopen. "
+                     "Choose Later to keep browsing: the update installs when you close Wyrm Browser.",
+                     "Restart now", cancel="Later", window_title="Update Wyrm Browser")
+        if now:
             path, self._pending_update = self._pending_update, None
             self._save_session()  # tabs come back after the restart
             self._update_restarting()

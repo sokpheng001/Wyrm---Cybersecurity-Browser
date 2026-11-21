@@ -43,7 +43,7 @@ def _asset_for_platform(assets: list[dict]) -> dict | None:
     elif sys.platform == "darwin":
         pats = [r"\.dmg$", r"\.pkg$"]
     else:
-        pats = [r"\.appimage$", r"\.deb$", r"\.tar\.gz$"]
+        pats = [r"\.appimage$", r"\.deb$", r"linux.*\.tar\.(gz|xz)$", r"\.tar\.(gz|xz)$"]
     for pat in pats:
         for a in assets:
             if re.search(pat, a.get("name", ""), re.I):
@@ -83,6 +83,7 @@ def check(current: str, proxies=None, verify=True, build: int = 0) -> dict:
         "asset_name": asset.get("name") if asset else None,
         "asset_url": url,
         "asset_size": asset.get("size", 0) if asset else 0,
+        "asset_sha256": _expected_sha256(asset, d.get("body") or "") if asset else None,
     }
 
 
@@ -103,6 +104,36 @@ def whats_new(notes: str, limit: int = 12) -> list[str]:
         if len(out) >= limit:
             break
     return out
+
+
+def _expected_sha256(asset: dict, notes: str) -> str | None:
+    """SHA-256 the release says this installer has: GitHub's own asset digest, else the checksum list CI writes
+    into the release notes. None for old releases that have neither."""
+    dg = (asset.get("digest") or "").lower()
+    if dg.startswith("sha256:") and re.fullmatch(r"[0-9a-f]{64}", dg[7:]):
+        return dg[7:]
+    name = asset.get("name", "")
+    for m in re.finditer(r"^([0-9a-fA-F]{64})\s+\*?(\S+)\s*$", notes, re.M):
+        if m.group(2) == name:
+            return m.group(1).lower()
+    return None
+
+
+def verify_sha256(path: Path, expected: str | None) -> None:
+    """Raise (and delete the file) if a downloaded update doesn't match the release's checksum."""
+    if not expected:
+        return
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    if h.hexdigest() != expected:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        raise ValueError("The downloaded update is damaged or was altered (checksum mismatch); it was not installed.")
 
 
 def download(url: str, dest: Path, proxies=None, verify=True, progress=None) -> Path:
@@ -137,12 +168,54 @@ def run_installer(path: Path, relaunch: bool = True) -> None:
         if not install_macos(path, relaunch):
             subprocess.Popen(["open", str(path)])  # dev run / unexpected layout: let the user drag it
     else:
-        import os
-        try:
-            os.chmod(path, 0o755)
-        except OSError:
-            pass
-        subprocess.Popen(["xdg-open", str(path)])
+        if not install_linux(path, relaunch):
+            subprocess.Popen(["xdg-open", str(path)])  # not a packaged build / unexpected archive: let the user do it
+
+
+def install_linux(archive: Path, relaunch: bool = True) -> bool:
+    """In-place Linux update: unpack the downloaded Wyrm-linux archive, then a detached helper waits for Wyrm to
+    quit, runs the bundled install.sh (installs to ~/.local/opt/wyrm, menu entry, icon) and relaunches.
+    Returns False when not running as a packaged build or the archive has no install.sh."""
+    import os
+    import shlex
+    import subprocess
+    import tarfile
+    import tempfile
+    if not getattr(sys, "frozen", False):
+        return False
+    work = Path(tempfile.mkdtemp(prefix="wyrm-update-"))
+    try:
+        with tarfile.open(archive) as tf:  # .tar.gz or .tar.xz
+            try:
+                tf.extractall(work, filter="data")  # no absolute paths / .. / device files
+            except TypeError:                       # Python without extraction filters
+                for m in tf.getmembers():
+                    if m.name.startswith(("/", "..")) or ".." in Path(m.name).parts or not (m.isfile() or m.isdir()
+                                                                                          or m.issym()):
+                        raise ValueError(f"unsafe path in update archive: {m.name}")
+                tf.extractall(work)
+    except (OSError, tarfile.TarError, ValueError):
+        return False
+    inst = next(work.glob("*/install.sh"), None)
+    if inst is None:
+        return False
+    q = shlex.quote
+    script = f"""#!/bin/sh
+# Wyrm Browser updater helper (generated). Waits for the app to quit, installs the new version, relaunches.
+PID={os.getpid()}
+i=0
+while kill -0 "$PID" 2>/dev/null && [ $i -lt 120 ]; do sleep 0.5; i=$((i+1)); done
+bash {q(str(inst))} >/dev/null 2>&1 || {{ xdg-open {q(str(archive))}; exit 1; }}
+rm -rf {q(str(work))} {q(str(archive))}
+{'nohup "$HOME/.local/opt/wyrm/Wyrm" >/dev/null 2>&1 &' if relaunch else '# installed on quit: not relaunched'}
+"""
+    fd, helper = tempfile.mkstemp(prefix="wyrm-update-", suffix=".sh")
+    with os.fdopen(fd, "w") as fh:
+        fh.write(script)
+    os.chmod(helper, 0o700)
+    subprocess.Popen(["/bin/sh", helper], start_new_session=True,
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return True
 
 
 MAC_APP_NAME = "Wyrm Browser.app"

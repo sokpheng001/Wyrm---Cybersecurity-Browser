@@ -10,8 +10,9 @@ from __future__ import annotations
 import json
 import sys
 
-from PySide6.QtCore import QUrl, Qt
-from PySide6.QtWidgets import QCheckBox, QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
+from PySide6.QtCore import QUrl
+
+from ..ui.dialogs import ask
 
 
 class SessionMixin:
@@ -69,41 +70,10 @@ class SessionMixin:
             title = "Close Wyrm Browser?"
             body = f"You have {tabs} open. They'll be reopened the next time you start Wyrm Browser."
 
-        # own dialog instead of QMessageBox: that one squeezes the text into a narrow column
-        d = QDialog(self, Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
-        d.setObjectName("ConfirmDialog")
-        d.setWindowTitle("Close Wyrm Browser")
-        d.setMinimumWidth(460)
-        v = QVBoxLayout(d)
-        v.setContentsMargins(28, 24, 28, 22)
-        v.setSpacing(12)
-        head = QLabel(title)
-        head.setObjectName("DialogTitle")
-        v.addWidget(head)
-        text = QLabel(body)
-        text.setObjectName("DialogBody")
-        text.setWordWrap(True)
-        v.addWidget(text)
-        v.addSpacing(4)
-        dont = QCheckBox("Don't ask again")
-        v.addWidget(dont)
-        v.addSpacing(6)
-        row = QHBoxLayout()
-        row.setSpacing(8)
-        row.addStretch(1)
-        cancel, close_btn = QPushButton("Cancel"), QPushButton("Close")
-        close_btn.setObjectName("Primary")
-        close_btn.setDefault(True)
-        for b in (cancel, close_btn):
-            b.setMinimumWidth(110)
-        cancel.clicked.connect(d.reject)
-        close_btn.clicked.connect(d.accept)
-        row.addWidget(cancel)
-        row.addWidget(close_btn)
-        v.addLayout(row)
-        if d.exec() != QDialog.DialogCode.Accepted:
+        ok, dont = ask(self, title, body, "Close", checkbox="Don't ask again", window_title="Close Wyrm Browser")
+        if not ok:
             return False
-        if dont.isChecked():
+        if dont:
             self.settings.setValue("ui/confirm_close", False)
         return True
 

@@ -16,6 +16,7 @@ from __future__ import annotations
 import shutil
 import socket
 import subprocess
+import sys
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 
@@ -66,7 +67,9 @@ def nmap_scan(host: str, versions: bool = False, timeout: int = 300) -> list[dic
     if versions:
         cmd.insert(2, "-sV")
     cmd.append(host)
-    out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False).stdout
+    out = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                         timeout=timeout, check=False,
+                         creationflags=0x08000000 if sys.platform == "win32" else 0).stdout  # no console window
     rows = []
     for port in ET.fromstring(out).iter("port"):
         state = port.find("state")

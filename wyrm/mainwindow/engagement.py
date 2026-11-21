@@ -53,6 +53,8 @@ class EngagementMixin:
         prof.installUrlSchemeHandler(SCHEME, self.scheme_handler)
         prof.downloadRequested.connect(self._on_download)
         self.profiles[key] = prof
+        if not self.ephemeral:
+            self._ext_attach(prof)  # browser extensions (normal windows only)
         return prof
 
     def _rules_key(self) -> str:

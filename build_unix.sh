@@ -29,7 +29,7 @@ if [ "$(uname -s)" = "Darwin" ]; then
   rm -rf dist/dmg && mkdir -p dist/dmg
   cp -R "$APP" dist/dmg/
   ln -s /Applications dist/dmg/Applications
-  hdiutil create -volname "Wyrm Browser" -srcfolder dist/dmg -ov -format UDZO "dist/Wyrm-macos-$ARCH.dmg"
+  hdiutil create -volname "Wyrm Browser" -srcfolder dist/dmg -ov -format ULMO "dist/Wyrm-macos-$ARCH.dmg"  # ULMO = LZMA (macOS 10.15+), much smaller than UDZO
 else
   cp installer/wyrm.desktop dist/Wyrm/
   cp wyrm/assets/icon.png dist/Wyrm/wyrm.png

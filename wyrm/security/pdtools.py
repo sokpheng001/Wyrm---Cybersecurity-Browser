@@ -16,9 +16,13 @@ read as JSON Lines so results appear as they arrive. Nothing is downloaded at ru
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
+import tempfile
+import threading
+import time
 from pathlib import Path
 from dataclasses import dataclass, field
 
@@ -42,9 +46,9 @@ TOOLS: list[Tool] = [
     Tool("asnmap", "asnmap", "ASN / organisation → IP ranges", False, "domain",
          ["-silent", "-json", "-d", "{t}"], result_keys=("as_number", "as_name", "as_range")),
     Tool("dnsx", "dnsx", "Resolve DNS records (A/AAAA/CNAME) for a host", True, "domain",
-         ["-silent", "-json", "-a", "-aaaa", "-cname", "-resp", "-d", "{t}"], result_keys=("host", "a", "cname")),
+         ["-silent", "-json", "-a", "-aaaa", "-cname", "-resp", "-l", "{t}"], result_keys=("host", "a", "cname")),
     Tool("tlsx", "tlsx", "TLS certificate data (issuer, names, expiry)", True, "host",
-         ["-silent", "-json", "-san", "-cn", "-expired", "-self-signed", "-u", "{t}"],
+         ["-silent", "-json", "-san", "-cn", "-u", "{t}"],
          result_keys=("host", "subject_cn", "issuer_cn")),
     Tool("naabu", "naabu", "Fast port scan (top ports) of a host", True, "host",
          ["-silent", "-json", "-top-ports", "100", "-host", "{t}"], result_keys=("port", "host")),
@@ -52,18 +56,18 @@ TOOLS: list[Tool] = [
          ["-silent", "-json", "-title", "-status-code", "-tech-detect", "-web-server", "-u", "{t}"],
          result_keys=("url", "status_code", "title", "webserver")),
     Tool("katana", "katana", "Crawl a site and list its URLs", True, "url",
-         ["-silent", "-jsonl", "-d", "2", "-kf", "all", "-u", "{t}"], result_keys=("endpoint", "url")),
+         ["-silent", "-jsonl", "-d", "2", "-kf", "all", "-u", "{t}"], result_keys=("request.endpoint",)),
     Tool("nuclei", "nuclei", "Template-based vulnerability scan (safe/default templates)", True, "url",
          ["-silent", "-jsonl", "-u", "{t}"],
          result_keys=("template-id", "info.name", "matched-at", "info.severity")),
     Tool("cdncheck", "cdncheck", "Is the host behind a CDN / WAF / cloud?", True, "host",
-         ["-silent", "-json", "-resp", "-i", "{t}"], result_keys=("input", "cdn_name", "cloud_name")),
+         ["-silent", "-jsonl", "-resp", "-i", "{t}"], result_keys=("input", "ip", "cdn_name", "waf_name", "cloud_name")),
     Tool("uncover", "uncover", "Find exposed hosts via search engines (Shodan/Censys/Fofa keys)", False, "domain",
          ["-silent", "-json", "-q", "{t}"], result_keys=("ip", "port", "host")),
     Tool("mapcidr", "mapcidr", "Expand / aggregate a CIDR range into IPs", False, "cidr",
          ["-silent", "-cidr", "{t}"], result_keys=()),
     Tool("alterx", "alterx", "Generate subdomain permutation wordlist for a domain", False, "domain",
-         ["-silent", "-enrich", "-d", "{t}"], result_keys=()),
+         ["-silent", "-enrich", "-l", "{t}"], result_keys=()),
 ]
 TOOLS_BY_KEY = {t.key: t for t in TOOLS}
 
@@ -117,23 +121,42 @@ def run(tool: Tool, target: str, on_line, proxies=None, timeout: int = 600, shou
         stdin_data = target + "\n"
     cmd = [exe] + args
     count = 0
+    err = tempfile.TemporaryFile()  # stderr: kept so a failed run can say why (a pipe could fill up and block)
     try:
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE if stdin_data else subprocess.DEVNULL,
-                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                                stdout=subprocess.PIPE, stderr=err, text=True,
+                                # the tools print UTF-8; never decode with the Windows ANSI code page
+                                encoding="utf-8", errors="replace",
                                 # Windows: these are console programs; don't flash a terminal window per run
                                 creationflags=0x08000000 if sys.platform == "win32" else 0)
     except OSError as e:
+        err.close()
         raise RuntimeError(f"Could not start {tool.key}: {e}") from e
+
+    # Stop / timeout must work even while the tool prints nothing for minutes (e.g. a long nuclei scan)
+    state = {"why": None}
+    done = threading.Event()
+
+    def watch():
+        deadline = time.monotonic() + timeout
+        while not done.wait(0.4):
+            why = "stopped" if should_stop and should_stop() else "timeout" if time.monotonic() > deadline else None
+            if why:
+                state["why"] = why
+                proc.kill()
+                return
+    threading.Thread(target=watch, daemon=True).start()
     try:
         if stdin_data:
             proc.stdin.write(stdin_data)
             proc.stdin.close()
         for line in proc.stdout:
-            if should_stop and should_stop():
-                proc.kill()
-                return {"tool": tool.key, "count": count, "stopped": "stopped"}
             line = line.strip()
-            if not line:
+            if not line or state["why"]:
+                continue
+            if "API Key" in line and ("Enter" in line or "exit to abort" in line):  # waiting for a key prompt
+                state["why"] = "needs-key"
+                proc.kill()
                 continue
             obj = None
             if line.startswith("{"):
@@ -143,11 +166,34 @@ def run(tool: Tool, target: str, on_line, proxies=None, timeout: int = 600, shou
                     obj = None
             on_line(summarize(tool, obj) if obj else line, obj)
             count += 1
-        proc.wait(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        return {"tool": tool.key, "count": count, "stopped": "timeout"}
+        proc.wait()
     finally:
+        done.set()
         if proc.poll() is None:
             proc.kill()
+    if state["why"] == "needs-key":
+        err.close()
+        raise RuntimeError(f"{tool.key} needs a free ProjectDiscovery Cloud API key (cloud.projectdiscovery.io). "
+                           f"Set it once with “{tool.key} -auth” in a terminal, or the PDCP_API_KEY environment "
+                           "variable, then restart Wyrm.")
+    if state["why"]:
+        err.close()
+        return {"tool": tool.key, "count": count, "stopped": state["why"]}
+    err.seek(0)
+    tail = err.read()[-4000:].decode("utf-8", "replace")
+    err.close()
+    if proc.returncode and not count:
+        raise RuntimeError(f"{tool.key} exited with code {proc.returncode}: {_last_error(tail)}")
     return {"tool": tool.key, "count": count, "stopped": None}
+
+
+def _last_error(stderr: str) -> str:
+    """The most useful line of a tool's stderr: its last error/fatal line, else its last line. ANSI colours and
+    ProjectDiscovery's banner art are stripped."""
+    lines = [re.sub(r"\x1b\[[0-9;]*m", "", ln).strip() for ln in stderr.splitlines()]
+    art = set(" _/\\|`'.,-()<>=")
+    lines = [ln for ln in lines if ln and not set(ln) <= art]
+    for ln in reversed(lines):
+        if re.search(r"(?i)\b(err|error|fatal|ftl|could not|failed|panic)\b", ln):
+            return ln[:300]
+    return lines[-1][:300] if lines else "no error message"
