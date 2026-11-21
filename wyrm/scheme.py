@@ -23,7 +23,8 @@ SCHEME = b"wyrm"
 ASSETS = Path(__file__).parent / "assets"
 
 # Current new-tab wallpaper, in memory only and shared by every window: all pages and reloads reuse it
-# until it is BG_ROTATE_MS old.  bytes: image | None; at: time.monotonic() when its fetch started;
+# until it is BG_ROTATE_MS old (also across restarts: cached on disk).  bytes: image | None;
+# at: wall-clock time (time.time()) when its fetch started;
 # waiting: jobs parked on an in-flight fetch (None = no fetch running).
 _BG: dict = {"bytes": None, "at": 0.0, "waiting": None}
 
@@ -53,28 +54,64 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
         """Milliseconds until the current wallpaper expires (0 = expired / none yet)."""
         if not _BG["bytes"]:
             return 0
-        return max(0, int(pages.BG_ROTATE_MS - (time.monotonic() - _BG["at"]) * 1000))
+        return max(0, int(pages.BG_ROTATE_MS - (time.time() - _BG["at"]) * 1000))
+
+    def _bg_files(self):
+        d = getattr(self, "bg_cache_dir", None)
+        return (d / "wallpaper.img", d / "wallpaper.json") if d else (None, None)
+
+    def _load_bg_cache(self):
+        """After a restart: reuse the wallpaper saved on disk while it is still within its interval."""
+        img, meta = self._bg_files()
+        if _BG["bytes"] or not img or not img.is_file() or not meta.is_file():
+            return
+        try:
+            import json
+            at = float(json.loads(meta.read_text(encoding="utf-8")).get("at", 0))
+            if time.time() - at < pages.BG_ROTATE_MS / 1000:
+                _BG["bytes"], _BG["at"] = img.read_bytes(), at
+        except (OSError, ValueError):
+            pass
+
+    def _save_bg_cache(self):
+        img, meta = self._bg_files()
+        if not img or not _BG["bytes"]:
+            return
+        try:
+            import json
+            img.parent.mkdir(parents=True, exist_ok=True)
+            img.write_bytes(_BG["bytes"])
+            meta.write_text(json.dumps({"at": _BG["at"]}), encoding="utf-8")
+        except OSError:
+            pass
+
+    def bg_version(self) -> int:
+        """Stable id of the current wallpaper (its fetch time) → stable URL the page can cache."""
+        self._load_bg_cache()
+        return int(_BG["at"]) if _BG["bytes"] else 0
 
     def _serve_bg(self, job):
+        self._load_bg_cache()
         # a few seconds of slack so a page timer that fires right at expiry gets the new image
         if _BG["bytes"] and self.bg_ms_left() > 5000:
-            self._reply(job, _BG["bytes"], b"image/jpeg")
+            self._reply(job, _BG["bytes"], b"image/jpeg", cache=True)
             return
         if _BG["waiting"] is not None:  # another tab already started fetching the next one
             _BG["waiting"].append(job)
             return
         _BG["waiting"] = [job]
-        started = time.monotonic()  # age counts from the request, so page timers line up with expiry
+        started = time.time()  # age counts from the request, so page timers line up with expiry
 
         def done(ok, res):
             waiting = _BG["waiting"] or []
             _BG["waiting"] = None
             if ok and res:
                 _BG["bytes"], _BG["at"] = res, started
+                self._save_bg_cache()
             # fetch failed: keep showing the previous wallpaper if there is one
             for j in waiting:
                 if _BG["bytes"]:
-                    self._reply(j, _BG["bytes"], b"image/jpeg")
+                    self._reply(j, _BG["bytes"], b"image/jpeg", cache=True)
                 elif shiboken6.isValid(j):
                     j.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
         self.runner.run(self._fetch_bg, done)
@@ -106,15 +143,23 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
                 self.actions("do:" + (params.get("a") or [""])[0], {k: v[0] for k, v in params.items()})
             a = (params.get("a") or [""])[0]
             # background choices return with the Customize panel still open
-            job.redirect(QUrl("wyrm://home#customize" if a.startswith("bg") else "wyrm://home"))
+            job.redirect(QUrl("wyrm://home#customize" if a.startswith("bg") else
+                              "wyrm://history" if a.startswith("hist") else "wyrm://home"))
         elif host == "bgimg":  # the user's own start-page background (Customize → Upload)
             img = self.custom_bg() if getattr(self, "custom_bg", None) else None
             if img:
-                self._reply(job, img[0], img[1])
+                self._reply(job, img[0], img[1], cache=True)
             else:
                 job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
         elif host == "bg":  # random new-tab background, held in memory (never saved to disk), changes every 30 min
             self._serve_bg(job)
+        elif host == "history":  # browsing history page
+            hp = getattr(self, "history_page", None)
+            self._reply(job, hp(q) if hp else pages.render_message("History", "History is not available here."))
+        elif host == "frametest":  # clickjacking proof-of-concept: frames the target locally
+            target = (params.get("u") or [""])[0]
+            from urllib.parse import unquote
+            self._reply(job, pages.render_frametest(unquote(target)))
         elif host == "help":  # built-in user guide
             self._reply(job, pages.render_help(sys.platform == "darwin"))
         elif host == "assets":  # bundled fonts for internal pages
@@ -149,6 +194,7 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
 
     def _home_ctx(self) -> dict:
         ctx = dict(self.home_context())
+        ctx["bg_ver"] = self.bg_version()  # also loads a still-valid wallpaper from disk after a restart
         ctx["bg_ms_left"] = self.bg_ms_left()
         return ctx
 
@@ -178,14 +224,15 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
         return None
 
     @staticmethod
-    def _reply(job, content, ctype: bytes = b"text/html", cors: bool = False):
+    def _reply(job, content, ctype: bytes = b"text/html", cors: bool = False, cache: bool = False):
         if not shiboken6.isValid(job):  # user navigated away while we were fetching
             return
         buf = QBuffer(job)
         buf.setData(QByteArray(content.encode("utf-8") if isinstance(content, str) else content))
         buf.open(QIODevice.OpenModeFlag.ReadOnly)
         try:  # wyrm:// pages are dynamic (theme/mode/feed) — never cache them
-            headers = {QByteArray(b"Cache-Control"): QByteArray(b"no-store")}
+            # images under a versioned URL may be cached (going back Home shows them instantly)
+            headers = {QByteArray(b"Cache-Control"): QByteArray(b"private, max-age=86400" if cache else b"no-store")}
             if cors:  # static bundled assets (fonts) only — never dynamic pages
                 headers[QByteArray(b"Access-Control-Allow-Origin")] = QByteArray(b"*")
             job.setAdditionalResponseHeaders(headers)

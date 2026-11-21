@@ -142,6 +142,14 @@ class HomeMixin:
                     self.settings.setValue("home/bg_interval_min", mins)
                     self._bg_interval()
                     QTimer.singleShot(0, self._refresh_home_pages)
+            elif do == "hist-del" and self.history_db is not None:
+                try:
+                    self.history_db.delete(int(params.get("id", "0")))
+                except ValueError:
+                    pass
+            elif do == "hist-clear" and self.history_db is not None:
+                self.history_db.clear()
+                self.toast("Browsing history cleared")
             elif do == "bg-upload" and not self.tor:
                 QTimer.singleShot(0, self._pick_background_image)  # don't block the scheme request on a dialog
             return None

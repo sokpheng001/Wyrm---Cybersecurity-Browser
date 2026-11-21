@@ -12,6 +12,7 @@ from .panels.findings import FindingsTab  # noqa: F401
 from .panels.intruder import IntruderTab  # noqa: F401
 from .panels.overview import OverviewTab  # noqa: F401
 from .panels.panel import SecurityPanel  # noqa: F401
+from .panels.scanner import ScannerTab  # noqa: F401
 from .panels.recon import ReconTab  # noqa: F401
 from .panels.shields import ShieldsTab  # noqa: F401
 from .panels.sitemap import SiteMapTab  # noqa: F401

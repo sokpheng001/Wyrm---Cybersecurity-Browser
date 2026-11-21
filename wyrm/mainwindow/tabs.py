@@ -247,6 +247,8 @@ class TabsMixin:
             view.popup = False
             self._check_popup(view)
         if ok:
+            if self.history_db is not None and view.url().scheme() in ("http", "https"):
+                self.history_db.record(view.url().toString(), view.title())
             self._apply_cosmetics(view)
             QTimer.singleShot(4000, lambda v=view: self._index_of(v) >= 0 and self._apply_cosmetics(v))  # late content
         if view is self.current_view():

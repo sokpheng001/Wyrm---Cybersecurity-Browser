@@ -4,6 +4,16 @@ What's new in each version of Wyrm Browser. The release workflow publishes the s
 version (from `wyrm/__init__.py`) as the release description and the in-app **Update** tooltip, so keep the
 most important points first. Each build of a version adds an "Also in this build" list automatically.
 
+## v0.0.2
+
+- History: every page you visit, by day, with search and remove (⌘Y / Ctrl+H) — developer: @kwan
+- Clear browsing data: history, address-bar history, cookies and cached files in one place — developer: @kwan
+- Scanner: port scan of the top 100 TCP ports (uses nmap if installed) for in-scope targets — developer: @kwan
+- Scanner: CORS misconfiguration test, after Chen et al., USENIX Security 2018 — developer: @kwan
+- Scanner: clickjacking test and framing proof-of-concept, after Huang et al., USENIX Security 2012 — developer: @kwan
+- Start-page wallpaper is cached: going back Home or restarting shows it instantly, no re-download
+- Recon: ProjectDiscovery Chaos search (~800 public bug-bounty programs) and private windows (from v0.0.1)
+
 ## v0.0.1
 
 - Recon: ProjectDiscovery Chaos — search ~800 public bug-bounty programs and load their subdomains

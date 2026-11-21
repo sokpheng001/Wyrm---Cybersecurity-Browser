@@ -28,6 +28,7 @@ from .papers import PapersMixin
 from .privacy import PrivacyMixin
 from .search import SearchMixin
 from .session import SessionMixin
+from .browsing_data import BrowsingDataMixin
 from .tabs import TabsMixin
 from .tor import TorMixin
 from .updates import UpdatesMixin
@@ -44,7 +45,22 @@ from ..ui.common import APP, HOME
 
 
 class MainWindow(
-    TabsMixin, SearchMixin, PrivacyMixin, HomeMixin, LayoutMixin, EngagementMixin, AppearanceMixin, DocksMixin, MenuMixin, UpdatesMixin, TorMixin, ChromeMixin, PapersMixin, DownloadsMixin, SessionMixin,
+    TabsMixin,
+    SearchMixin,
+    PrivacyMixin,
+    HomeMixin,
+    LayoutMixin,
+    EngagementMixin,
+    AppearanceMixin,
+    DocksMixin,
+    MenuMixin,
+    UpdatesMixin,
+    TorMixin,
+    ChromeMixin,
+    PapersMixin,
+    DownloadsMixin,
+    SessionMixin,
+    BrowsingDataMixin,
     QMainWindow,
 ):
     def __init__(self, tor=None, private: bool = False):
@@ -52,6 +68,7 @@ class MainWindow(
         self.tor = tor  # TorManager when this is a Tor window
         self.private = bool(private) and not tor  # private window: in-memory profile, nothing saved
         self.ephemeral = bool(tor) or self.private  # Tor and private windows never write browsing data
+        self.history_db = None  # browsing history (normal windows only; created once data_dir exists)
         self._set_title(APP + (" (Tor)" if tor else " (Private)" if private else ""))
         self.resize(1440, 900)
         if winframe.IS_WINDOWS:
@@ -78,6 +95,9 @@ class MainWindow(
 
         self.data_dir = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))
         self.data_dir.mkdir(parents=True, exist_ok=True)
+        if not self.ephemeral:
+            from ..history import History
+            self.history_db = History(str(self.data_dir / "history.db"))
         self.library = Library(str(self.data_dir / "library.db"))
         self.store = Store(str(self.data_dir / "hidden.db"))
         self.runner = Runner()
@@ -97,6 +117,8 @@ class MainWindow(
         self.scheme_handler = HiddenSchemeHandler(self.library, self.runner, self.default_engine, self.home_context, self)
         self.scheme_handler.actions = self.scheme_action
         self.scheme_handler.custom_bg = self._custom_bg
+        self.scheme_handler.history_page = self._history_page
+        self.scheme_handler.bg_cache_dir = self.data_dir / "cache"  # current wallpaper survives restarts
 
         # docks: security (main) + research (tabbed behind it)
         self.security = SecurityPanel(self)

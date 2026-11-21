@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDockWidget, QHBoxLayout, QLabel, QPushButton, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
 
 from .dom import DomTab
+from .scanner import ScannerTab
 from .findings import FindingsTab
 from .intruder import IntruderTab
 from .overview import OverviewTab
@@ -42,11 +43,13 @@ class SecurityPanel(QDockWidget):
         self.shields = ShieldsTab(win)
         self.intruder = IntruderTab(win)
         self.dom = DomTab(win)
+        self.scanner = ScannerTab(win)
         groups = [
             ("PROTECTION", [("Shields", self.shields)]),
             ("INTELLIGENCE", [("Overview", self.overview), ("Site map", self.sitemap), ("Recon", self.recon)]),
             ("TRAFFIC", [("Traffic", self.traffic)]),
-            ("TESTING", [("Intruder", self.intruder), ("DOM Analysis", self.dom), ("Tools", self.tools_tab)]),
+            ("TESTING", [("Scanner", self.scanner), ("Intruder", self.intruder), ("DOM Analysis", self.dom),
+                         ("Tools", self.tools_tab)]),
             ("FINDINGS", [("Findings", self.findings)]),
         ]
         root = QWidget()

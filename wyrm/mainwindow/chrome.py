@@ -271,11 +271,12 @@ class ChromeMixin:
             (["F11"], self._toggle_fullscreen),
             (["F1"], self.open_help),
             (["Ctrl+Shift+N"], self.open_private_window),
+            (self.HISTORY_KEYS, self.open_history),
             (["Escape"], self._stop_current),
             (["Ctrl+F", "F3"], self._show_find),
             (["Ctrl+G"], lambda: self._find_step(True)),
             (["Ctrl+P"], self._print_page),
-            (["Ctrl+Shift+Delete"], self._clear_history_confirm),
+            (["Ctrl+Shift+Delete"], self.clear_browsing_data),
         ):
             a = QAction(self)
             a.setShortcuts([QKeySequence(k) for k in keys])

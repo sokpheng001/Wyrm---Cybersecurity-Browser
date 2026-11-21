@@ -219,7 +219,8 @@ details.cust[open]::before{content:"";position:fixed;inset:0;background:rgba(0,0
 body.hasbg{background:#0b0b10}
 body.hasbg::before{content:"";position:fixed;inset:0;z-index:-2;background-size:cover;background-position:center;
   background-attachment:fixed;background-image:var(--wyrm-bg);opacity:0;transition:opacity 1.1s ease}
-body.hasbg.bg-ready::before{opacity:1}  /* fade in once the image has loaded: no pop / blink */
+body.hasbg.bg-ready::before{opacity:1}
+body.hasbg.bg-instant::before{transition:none}  /* already cached (back to Home): show at once, no fade */  /* fade in once the image has loaded: no pop / blink */
 /* next wallpaper: loaded off-screen, then cross-faded over the current one */
 #bgnext{position:fixed;inset:0;z-index:-2;background-size:cover;background-position:center;opacity:0;
   transition:opacity 1.6s ease;pointer-events:none}
@@ -401,7 +402,8 @@ def render_home(ctx: dict) -> str:
         html = _page("New tab", body, css, "home").replace("</main>", "</main>" + panel + BG_FADE_JS, 1)
         return html.replace("<body>", f"<body class='{cls}'>", 1) if cls else html
     if bmode == "random":  # 4K tech/hacker wallpaper via wyrm://bg; same image for the chosen interval
-        url = f"wyrm://bg?r={secrets.token_hex(6)}"
+        ver = ctx.get("bg_ver") or 0  # same wallpaper -> same URL -> cached, no re-download when going back Home
+        url = f"wyrm://bg?v={ver}" if ver else f"wyrm://bg?r={secrets.token_hex(6)}"
         # switch when the current wallpaper expires (time left comes from the handler), then every interval
         left = int(ctx.get("bg_ms_left") or BG_ROTATE_MS) + 1000  # BG_ROTATE_MS = the user's interval
         # soft change: preload the next wallpaper, cross-fade it in, then make it the base layer
@@ -425,9 +427,10 @@ def render_home(ctx: dict) -> str:
 BG_FADE_JS = ("<script>(function(){var b=document.body;if(!b.classList.contains('hasbg'))return;"
               "var v=getComputedStyle(document.documentElement).getPropertyValue('--wyrm-bg'),"
               "m=/url\\(['\"]?([^'\")]+)['\"]?\\)/.exec(v);"
-              "function ready(){b.classList.add('bg-ready');}"
-              "if(!m){requestAnimationFrame(ready);return;}"
-              "var im=new Image();im.onload=im.onerror=ready;im.src=m[1];})();</script>")
+              "var t0=performance.now();"
+              "function ready(){if(performance.now()-t0<150)b.classList.add('bg-instant');b.classList.add('bg-ready');}"
+              "if(!m){b.classList.add('bg-instant');requestAnimationFrame(ready);return;}"
+              "var im=new Image();im.onload=im.onerror=ready;im.src=m[1];})();</script>")  # cached image: no fade
 
 
 def _customize_panel(bgc: dict) -> str:
@@ -855,6 +858,9 @@ strip tracking parameters from links and resist browser fingerprinting.</p>
 <li><b>Encrypted DNS</b> (DNS-over-HTTPS) hides which sites you look up — choose the provider in the Shields page.</li>
 <li><b>Smart Link Check</b> pauses suspicious links and shows why. Right-click any link → <i>Check this link</i>.</li>
 <li>Right-click a link → <i>Copy clean link</i> copies it without tracking parameters.</li>
+<li><b>History</b>: ⋮ → History shows the pages you visited, by day — search it or remove entries.</li>
+<li><b>Clear browsing data</b>: ⋮ → Clear browsing data… removes history, address-bar history, cookies and cached
+files (choose which).</li>
 </ul>"""),
         ("tor", "Tor windows", f"""
 <p>⋮ → <b>New Tor window</b> ({k(mod, alt, "N")}) opens a purple window that routes all traffic through the Tor
@@ -868,6 +874,7 @@ network. Nothing from it is saved to disk. The first time, Wyrm downloads Tor fr
 <tr><td><b>Site map</b></td><td>The hosts and paths seen while you browse.</td></tr>
 <tr><td><b>Recon</b></td><td>Subdomains (certificate logs), archived URLs (Wayback Machine), robots.txt, sitemap and security.txt, and <b>ProjectDiscovery Chaos</b>: search ~800 public bug-bounty programs by name or domain, then double-click a program to load its published subdomains.</td></tr>
 <tr><td><b>Traffic</b></td><td>Every request the page makes, filterable. Can route through Burp Suite or ZAP (Settings → Network).</td></tr>
+<tr><td><b>Scanner</b></td><td>Port scan (top 100 TCP ports; uses nmap if installed), CORS misconfiguration test (Chen et al., USENIX Security 2018) and clickjacking test with a framing proof-of-concept (Huang et al., USENIX Security 2012). Port scan and CORS test only run on hosts in your engagement scope.</td></tr>
 <tr><td><b>Intruder</b></td><td>Mark positions with <code>§…§</code> and try one payload per line — in-scope targets only, with a rate limit and a request budget.</td></tr>
 <tr><td><b>DOM Analysis</b></td><td>Passive scan of the page's scripts for DOM-XSS sources and sinks. Read-only — never runs payloads.</td></tr>
 <tr><td><b>Tools</b></td><td>Decoder, JWT, Hash, Repeater, Match &amp; Replace, Comparer, Sequencer and AI Triage.</td></tr>
@@ -902,7 +909,9 @@ emphasis and accent color. ⋮ → <b>Theme</b> chooses Light, Dark or Follow sy
 <tr><td>{k("F12")} · {k(mod, "U")}</td><td>Developer tools · view source</td></tr>
 <tr><td>{k("F11")}</td><td>Full screen</td></tr>
 <tr><td>{k("F1")}</td><td>This guide</td></tr>
-<tr><td>{k(mod, sh, "Delete")}</td><td>Clear search &amp; address history</td></tr>
+<tr><td>{k(mod, "Y") if mac else k(mod, "H")}</td><td>History</td></tr>
+<tr><td>{k(mod, sh, "N")}</td><td>New private window</td></tr>
+<tr><td>{k(mod, sh, "Delete")}</td><td>Clear browsing data</td></tr>
 </table>"""),
         ("trouble", "Install, updates &amp; troubleshooting", """
 <ul>
@@ -926,3 +935,80 @@ or go to System Settings → Privacy &amp; Security → <b>Open Anyway</b>.</li>
                "<p class='top'>Wyrm is made by <b>ByKh R&amp;D Group</b> — <a href='https://bykh.org'>bykh.org</a>"
                " · with <b>HackPi</b>, Ethical Hackers Group.</p></div>")
     return _page("How to use Wyrm", content, HELP_CSS, "help")
+
+
+# ====================================================================== history (wyrm://history) — developer: @kwan
+HISTORY_CSS = """
+main.hist{max-width:900px}
+.hist h1{font-size:28px;font-weight:300;margin:0 0 16px}
+.hist form{margin:0 0 20px}
+.hist .bar{display:flex;gap:10px;align-items:center;justify-content:space-between;margin:0 0 8px}
+.hist .bar a.clear{font-size:13px;color:var(--error)}
+.hist h2{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.3px;margin:22px 0 6px;text-transform:uppercase}
+.hist .row{display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--line)}
+.hist .row:hover{background:var(--hover)}
+.hist .t{font-size:12px;color:var(--muted);width:56px;flex:none;font-family:'IBM Plex Mono',monospace}
+.hist .ti{flex:1;min-width:0}
+.hist .ti a{display:block;font-size:14px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hist .ti .u{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hist a.del{font-size:12px;color:var(--muted);padding:4px 8px}
+.hist a.del:hover{color:var(--error);text-decoration:none;background:var(--layer2)}
+.hist .empty{color:var(--muted);padding:40px 0;text-align:center}
+@media (max-width:640px){.hist .t{display:none}}
+"""
+
+
+def render_history(entries: list[dict], query: str = "", private: bool = False) -> str:
+    from datetime import date, datetime, timedelta
+    head = (f"<h1>History</h1><form action='wyrm://history' method='get'><input type='text' name='q' "
+            f"value='{escape(query, quote=True)}' placeholder='Search history' autofocus></form>")
+    if private:
+        return _page("History", head.replace("autofocus", "disabled") +
+                     "<p class='empty'>Private and Tor windows don't keep history.</p>", HISTORY_CSS, "hist")
+    if not entries:
+        msg = f"No history matches “{escape(query)}”." if query else "Pages you visit will appear here."
+        return _page("History", head + f"<p class='empty'>{msg}</p>", HISTORY_CSS, "hist")
+    today = date.today()
+    out, last = [], None
+    for e in entries:
+        dt = datetime.fromtimestamp(e["ts"])
+        d = dt.date()
+        if d != last:
+            label = ("Today" if d == today else "Yesterday" if d == today - timedelta(days=1)
+                     else dt.strftime("%A, %d %B %Y"))
+            out.append(f"<h2>{label}</h2>")
+            last = d
+        title = e["title"] or e["url"]
+        out.append(f"<div class='row'><span class='t'>{dt.strftime('%H:%M')}</span><div class='ti'>"
+                   f"<a href='{escape(e['url'], quote=True)}' title='{escape(title, quote=True)}'>{escape(title)}</a>"
+                   f"<div class='u'>{escape(e['url'])}</div></div>"
+                   f"<a class='del' href='wyrm://do?a=hist-del&amp;id={int(e['id'])}' title='Remove from history'>"
+                   "Remove</a></div>")
+    bar = (f"<div class='bar'><span class='muted'>{len(entries)} page(s){' matching' if query else ''}</span>"
+           "<a class='clear' href='wyrm://do?a=hist-clear' onclick=\"return confirm('Clear all browsing history?')\">"
+           "Clear all history</a></div>")
+    return _page("History", head + bar + "".join(out), HISTORY_CSS, "hist")
+
+
+# ====================================================================== clickjacking proof-of-concept (wyrm://frametest)
+def render_frametest(url: str) -> str:
+    """Frames the target the way an attacker page would (after Huang et al., USENIX Security 2012). If the
+    site is protected, the frame stays empty / refuses to load."""
+    safe = escape(url, quote=True) if url.startswith(("http://", "https://")) else ""
+    css = """
+main.ft{max-width:1100px}
+.ft h1{font-size:24px;font-weight:300;margin:0 0 6px}
+.ft p{color:var(--muted);font-size:13px;margin:0 0 14px;line-height:1.5}
+.ft .stage{position:relative;height:70vh;border:2px dashed var(--error);background:var(--layer)}
+.ft iframe{position:absolute;inset:0;width:100%;height:100%;border:0;opacity:.55;background:#fff}
+.ft .decoy{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);pointer-events:none;z-index:2;
+  background:var(--error);color:#fff;font-weight:600;padding:14px 26px;font-size:16px;opacity:.85}
+"""
+    body = ("<h1>Clickjacking proof-of-concept</h1><p>This local page frames the target semi-transparently under a "
+            "decoy button, like an attacker's page would. <b>If you can see and use the site below, it can be "
+            "framed (vulnerable).</b> If the frame stays blank or shows an error, it is protected. "
+            "Method: Huang et al., <i>Clickjacking: Attacks and Defenses</i>, USENIX Security 2012.</p>"
+            + (f"<div class='stage'><iframe src='{safe}'></iframe><div class='decoy'>Click here to win!</div></div>"
+               if safe else "<p>No valid http(s) target.</p>"))
+    return _page("Clickjacking test", body, css, "ft")
+

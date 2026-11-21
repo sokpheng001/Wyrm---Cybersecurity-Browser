@@ -5,7 +5,7 @@ Chromium engine, built-in ad/malware/phishing protection, Tor windows, anti-fing
 panel of tools for **authorized** web security testing.
 
 Built by **[ByKh R&D Group](https://bykh.org)** and **HackPi — Ethical Hackers Group** · Website: [bykh.org](https://bykh.org)
-Copyright © 2023–present ByKh R&D Group · Version 0.0.1
+Copyright © 2023–present ByKh R&D Group · Version 0.0.2
 
 ### History
 
@@ -118,7 +118,9 @@ rm -rf ~/.local/opt/hiddenbrowser ~/.local/bin/Wyrm ~/.local/share/applications/
 - Chromium engine, tabs in a custom title bar, downloads, DevTools (`F12` / `Ctrl+Shift+I`), view-source (`Ctrl+U`)
 - **Address bar** understands URLs, plain searches, bangs (`!g !ddg !cve !edb !shodan !crt !h1 !r`), and
   identifiers — type a `CVE-…`, `CWE-…` or `T####` and it goes straight to the right place
-- **History autocomplete** with one-click **Clear history** (⋮ menu)
+- **History** page (⋮ → History, `⌘Y` / `Ctrl+H`): visited pages by day, search, remove; address-bar autocomplete
+- **Clear browsing data** (⋮ menu, `Ctrl+Shift+Delete`): history, address-bar history, cookies, cached files
+  (history, clearing and the Scanner below: developer @kwan)
 - **Light / Dark / Follow-system** themes
 - **Customize the start page background** (bottom-right **Customize** button): rotating cybersecurity
   wallpapers (change every 5 min … daily — your choice), color themes, your own image, or none
@@ -144,6 +146,9 @@ rm -rf ~/.local/opt/hiddenbrowser ~/.local/bin/Wyrm ~/.local/share/applications/
 ### Test (authorized) — the 🛡 Security panel
 - **Engagements**: per-target scope with isolated sessions and an authorization gate; IN/OUT-of-scope badge
 - **Shields / Overview / Traffic / Site map / Recon / Tools / Findings** tabs
+- **Scanner** (developer: @kwan): port scan (top 100 TCP; nmap if installed, otherwise built-in),
+  **CORS misconfiguration test** (after Chen et al., USENIX Security 2018) and **clickjacking test** with a
+  framing proof-of-concept (after Huang et al., USENIX Security 2012) — active checks only on in-scope hosts
 - **Overview**: passive security grade (headers, CSP, TLS, cookies, tech + CVE lookup, JS secrets/endpoints)
 - **Traffic**: every request, filterable, with **per-site focus**; route through **Burp/ZAP** (Settings → Network)
 - **Site map**: host/path tree built from observed traffic
