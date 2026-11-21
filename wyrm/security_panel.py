@@ -2245,13 +2245,13 @@ class SecurityPanel(QDockWidget):
         self.nav.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         navbody = QWidget(objectName="NavBody")
         nb = QVBoxLayout(navbody)
-        nb.setContentsMargins(0, 8, 0, 12)
+        nb.setContentsMargins(0, 18, 0, 12)  # breathing room between the fixed header and the first caption
         nb.setSpacing(2)
         self.stack = QStackedWidget()
         self._nav_buttons: dict[str, tuple] = {}   # name -> (button, stack index)
         for gi, (title, items) in enumerate(groups):
             cap = QLabel(title, objectName="NavGroup")
-            cap.setContentsMargins(16, 16 if gi else 6, 12, 4)  # space above each group, tighter for the first
+            cap.setContentsMargins(16, 16 if gi else 10, 12, 4)  # space above each group (header gap handled by NavBody margin)
             nb.addWidget(cap)
             for name, widget in items:
                 btn = QPushButton(name, objectName="NavItem")
