@@ -153,6 +153,7 @@ body.hasbg .ex a{background:rgba(255,255,255,.82);color:#161616}
 :root[data-theme=dark] body.hasbg .ex a{background:rgba(255,255,255,.12);color:#f4f4f4}
 body.hasbg .credit b,body.hasbg .modeline b{color:#ffffff}
 body.hasbg .foot{color:#e0e0e0}
+body.hasbg .feed h2{color:#f4f4f4;text-shadow:0 1px 8px rgba(0,0,0,.6)}
 """
 
 # Tor window start page: purple field + a faint onion watermark, drawn with inline SVG (no network).
