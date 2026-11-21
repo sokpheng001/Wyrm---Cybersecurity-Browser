@@ -60,7 +60,7 @@ def fetch_lists(cache: Path) -> dict[str, str]:
         for name, url in items:
             f = cache / f"{cat}-{name.replace(' ', '_')}.txt"
             try:
-                r = requests.get(url, timeout=60, headers={"User-Agent": "HiddenBrowser/1.0 shields"})
+                r = requests.get(url, timeout=60, headers={"User-Agent": "Wyrm/1.0 shields"})
                 r.raise_for_status()
                 f.write_text(r.text, encoding="utf-8")
             except requests.RequestException:

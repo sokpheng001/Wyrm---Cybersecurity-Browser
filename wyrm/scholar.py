@@ -22,7 +22,7 @@ from urllib.parse import unquote
 
 import requests
 
-HEADERS = {"User-Agent": "HiddenBrowser/0.1 (research browser prototype)"}
+HEADERS = {"User-Agent": "Wyrm/0.1 (research browser prototype)"}
 S2 = "https://api.semanticscholar.org/graph/v1"
 S2_FIELDS = "title,authors,year,venue,abstract,tldr,citationCount,referenceCount,externalIds,url,openAccessPdf"
 ARXIV_API = "https://export.arxiv.org/api/query"

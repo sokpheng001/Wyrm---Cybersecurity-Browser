@@ -24,7 +24,7 @@ VersionInfoDescription={#AppName} Setup
 VersionInfoCopyright=Copyright (c) 2023-{#GetDateTimeString('yyyy', '', '')} {#AppPublisher}
 VersionInfoProductName={#AppName}
 VersionInfoProductVersion={#AppVersion}
-DefaultDirName={autopf}\HackPi\Hidden Browser
+DefaultDirName={autopf}\HackPi\Wyrm Browser
 DefaultGroupName=HackPi
 DisableProgramGroupPage=yes
 ; install per-user without admin rights by default; the user can choose all-users in the dialog

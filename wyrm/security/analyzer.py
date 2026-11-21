@@ -20,7 +20,7 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 
-UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) HiddenBrowser/0.2"
+UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Wyrm/0.2"
 TIMEOUT = 12
 SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 

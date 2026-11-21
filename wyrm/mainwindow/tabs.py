@@ -234,6 +234,11 @@ class TabsMixin:
         if online:
             QTimer.singleShot(800, self._retry_failed)
             if not was:
+                # The start page was drawn without news while offline. Show the headlines we already
+                # have right away: _news_ready only redraws when they change, and the next fetch
+                # usually brings the same ones, so without this they stay hidden until you navigate.
+                if self._news:
+                    self._refresh_home_pages()
                 QTimer.singleShot(1500, self._fetch_news)  # back online: get fresh headlines
         elif was and self._news:
             self._refresh_home_pages()  # offline: hide the news section

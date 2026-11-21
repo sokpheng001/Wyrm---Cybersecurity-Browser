@@ -108,8 +108,8 @@ sudo apt install libegl1 libxkbcommon-x11-0 libxcb-cursor0 libnss3 libxcomposite
 **Uninstall:**
 
 ```bash
-rm -rf ~/.local/opt/hiddenbrowser ~/.local/bin/Wyrm ~/.local/share/applications/hiddenbrowser.desktop \
-       ~/.local/share/icons/hicolor/512x512/apps/hiddenbrowser.png
+rm -rf ~/.local/opt/wyrm ~/.local/bin/Wyrm ~/.local/share/applications/wyrm.desktop \
+       ~/.local/share/icons/hicolor/512x512/apps/wyrm.png
 ```
 
 ## What it does

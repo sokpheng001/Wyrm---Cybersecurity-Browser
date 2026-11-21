@@ -485,7 +485,7 @@ class ToolsTab(QWidget):
 
     def _rw_add(self):
         from ..security.rewrite import Rule
-        self.win.rules.rules.append(Rule(True, "New rule", "*", "User-Agent", "", "HiddenBrowser/1.0"))
+        self.win.rules.rules.append(Rule(True, "New rule", "*", "User-Agent", "", "Wyrm/1.0"))
         self.win.save_rules()
         self._rw_refresh()
 

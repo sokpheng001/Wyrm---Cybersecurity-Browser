@@ -23,7 +23,7 @@ from urllib.parse import quote_plus
 
 import requests
 
-UA = {"User-Agent": "HiddenBrowser/0.3 (HackPi security search)"}
+UA = {"User-Agent": "Wyrm/0.3 (HackPi security search)"}
 NVD = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 EPSS_URL = "https://api.first.org/data/v1/epss"

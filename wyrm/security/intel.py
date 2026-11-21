@@ -17,7 +17,7 @@ import xml.etree.ElementTree as ET
 
 import requests
 
-UA = {"User-Agent": "HiddenBrowser/0.2 (security testing browser)"}
+UA = {"User-Agent": "Wyrm/0.2 (security testing browser)"}
 TIMEOUT = 20
 
 

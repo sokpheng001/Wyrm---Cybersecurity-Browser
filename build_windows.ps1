@@ -4,7 +4,7 @@
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
 # Authors: @oda, @sopi, @kwan
 #------------------------------------------------------------------------------
-# Build The Hidden Browser on Windows:
+# Build Wyrm Browser on Windows:
 #   dist\Wyrm\Wyrm.exe       (portable folder)
 #   dist\Wyrm-windows.zip             (portable zip)
 #   dist\Wyrm-Setup-<version>.exe     (installer, needs Inno Setup 6: winget install JRSoftware.InnoSetup)

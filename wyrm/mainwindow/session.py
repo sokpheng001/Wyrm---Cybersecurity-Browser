@@ -10,8 +10,8 @@ from __future__ import annotations
 import json
 import sys
 
-from PySide6.QtCore import QUrl
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtCore import QUrl, Qt
+from PySide6.QtWidgets import QCheckBox, QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
 
 class SessionMixin:
@@ -57,29 +57,51 @@ class SessionMixin:
     def _confirm_close(self) -> bool:
         if getattr(self, "_force_close", False) or not self.settings.value("ui/confirm_close", True, type=bool):
             return True
-        from PySide6.QtWidgets import QCheckBox
         n = self.tabbar.count()
-        box = QMessageBox(self)
-        box.setWindowTitle("Close Wyrm Browser")
-        box.setIcon(QMessageBox.Icon.Question)
+        tabs = f"{n} tab{'s' if n != 1 else ''}"
         if self.tor:
-            box.setText("Close this Tor window?")
-            box.setInformativeText(f"{n} tab(s) will be closed. Nothing from this private window is saved.")
+            title, body = "Close this Tor window?", f"{tabs} will be closed. Nothing from this window is saved."
         elif self.private:
-            box.setText("Close this private window?")
-            box.setInformativeText(f"{n} tab{'s' if n != 1 else ''} will be closed and this window's history, "
-                                   "cookies and site data deleted. Downloads are kept.")
+            title = "Close this private window?"
+            body = (f"{tabs} will be closed and this window's history, cookies and site data deleted. "
+                    "Downloads are kept.")
         else:
-            box.setText("Close Wyrm Browser?")
-            box.setInformativeText(f"You have {n} tab{'s' if n != 1 else ''} open. "
-                                   "They'll be reopened the next time you start Wyrm Browser.")
+            title = "Close Wyrm Browser?"
+            body = f"You have {tabs} open. They'll be reopened the next time you start Wyrm Browser."
+
+        # own dialog instead of QMessageBox: that one squeezes the text into a narrow column
+        d = QDialog(self, Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
+        d.setObjectName("ConfirmDialog")
+        d.setWindowTitle("Close Wyrm Browser")
+        d.setMinimumWidth(460)
+        v = QVBoxLayout(d)
+        v.setContentsMargins(28, 24, 28, 22)
+        v.setSpacing(12)
+        head = QLabel(title)
+        head.setObjectName("DialogTitle")
+        v.addWidget(head)
+        text = QLabel(body)
+        text.setObjectName("DialogBody")
+        text.setWordWrap(True)
+        v.addWidget(text)
+        v.addSpacing(4)
         dont = QCheckBox("Don't ask again")
-        box.setCheckBox(dont)
-        close_btn = box.addButton("Close", QMessageBox.ButtonRole.AcceptRole)
-        box.addButton(QMessageBox.StandardButton.Cancel)
-        box.setDefaultButton(close_btn)
-        box.exec()
-        if box.clickedButton() is not close_btn:
+        v.addWidget(dont)
+        v.addSpacing(6)
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        row.addStretch(1)
+        cancel, close_btn = QPushButton("Cancel"), QPushButton("Close")
+        close_btn.setObjectName("Primary")
+        close_btn.setDefault(True)
+        for b in (cancel, close_btn):
+            b.setMinimumWidth(110)
+        cancel.clicked.connect(d.reject)
+        close_btn.clicked.connect(d.accept)
+        row.addWidget(cancel)
+        row.addWidget(close_btn)
+        v.addLayout(row)
+        if d.exec() != QDialog.DialogCode.Accepted:
             return False
         if dont.isChecked():
             self.settings.setValue("ui/confirm_close", False)

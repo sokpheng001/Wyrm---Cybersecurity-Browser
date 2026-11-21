@@ -172,7 +172,9 @@ QLineEdit:focus, QPlainTextEdit:focus, QSpinBox:focus, QComboBox:focus { border:
 /* combobox-popup: 0 = plain drop-down list BELOW the box on every OS (macOS otherwise pops the list over
    the box, centred on the current item, covering the input) */
 QComboBox { combobox-popup: 0; }
-QMessageBox, QDialog#ClearDataDialog { border: 1px solid $border; }  /* frameless message boxes keep a visible edge */
+QMessageBox, QDialog#ClearDataDialog, QDialog#ConfirmDialog { border: 1px solid $border; }  /* frameless message boxes keep a visible edge */
+QLabel#DialogTitle { font-size: 18px; font-weight: 600; color: $text; }
+QLabel#DialogBody { font-size: 14px; color: $text; }
 QComboBox::drop-down { border: none; width: 24px; }
 QComboBox::down-arrow { image: url("$chevron"); width: 12px; height: 12px; }
 QComboBox QAbstractItemView { background: $layer; border: 1px solid $border; border-radius: 0;
