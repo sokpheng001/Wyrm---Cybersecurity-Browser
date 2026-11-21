@@ -180,8 +180,16 @@ python run.py --tor           # run a Tor window
 ```
 
 Installers: `./build_windows.ps1` (Windows, needs [Inno Setup](https://jrsoftware.org/isinfo.php)) or
-`bash build_unix.sh` (macOS / Linux). GitHub Actions builds **all three** on every `v*` tag and attaches
-them to a Release.
+`bash build_unix.sh` (macOS / Linux).
+
+### Releases are automatic
+
+Every push to `wyrm-browser` is built on GitHub Actions for Windows, macOS (Apple Silicon + Intel) and
+Linux. **Only if all builds succeed** is it released, numbered automatically as the previous release + 1
+(0.0.1 → 0.0.2 → …). Installed copies then show the **Update** button and update themselves in place
+(Windows: silent installer; macOS: the app is replaced and relaunched). Only the newest release is kept.
+Add `[skip release]` to a commit message to push without releasing; bump `__version__` in
+`wyrm/__init__.py` yourself only for a bigger jump (e.g. 0.1.0).
 
 ## Developers
 

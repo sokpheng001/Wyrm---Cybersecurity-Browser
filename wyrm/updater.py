@@ -101,7 +101,8 @@ def run_installer(path: Path) -> None:
         subprocess.Popen([str(path), "/SILENT", "/NORESTART", "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS"],
                          creationflags=0x08000000)  # CREATE_NO_WINDOW
     elif sys.platform == "darwin":
-        subprocess.Popen(["open", str(path)])
+        if not install_macos(path):
+            subprocess.Popen(["open", str(path)])  # dev run / unexpected layout: let the user drag it
     else:
         import os
         try:
@@ -109,3 +110,63 @@ def run_installer(path: Path) -> None:
         except OSError:
             pass
         subprocess.Popen(["xdg-open", str(path)])
+
+
+MAC_APP_NAME = "Wyrm Browser.app"
+
+
+def _running_bundle() -> Path | None:
+    """…/Wyrm Browser.app when running as a packaged macOS app (None when run from source)."""
+    if not getattr(sys, "frozen", False):
+        return None
+    exe = Path(sys.executable).resolve()  # …/X.app/Contents/MacOS/Wyrm
+    bundle = exe.parents[2]
+    return bundle if bundle.suffix == ".app" else None
+
+
+def install_macos(dmg: Path) -> bool:
+    """In-place macOS update. Starts a small detached helper that waits for Wyrm to quit, copies the new app
+    out of the downloaded .dmg over the installed one (same folder, e.g. /Applications), clears the download
+    quarantine flag, and relaunches. Falls back to opening the .dmg if anything goes wrong. Returns False when
+    not running as a packaged app (caller then just opens the .dmg)."""
+    import os
+    import shlex
+    import subprocess
+    import tempfile
+    old = _running_bundle()
+    if old is None:
+        return False
+    dest = old.parent / MAC_APP_NAME          # older installs were named Wyrm.app: replaced by the new name
+    q = shlex.quote
+    script = f"""#!/bin/sh
+# Wyrm Browser updater helper (generated). Waits for the app to quit, swaps in the new version, relaunches.
+PID={os.getpid()}
+DMG={q(str(dmg))}
+DEST={q(str(dest))}
+OLD={q(str(old))}
+i=0
+while kill -0 "$PID" 2>/dev/null && [ $i -lt 120 ]; do sleep 0.5; i=$((i+1)); done
+MNT=$(mktemp -d /tmp/wyrm-update.XXXXXX)
+fallback() {{ hdiutil detach "$MNT" -quiet 2>/dev/null; open "$DMG"; exit 1; }}
+hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$MNT" "$DMG" >/dev/null 2>&1 || fallback
+SRC=$(find "$MNT" -maxdepth 1 -name "*.app" -print -quit)
+[ -n "$SRC" ] || fallback
+rm -rf "$DEST.updating"
+ditto "$SRC" "$DEST.updating" || fallback
+xattr -dr com.apple.quarantine "$DEST.updating" 2>/dev/null
+rm -rf "$DEST" || fallback
+[ "$OLD" != "$DEST" ] && rm -rf "$OLD"
+mv "$DEST.updating" "$DEST" || fallback
+hdiutil detach "$MNT" -quiet 2>/dev/null
+rmdir "$MNT" 2>/dev/null
+rm -f "$DMG"
+open "$DEST"
+"""
+    fd, helper = tempfile.mkstemp(prefix="wyrm-update-", suffix=".sh")
+    with os.fdopen(fd, "w") as fh:
+        fh.write(script)
+    os.chmod(helper, 0o700)
+    subprocess.Popen(["/bin/sh", helper], start_new_session=True,
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return True
+

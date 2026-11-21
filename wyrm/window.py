@@ -354,7 +354,7 @@ class UpdateDialog(QDialog):
             self.b_go.setEnabled(True)
             self.b_page.setEnabled(True)
             return
-        self.status.setText("Launching installer — Wyrm will close and reopen on the new version…")
+        self.status.setText("Installing — Wyrm Browser will close and reopen on the new version…")
         try:
             updater.run_installer(Path(res))
         except Exception as e:  # noqa: BLE001

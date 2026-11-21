@@ -1,14 +1,51 @@
-# Builds installers for Windows (.exe setup), macOS (.dmg) and Linux (.tar.gz with install.sh).
-# Run it from the Actions tab ("Build installers"), or push a tag like v1.0.0 to publish a GitHub Release.
+#------------------------------------------------------------------------------
+# Wyrm — .github/workflows/build.yml
+# Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+# Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+# Authors: @oda, @sopi, @kwan
+#------------------------------------------------------------------------------
+# Automatic releases: every push to wyrm-browser builds Windows (.exe setup), macOS Apple Silicon + Intel
+# (.dmg) and Linux (.tar.gz). Only if ALL builds succeed is it released, with the next version number
+# (latest release + 1, e.g. 0.0.1 -> 0.0.2) stamped into the app, so installed copies show "Update".
+# Older releases are removed so only the newest stays. Put "[skip release]" in a commit message to skip,
+# or run it manually from the Actions tab ("Build installers").
 name: Build installers
 on:
-  workflow_dispatch:
   push:
-    tags: ["v*"]
+    branches: [wyrm-browser]
+  workflow_dispatch:
 permissions:
-  contents: write   # needed to create the GitHub Release and upload the installers
+  contents: write   # create the release + tag, upload installers, remove old releases
+concurrency:
+  group: release    # one release at a time, in push order
+  cancel-in-progress: false
 jobs:
+  version:
+    if: ${{ !contains(github.event.head_commit.message, '[skip release]') }}
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - id: v
+        name: Next version (latest release tag + 1, never below the version in wyrm/__init__.py)
+        run: |
+          git fetch --tags --force
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import re, subprocess
+          tags = subprocess.run(["git", "tag", "-l", "v*"], capture_output=True, text=True).stdout.split()
+          vers = [tuple(map(int, m.groups())) for t in tags if (m := re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)", t))]
+          code = tuple(map(int, re.search(r'__version__ = "(\d+)\.(\d+)\.(\d+)"',
+                                          open("wyrm/__init__.py", encoding="utf-8").read()).groups()))
+          nxt = (max(vers)[0], max(vers)[1], max(vers)[2] + 1) if vers else code
+          nxt = max(nxt, code)
+          print("version=%d.%d.%d" % nxt)
+          PY
+          cat "$GITHUB_OUTPUT"
+
   build:
+    needs: version
     strategy:
       fail-fast: false
       matrix:
@@ -19,6 +56,18 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
+      - name: Stamp version ${{ needs.version.outputs.version }}
+        shell: bash
+        run: |
+          python - "${{ needs.version.outputs.version }}" <<'PY'
+          import re, sys
+          v = sys.argv[1]
+          for path, pat, rep in (("wyrm/__init__.py", r'__version__ = "[^"]*"', f'__version__ = "{v}"'),
+                                 ("installer/windows.iss", r'#define AppVersion "[^"]*"', f'#define AppVersion "{v}"')):
+              s = open(path, encoding="utf-8").read()
+              open(path, "w", encoding="utf-8").write(re.sub(pat, rep, s, count=1))
+          print("stamped", v)
+          PY
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-cursor0 libnss3 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libasound2t64
       - if: runner.os == 'Windows'
@@ -37,17 +86,28 @@ jobs:
             dist/*.tar.gz
           if-no-files-found: error
 
-  # One release job, after all three builds, so there is no 3-way race to create the same release.
+  # Runs only when every build above succeeded ("good"), so a broken push is never released.
   release:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [version, build]
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - uses: actions/download-artifact@v4
         with: { path: dist, merge-multiple: true }
       - run: ls -R dist
       - uses: softprops/action-gh-release@v2
         with:
-          name: Wyrm ${{ github.ref_name }}
+          tag_name: v${{ needs.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Wyrm Browser v${{ needs.version.outputs.version }}
           generate_release_notes: true
+          make_latest: true
           files: dist/*
+      - name: Keep only the newest release
+        run: |
+          gh release list --limit 200 --json tagName -q '.[].tagName' | while read -r t; do
+            if [ "$t" != "v$VERSION" ]; then gh release delete "$t" --yes --cleanup-tag; fi
+          done
