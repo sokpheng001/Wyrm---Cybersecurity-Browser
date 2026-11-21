@@ -112,10 +112,22 @@ LoadingBar { background: $layer; }
 
 /* ---------- panels ---------- */
 QDockWidget { color: $text; font-size: 14px; }
-QListWidget#PanelNav { background: $layer; border: none; border-right: 1px solid $border; outline: none; padding: 4px 0; }
-QListWidget#PanelNav::item { padding: 8px 10px; border: none; color: $muted; }
+QListWidget#PanelNav { background: $layer; border: none; border-right: 1px solid $border; outline: none; padding: 6px 0; }
+QListWidget#PanelNav::item { padding: 8px 12px 8px 17px; border: none; border-left: 3px solid transparent; color: $muted; }
 QListWidget#PanelNav::item:selected { background: $hover; color: $text; border-left: 3px solid $interactive; }
 QListWidget#PanelNav::item:hover:!selected { background: $hover; color: $text; }
+QLabel#NavGroup { color: $muted; font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px;
+    padding: 12px 10px 3px 10px; background: transparent; }
+
+/* address-bar suggestion / history dropdown */
+QListView#UrlPopup { background: $layer; border: 1px solid $border; outline: none;
+    padding: 5px; font-size: 13.5px; color: $text; }
+QListView#UrlPopup::item { padding: 7px 10px; border: none; border-radius: 0; color: $text; }
+QListView#UrlPopup::item:selected, QListView#UrlPopup::item:hover {
+    background: $hover; color: $text; border-left: 3px solid $interactive; padding-left: 7px; }
+/* when a panel is detached into its own window, frame it so it's clearly separate */
+QDockWidget[detached="true"] { border: 2px solid $interactive; }
+QDockWidget[detached="true"] > #DockTitle { border-bottom: 1px solid $border; }
 #DockTitle { background: $bg; }
 #DockTitleLabel { font-size: 14px; font-weight: 600; color: $text; }
 #DockTitle QToolButton { background: transparent; border: none; border-radius: 0; }

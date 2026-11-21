@@ -1588,16 +1588,16 @@ class SecurityPanel(QDockWidget):
         self.stack = QStackedWidget()
         self._nav_rows: dict[str, int] = {}   # name -> nav list row
         self._page_index: dict[str, int] = {}  # name -> stack index
+        from PySide6.QtCore import QSize
         for title, items in groups:
-            head = QListWidgetItem(title)
-            head.setFlags(Qt.ItemFlag.NoItemFlags)  # non-selectable group header
-            f = head.font()
-            f.setPointSizeF(f.pointSizeF() - 1.5)
-            f.setBold(True)
-            head.setFont(f)
+            head = QListWidgetItem()
+            head.setFlags(Qt.ItemFlag.NoItemFlags)  # non-selectable, non-hoverable group caption
+            cap = QLabel(title, objectName="NavGroup")
+            head.setSizeHint(QSize(0, cap.sizeHint().height() + 15))
             self.nav.addItem(head)
+            self.nav.setItemWidget(head, cap)
             for name, widget in items:
-                it = QListWidgetItem("   " + name)
+                it = QListWidgetItem(name)
                 self.nav.addItem(it)
                 self._nav_rows[name] = self.nav.row(it)
                 self._page_index[name] = self.stack.addWidget(widget)

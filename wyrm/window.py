@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from PySide6.QtCore import QBuffer, QByteArray, QEvent, QIODevice, QProcess, QSettings, QStandardPaths, Qt, QTimer, QUrl
+from PySide6.QtCore import QBuffer, QByteArray, QEvent, QIODevice, QProcess, QSettings, QSize, QStandardPaths, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QActionGroup, QColor, QGuiApplication, QIcon, QKeySequence, QPainter, QPixmap
 from PySide6.QtNetwork import QNetworkInformation
 from PySide6.QtSvg import QSvgRenderer
@@ -54,6 +54,7 @@ ICONS = {
     "plus": "<path d='M12 5v14M5 12h14'/>",
     "book": "<path d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z'/><path d='M4 19.5V21h16'/>",
     "search": "<circle cx='11' cy='11' r='7'/><path d='M21 21l-4.3-4.3'/>",
+    "clock": "<circle cx='12' cy='12' r='9'/><path d='M12 7v5l3 2'/>",
     "lock": "<rect x='5' y='11' width='14' height='10' rx='2'/><path d='M8 11V7a4 4 0 0 1 8 0v4'/>",
     "unlock": "<rect x='5' y='11' width='14' height='10' rx='2'/><path d='M8 11V7a4 4 0 0 1 7.5-2'/>",
     "shield": "<path d='M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z'/><path d='M9 12l2 2 4-4'/>",
@@ -676,6 +677,13 @@ class MainWindow(QMainWindow):
             make_icon("win_close", theme.PALETTES[self.theme_name]["icon"]))
         bar.setFixedHeight(42)
         dock.setTitleBarWidget(bar)
+        # frame the panel whenever it becomes a separate window (button OR dragged out), so the split is obvious
+        dock.topLevelChanged.connect(lambda top, d=dock: self._mark_detached(d, top))
+
+    def _mark_detached(self, dock, floating):
+        dock.setProperty("detached", bool(floating))
+        dock.style().unpolish(dock)
+        dock.style().polish(dock)
 
     def _toggle_float(self, dock):
         floating = not dock.isFloating()
@@ -686,6 +694,7 @@ class MainWindow(QMainWindow):
             dock.move(c.x() - dock.width() // 2, c.y() - dock.height() // 2)
             dock.raise_()
             dock.activateWindow()
+        self._mark_detached(dock, floating)
 
     def _setup_dock_titlebars(self):
         self._dock_titlebar(self.security, "Security")
@@ -875,13 +884,27 @@ class MainWindow(QMainWindow):
         self.urlbar.setFixedHeight(38)
         self.urlbar.setTextMargins(28, 0, 0, 0)  # reserve space for the icon inside the pill
         self.urlbar.returnPressed.connect(lambda: self.navigate(self.urlbar.text()))
-        # address-bar autocomplete from history (Tor windows never record anything)
+        # address-bar autocomplete: history + live search suggestions (Tor windows never record anything)
+        from PySide6.QtGui import QStandardItemModel
         self._history = [] if self.tor else list(self.settings.value("history/entries", [], type=list) or [])
-        self._completer = QCompleter(self._history, self)
+        self._suggest_model = QStandardItemModel(self)
+        self._completer = QCompleter(self._suggest_model, self)
         self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self._completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self._completer.setCompletionMode(QCompleter.CompletionMode.UnfilteredPopupCompletion)
         self._completer.setMaxVisibleItems(10)
+        popup = self._completer.popup()
+        popup.setObjectName("UrlPopup")
+        popup.setIconSize(QSize(15, 15))
+        popup.setSpacing(1)
         self.urlbar.setCompleter(self._completer)
+        self._rebuild_suggest_model(self._history[:10], [])
+        # debounce live suggestions as the user types
+        self._suggest_timer = QTimer(self)
+        self._suggest_timer.setSingleShot(True)
+        self._suggest_timer.setInterval(160)
+        self._suggest_timer.timeout.connect(self._fetch_suggestions)
+        self.urlbar.textEdited.connect(lambda _t: self._suggest_timer.start())
         # lock/search icon placed INSIDE the pill, vertically centered (repositioned on resize)
         self.url_icon = QLabel(self.urlbar, objectName="UrlIcon")
         self.url_icon.setFixedSize(20, 20)
@@ -1085,13 +1108,49 @@ class MainWindow(QMainWindow):
         self._history = [text] + [h for h in self._history if h != text]
         del self._history[500:]  # cap
         self.settings.setValue("history/entries", self._history)
-        self._completer.model().setStringList(self._history)
 
     def clear_history(self):
         self._history = []
         self.settings.setValue("history/entries", [])
-        self._completer.model().setStringList([])
+        self._rebuild_suggest_model([], [])
         self.toast("Search & address history cleared")
+
+    # ------------------------------------------------------------ address-bar suggestions
+    def _rebuild_suggest_model(self, history: list[str], suggestions: list[str]):
+        """Populate the completer: recent history first (clock), then search suggestions (magnifier)."""
+        from PySide6.QtGui import QStandardItem
+        self._suggest_model.clear()
+        seen = set()
+        p = theme.PALETTES[self.theme_name]
+        hist_icon = make_icon("clock", p["muted"], 32)
+        sugg_icon = make_icon("search", p.get("interactive", p["muted"]), 32)
+        for text, icon in [(h, hist_icon) for h in history] + [(s, sugg_icon) for s in suggestions]:
+            key = text.lower()
+            if not text or key in seen:
+                continue
+            seen.add(key)
+            it = QStandardItem(icon, text)
+            it.setEditable(False)
+            self._suggest_model.appendRow(it)
+
+    def _fetch_suggestions(self):
+        from . import suggest
+        q = self.urlbar.text().strip()
+        hist = [h for h in self._history if q.lower() in h.lower()][:6]
+        # don't query the network for empty text, internal pages, or a complete URL being typed
+        if self.tor or len(q) < 2 or q.startswith("wyrm://") or "://" in q:
+            self._rebuild_suggest_model(hist, [])
+            if q:
+                self._completer.complete()
+            return
+
+        def done(ok, res):
+            if self.urlbar.text().strip() != q:
+                return  # user kept typing; a newer request will answer
+            sugg = res if ok and isinstance(res, list) else []
+            self._rebuild_suggest_model(hist, sugg)
+            self._completer.complete()
+        self.runner.run(lambda: suggest.fetch(q, self.proxies()), done)
 
     # ================================================================ tabs
     def current_view(self) -> BrowserView | None:
