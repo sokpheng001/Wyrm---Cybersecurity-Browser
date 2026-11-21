@@ -665,6 +665,60 @@ class ToolsTab(QTabWidget):
         self.addTab(self._rewrite(), "Match & Replace")
         self.addTab(self._comparer(), "Comparer")
         self.addTab(self._sequencer(), "Sequencer")
+        self.addTab(self._triage(), "AI Triage")
+
+    # ---------------------------------------------------------------- AI Triage (scope-gated, HITL)
+    def _triage(self):
+        w = QWidget()
+        v = QVBoxLayout(w)
+        self.tr_scope = QLabel("")
+        self.tr_scope.setObjectName("Muted")
+        self.tr_scope.setWordWrap(True)
+        v.addWidget(self.tr_scope)
+        self.tr_in = mono(QPlainTextEdit())
+        self.tr_in.setPlaceholderText("Paste an HTTP request/response pair, API schema, or source code to triage…")
+        v.addWidget(self.tr_in, 1)
+        row = QHBoxLayout()
+        b_load = QPushButton("Load last Repeater request")
+        b_load.clicked.connect(lambda: self.tr_in.setPlainText(
+            f"{self.r_method.currentText()} {self.r_url.text()}\n{self.r_headers.toPlainText()}\n\n{self.r_body.toPlainText()}"))
+        self.tr_go = QPushButton("Analyze (non-destructive)")
+        self.tr_go.setObjectName("Primary")
+        self.tr_go.clicked.connect(self._do_triage)
+        row.addWidget(b_load)
+        row.addStretch(1)
+        row.addWidget(self.tr_go)
+        v.addLayout(row)
+        self.tr_out = QTextBrowser()
+        self.tr_out.setOpenLinks(False)
+        v.addWidget(self.tr_out, 1)
+        self.tr_busy = BusyOverlay(self.tr_out)
+        return w
+
+    def _do_triage(self):
+        from .security import triage
+        eng = self.win.engagement
+        scope = ", ".join(eng.scope) if eng and eng.scope else ""
+        self.tr_scope.setText(f"Authorized scope: <b>{escape(scope) or 'none set — set an engagement scope first'}</b> · "
+                              "analysis only, no requests are sent, benign verification steps only.")
+        key = self.win.settings.value("ai/api_key", "", type=str)
+        model = self.win.settings.value("ai/model", "claude-sonnet-5-5", type=str)
+        if not key:
+            self.tr_out.setHtml("<p>No API key set. Add one in <b>Settings → General → AI Triage</b> "
+                                "(your own Anthropic key, stored only on this device).</p>")
+            return
+        content = self.tr_in.toPlainText()
+        self.tr_go.setEnabled(False)
+        self.tr_busy.start("Analyzing…")
+
+        def done(ok, r):
+            self.tr_go.setEnabled(True)
+            self.tr_busy.stop()
+            if ok:
+                self.tr_out.setHtml("<pre style='white-space:pre-wrap'>" + escape(r) + "</pre>")
+            else:
+                self.tr_out.setHtml(f"<p style='color:#da1e28'>Triage failed: {escape(str(r))}</p>")
+        self.win.runner.run(lambda: triage.triage(content, scope, key, model), done)
 
     # ---------------------------------------------------------------- Comparer
     def _comparer(self):
@@ -1289,8 +1343,10 @@ class SecurityPanel(QDockWidget):
     def __init__(self, win):
         super().__init__("Security", win)
         self.setObjectName("SecurityPanel")
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(480)
         self.tabs = QTabWidget()
+        self.tabs.setElideMode(Qt.TextElideMode.ElideNone)
+        self.tabs.tabBar().setUsesScrollButtons(True)
         self.overview = OverviewTab(win)
         self.traffic = TrafficTab(win)
         self.sitemap = SiteMapTab(win)

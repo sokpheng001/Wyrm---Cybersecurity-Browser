@@ -50,6 +50,10 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
                 job.redirect(QUrl(target))
             else:
                 job.fail(QWebEngineUrlRequestJob.Error.RequestDenied)
+        elif host == "do":  # start-page action tiles (open a panel, a Tor window, etc.) — stay on home
+            if getattr(self, "actions", None):
+                self.actions("do:" + (params.get("a") or [""])[0], {})
+            job.redirect(QUrl("wyrm://home"))
         elif host == "assets":  # bundled fonts for internal pages
             name = url.path().rsplit("/", 1)[-1]
             f = ASSETS / "fonts" / name

@@ -18,7 +18,7 @@ from PySide6.QtWebEngineCore import (
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
-    QApplication, QComboBox, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QSizePolicy,
+    QApplication, QComboBox, QCompleter, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QSizePolicy,
     QStackedWidget, QTabBar, QToolBar, QToolButton, QVBoxLayout, QWidget,
 )
 
@@ -286,7 +286,7 @@ class MainWindow(QMainWindow):
         self.tabifyDockWidget(self.security, self.panel)
         self.panel.hide()
         self.security.setVisible(self.settings.value("sec/visible", True, type=bool))
-        self.resizeDocks([self.security], [470], Qt.Orientation.Horizontal)
+        self.resizeDocks([self.security], [500], Qt.Orientation.Horizontal)
 
         last = self.settings.value("engagement", 0, type=int)
         self.engagement = self.store.engagement(last) if last and not tor else None
@@ -397,7 +397,18 @@ class MainWindow(QMainWindow):
         self.link_bubble.raise_()
 
     def scheme_action(self, action: str, params: dict) -> str | None:
-        """Called by wyrm://allow?... links on warning pages. Returns a URL to continue to."""
+        """Called by wyrm://allow and wyrm://do links. Returns a URL to continue to (or None)."""
+        if action.startswith("do:"):
+            do = action[3:]
+            if do == "tor":
+                self.open_tor_window()
+            elif do == "scan":
+                self.security.show_tab("Overview")
+                QTimer.singleShot(50, self.security.overview.analyze_current)
+            elif do == "recon":
+                self.security.show_tab("Recon")
+                QTimer.singleShot(50, self.security.recon.use_current)
+            return None
         host, url = params.get("host", ""), params.get("url", "")
         if action == "allow-threat" and host:
             self.shields.malware_allow.add(host)
@@ -701,9 +712,15 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         m.addAction("Settings…", self._open_settings, QKeySequence("Ctrl+,"))
         m.addAction("Shields && privacy panel", lambda: self.security.show_tab("Shields"))
+        m.addAction("Clear search && address history", self._clear_history_confirm)
         m.addSeparator()
         m.addAction("About Wyrm", self._about)
         return m
+
+    def _clear_history_confirm(self):
+        if QMessageBox.question(self, "Clear history", "Clear the saved search & address-bar history?") \
+                == QMessageBox.StandardButton.Yes:
+            self.clear_history()
 
     def _about(self):
         tor = f"<br>Tor {self.tor.version()} · SOCKS port {self.tor.socks_port}" if self.tor else ""
@@ -848,6 +865,13 @@ class MainWindow(QMainWindow):
         self.urlbar.setFixedHeight(38)
         self.urlbar.setTextMargins(28, 0, 0, 0)  # reserve space for the icon inside the pill
         self.urlbar.returnPressed.connect(lambda: self.navigate(self.urlbar.text()))
+        # address-bar autocomplete from history (Tor windows never record anything)
+        self._history = [] if self.tor else list(self.settings.value("history/entries", [], type=list) or [])
+        self._completer = QCompleter(self._history, self)
+        self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self._completer.setMaxVisibleItems(10)
+        self.urlbar.setCompleter(self._completer)
         # lock/search icon placed INSIDE the pill, vertically centered (repositioned on resize)
         self.url_icon = QLabel(self.urlbar, objectName="UrlIcon")
         self.url_icon.setFixedSize(20, 20)
@@ -1029,9 +1053,24 @@ class MainWindow(QMainWindow):
             v.reload()
 
     def navigate(self, text: str):
+        self._record_history(text.strip())
         url = engines.resolve(text, self.default_engine())
         self.current_view().setUrl(QUrl.fromUserInput(url) if "://" not in url else QUrl(url))
         self.current_view().setFocus()
+
+    def _record_history(self, text: str):
+        if self.tor or not text or text.startswith("wyrm://"):
+            return  # never record in Tor windows or for internal pages
+        self._history = [text] + [h for h in self._history if h != text]
+        del self._history[500:]  # cap
+        self.settings.setValue("history/entries", self._history)
+        self._completer.model().setStringList(self._history)
+
+    def clear_history(self):
+        self._history = []
+        self.settings.setValue("history/entries", [])
+        self._completer.model().setStringList([])
+        self.toast("Search & address history cleared")
 
     # ================================================================ tabs
     def current_view(self) -> BrowserView | None:

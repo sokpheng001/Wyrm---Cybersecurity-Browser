@@ -120,11 +120,16 @@ QDockWidget { color: $text; font-size: 14px; }
 QDockWidget > QWidget, QDialog, QMessageBox { background: $bg; }
 QTabWidget::pane { border: none; background: $bg; }
 QTabWidget > QTabBar::tab {
-    background: transparent; color: $muted; padding: 10px 16px; border: none; border-radius: 0;
-    border-bottom: 2px solid $border; font-size: 13px;
+    background: transparent; color: $muted; padding: 9px 11px; border: none; border-radius: 0;
+    border-bottom: 2px solid $border; font-size: 12.5px;
 }
 QTabWidget > QTabBar::tab:selected { color: $text; font-weight: 600; border-bottom: 2px solid $interactive; }
 QTabWidget > QTabBar::tab:hover:!selected { color: $text; border-bottom: 2px solid $strong; }
+QTabWidget > QTabBar QToolButton {  /* overflow scroll arrows */
+    background: $layer; border: none; border-bottom: 2px solid $border; margin: 0; width: 18px;
+}
+QTabWidget > QTabBar QToolButton:hover { background: $hover; }
+QTabWidget > QTabBar QToolButton:disabled { color: $placeholder; }
 
 /* ---------- form controls (rounded, soft) ---------- */
 QLineEdit, QPlainTextEdit, QTextBrowser, QSpinBox, QComboBox {

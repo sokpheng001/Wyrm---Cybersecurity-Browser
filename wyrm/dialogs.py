@@ -143,6 +143,19 @@ class SettingsDialog(QDialog):
         note = QLabel("Downloads are saved to your system Downloads folder.")
         note.setObjectName("Muted")
         f.addRow("", note)
+        # AI Triage (optional) — user's own LLM API key, used only for the scope-gated triage assistant
+        f.addRow(QLabel("<b>AI Triage</b>"))
+        self.ai_key = QLineEdit(self.settings.value("ai/api_key", "", type=str))
+        self.ai_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.ai_key.setPlaceholderText("Anthropic API key (kept only on this device)")
+        f.addRow("API key", self.ai_key)
+        self.ai_model = QLineEdit(self.settings.value("ai/model", "claude-sonnet-5-5", type=str))
+        f.addRow("Model", self.ai_model)
+        ai_note = QLabel("Powers the human-in-the-loop AI Triage tool (Tools → AI Triage). Non-destructive, "
+                         "scope-gated. Leave blank to disable.")
+        ai_note.setObjectName("Muted")
+        ai_note.setWordWrap(True)
+        f.addRow("", ai_note)
         return w
 
     # ----------------------------------------------------- Privacy & Security
@@ -200,6 +213,8 @@ class SettingsDialog(QDialog):
         s.setValue("search/engine", self.engine.currentData())
         s.setValue("general/restore_tabs", self.restore_tabs.isChecked())
         s.setValue("sec/auto", self.autoanalyze.isChecked())
+        s.setValue("ai/api_key", self.ai_key.text().strip())
+        s.setValue("ai/model", self.ai_model.text().strip() or "claude-sonnet-5-5")
         s.setValue("privacy/https_only", self.https_only.isChecked())
         s.setValue("privacy/doh_mode", self.doh_mode.currentData())
         s.setValue("privacy/doh_provider", self.doh_prov.currentData())

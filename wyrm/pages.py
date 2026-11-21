@@ -136,10 +136,10 @@ TILE_ICONS = {
 }
 
 TILES = [  # curated and compact: works for pros and newcomers alike
-    ("scan", "Scan a site", "Open any page, then see its security grade in Shields", "https://portswigger.net/web-security"),
+    ("scan", "Scan this page", "Grade the current page's security in the panel", "wyrm://do?a=scan"),
     ("cve", "Look up a CVE", "Risk-ranked by real-world exploitation (KEV + EPSS)", "wyrm://sec?q=CVE-2021-44228"),
-    ("recon", "Recon a domain", "Subdomains, archived URLs and exposed files", "wyrm://sec?q=example.com"),
-    ("tor", "Tor window", "Private browsing through the Tor network", "https://www.torproject.org/about/history/"),
+    ("recon", "Recon a domain", "Subdomains, archived URLs and exposed files", "wyrm://do?a=recon"),
+    ("tor", "Tor window", "Private browsing through the Tor network", "wyrm://do?a=tor"),
     ("learn", "Learn cybersecurity", "Courses and labs from ByKh", "https://learn.bykh.org/cybersecurity"),
     ("bounty", "Find bug bounties", "Programs you're authorized to test", "https://hackerone.com/directory/programs"),
 ]
