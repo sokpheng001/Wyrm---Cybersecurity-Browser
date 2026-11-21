@@ -7,7 +7,7 @@
 ; Inno Setup script: builds dist\Wyrm-Setup-<version>.exe from the PyInstaller folder.
 ;   "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" installer\windows.iss
 #define AppName "Wyrm Browser"
-#define AppVersion "0.0.2"
+#define AppVersion "0.0.3"
 #define AppPublisher "HackPi"
 #define AppExe "Wyrm.exe"
 
@@ -55,3 +55,11 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopico
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+; in-app updates: "Restart now" passes /RELAUNCH (start the new version); "Later" installs on close without it
+Filename: "{app}\{#AppExe}"; Flags: nowait; Check: WantRelaunch
+
+[Code]
+function WantRelaunch: Boolean;
+begin
+  Result := WizardSilent and (Pos('/RELAUNCH', Uppercase(GetCmdTail)) > 0);
+end;

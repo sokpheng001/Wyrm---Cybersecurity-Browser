@@ -5,32 +5,40 @@
 # Developer: @kwan (Scanner: port scan, CORS and clickjacking tests)
 # Authors: @oda, @sopi, @kwan
 #------------------------------------------------------------------------------
-"""Security panel → Scanner: port scan (nmap or built-in), CORS misconfiguration test and clickjacking test.
+"""Security panel → Scanner: port scan (nmap or built-in), CORS misconfiguration test, clickjacking test, and
+the ProjectDiscovery tools installed on this machine (subfinder, httpx, katana, nuclei, naabu, dnsx, …).
 
-Active checks (port scan, CORS) only run on hosts inside the current engagement's scope. The clickjacking
-check is a single ordinary page request, so it works on any page you are viewing.
+Active checks (port scan, CORS, and any ProjectDiscovery tool that contacts the target) only run on hosts
+inside the current engagement's scope. The clickjacking check is a single ordinary page request, so it works
+on any page you are viewing.
 """
 from __future__ import annotations
 
 from html import escape
 from urllib.parse import quote, urlparse
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QGuiApplication
 from PySide6.QtWidgets import (
-    QCheckBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QSplitter, QTextBrowser,
-    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QCheckBox, QComboBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QSplitter,
+    QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from .common import SEV_COLOR, sev_badge
-from ..security import portscan, webchecks
+from ..security import pdtools, portscan, webchecks
 from ..widgets import BusyOverlay
 
 
 class ScannerTab(QWidget):
+    _pd_line = Signal(str, object)   # one streamed line from a ProjectDiscovery tool (worker -> UI thread)
+    _pd_done = Signal(bool, object)
+
     def __init__(self, win):
         super().__init__()
         self.win = win
+        self._pd_running = False
+        self._pd_line.connect(self._on_pd_line)
+        self._pd_done.connect(self._on_pd_done)
         v = QVBoxLayout(self)
         intro = QLabel("<b>Scanner</b> — for targets you are <b>authorized</b> to test. Port scan and CORS test only "
                        "run on hosts in your engagement scope; the clickjacking check works on any page you open.")
@@ -48,18 +56,18 @@ class ScannerTab(QWidget):
         row.addWidget(use)
         v.addLayout(row)
 
-        opts = QHBoxLayout()
+        # nmap options appear only when nmap is installed; otherwise the built-in scanner is used silently
         has_nmap = bool(portscan.nmap_path())
-        self.use_nmap = QCheckBox("Use nmap" + ("" if has_nmap else " (not installed — built-in scan is used)"))
+        self.use_nmap = QCheckBox("Use nmap")
         self.use_nmap.setChecked(has_nmap)
-        self.use_nmap.setEnabled(has_nmap)
         self.versions = QCheckBox("Service versions (-sV)")
-        self.versions.setEnabled(has_nmap)
-        self.versions.setToolTip("nmap only: identify the software behind each open port (slower)")
-        opts.addWidget(self.use_nmap)
-        opts.addWidget(self.versions)
-        opts.addStretch(1)
-        v.addLayout(opts)
+        self.versions.setToolTip("nmap: identify the software behind each open port (slower)")
+        if has_nmap:
+            opts = QHBoxLayout()
+            opts.addWidget(self.use_nmap)
+            opts.addWidget(self.versions)
+            opts.addStretch(1)
+            v.addLayout(opts)
 
         btns = QHBoxLayout()
         for label, fn, tip in (
@@ -71,7 +79,28 @@ class ScannerTab(QWidget):
             b.setToolTip(tip)
             b.clicked.connect(fn)
             btns.addWidget(b)
+        btns.addStretch(1)
         v.addLayout(btns)
+
+        # ProjectDiscovery tools — only the ones installed on this machine are offered (like nmap)
+        self._pd_tools = pdtools.installed()
+        if self._pd_tools:
+            pd = QHBoxLayout()
+            pd.addWidget(QLabel("ProjectDiscovery"))
+            self.pd_box = QComboBox()
+            for t in self._pd_tools:
+                self.pd_box.addItem(f"{t.name} — {t.desc}", t.key)
+            self.pd_box.setToolTip("Open-source ProjectDiscovery tools detected on this computer")
+            pd.addWidget(self.pd_box, 1)
+            self.pd_run = QPushButton("Run")
+            self.pd_run.setObjectName("Primary")
+            self.pd_run.clicked.connect(self.run_pd)
+            pd.addWidget(self.pd_run)
+            self.pd_stop = QPushButton("Stop")
+            self.pd_stop.clicked.connect(self._stop_pd)
+            self.pd_stop.setEnabled(False)
+            pd.addWidget(self.pd_stop)
+            v.addLayout(pd)
 
         split = QSplitter(Qt.Orientation.Vertical)
         self.tree = QTreeWidget()
@@ -88,7 +117,7 @@ class ScannerTab(QWidget):
         split.setSizes([300, 160])
         v.addWidget(split, 1)
         foot = QHBoxLayout()
-        self.status = QLabel("nmap: " + ("installed" if has_nmap else "not installed (built-in TCP scan)"))
+        self.status = QLabel("")
         self.status.setObjectName("Muted")
         self.status.setWordWrap(True)
         foot.addWidget(self.status, 1)
@@ -188,6 +217,60 @@ class ScannerTab(QWidget):
                           f"All {len(r['checked'])} crafted origins were rejected.<br><i>{escape(r['paper'])}</i>")
             self.status.setText(f"CORS test on {url}: {len(r['findings'])} issue(s), {len(r['checked'])} requests.")
         self._run("CORS test", lambda: webchecks.cors_test(url, px, verify), render)
+
+    # ---------------------------------------------------------------- ProjectDiscovery tools (streamed)
+    def run_pd(self):
+        if self._pd_running:
+            return
+        tool = pdtools.TOOLS_BY_KEY[self.pd_box.currentData()]
+        target = {"domain": self._host(), "host": self._host(), "url": self._url(),
+                  "cidr": self.target.text().strip(), "asn": self.target.text().strip()}[tool.takes]
+        if not target:
+            self.status.setText("Enter a target first.")
+            return
+        if tool.active and not self._authorized(self._host(), f"{tool.name}"):
+            return
+        self.tree.clear()
+        self._pd_running = True
+        self.pd_run.setEnabled(False)
+        self.pd_stop.setEnabled(True)
+        self.busy.start(f"{tool.name} running…")
+        self.status.setText(f"{tool.name} {target} …")
+        self._pd_count = 0
+        self._pd_stop_flag = False
+        px = self.win.proxies()
+
+        def work():
+            return pdtools.run(tool, target, lambda text, obj: self._pd_line.emit(text, obj), proxies=px,
+                               should_stop=lambda: self._pd_stop_flag)
+        self.win.runner.run(work, lambda ok, res: self._pd_done.emit(bool(ok), res))
+
+    def _on_pd_line(self, text, obj):
+        self._pd_count = getattr(self, "_pd_count", 0) + 1
+        sev = (obj or {}).get("info", {}).get("severity", "") if isinstance(obj, dict) else ""
+        sev = sev if sev in SEV_COLOR else ""
+        it = self._add(text, sev, f"<pre style='white-space:pre-wrap'>{escape(text)}</pre>",
+                       {"raw": obj, "url": text if text.startswith("http") else ""})
+        if self._pd_count <= 1:
+            self.tree.setCurrentItem(it)
+
+    def _on_pd_done(self, ok, res):
+        self._pd_running = False
+        self.busy.stop()
+        if hasattr(self, "pd_run"):
+            self.pd_run.setEnabled(True)
+            self.pd_stop.setEnabled(False)
+        n = getattr(self, "_pd_count", 0)
+        if not ok:
+            self.status.setText(f"Tool failed: {res}")
+        else:
+            extra = f" ({res['stopped']})" if isinstance(res, dict) and res.get("stopped") else ""
+            self.status.setText(f"{n} result(s){extra}.")
+
+    def _stop_pd(self):
+        self._pd_stop_flag = True   # the worker kills the subprocess at the next line; _on_pd_done resets the UI
+        self.pd_stop.setEnabled(False)
+        self.status.setText("Stopping…")
 
     def clickjacking(self):
         url = self._url()

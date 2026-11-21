@@ -90,6 +90,7 @@ class SessionMixin:
             e.ignore()
             return
         self._save_session()
+        self._install_pending_on_close()  # "Later" update: installs now that the browser is closing
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("sec/visible", self.security.isVisible())
         self.runner.shutdown()

@@ -55,7 +55,10 @@ class UpdatesMixin:
             self.toast(f"Wyrm Browser {info.get('version')} is available — click Update at the top right.", 6000)
 
     def _open_update(self):
-        """Update pill clicked: download + install right away, progress shown on the pill."""
+        """Update pill clicked: download (progress on the pill), then ask to restart now or later."""
+        if getattr(self, "_pending_update", None):  # already downloaded ("Later" was chosen): ask again
+            self._ask_restart()
+            return
         if not self._update_info or getattr(self, "_updater", None):
             return
         self._updater = Updater(self, self._update_info)
@@ -75,3 +78,45 @@ class UpdatesMixin:
 
     def _update_restarting(self):
         self.b_update.setText("  Restarting…")
+
+    def _update_ready(self, path):
+        """Update downloaded: keep it and ask whether to restart now or later."""
+        self._updater = None
+        self._pending_update = path
+        self.b_update.setEnabled(True)
+        self.b_update.setText("  Restart to update")
+        self.b_update.setToolTip("The update is downloaded. Click to restart Wyrm Browser and finish updating — "
+                                 "or just keep browsing: it installs when you close the browser.")
+        self._ask_restart()
+
+    def _ask_restart(self):
+        from PySide6.QtWidgets import QMessageBox
+        from ..ui.update_runner import install_and_quit
+        ver = (self._update_info or {}).get("version", "")
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setText(f"Wyrm Browser {ver} is ready to install")
+        box.setInformativeText("Restart now to finish updating and get the latest features. Your open tabs will "
+                               "reopen.\n\nChoose Later to keep browsing — the update installs when you close "
+                               "Wyrm Browser.")
+        now = box.addButton("Restart now", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Later", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(now)
+        box.exec()
+        if box.clickedButton() is now:
+            path, self._pending_update = self._pending_update, None
+            self._save_session()  # tabs come back after the restart
+            self._update_restarting()
+            if not install_and_quit(self, path, relaunch=True):
+                self._pending_update = path
+        else:
+            self.toast("OK — the update will install when you close Wyrm Browser. "
+                       "Click “Restart to update” any time.", 6000)
+
+    def _install_pending_on_close(self):
+        """Called while closing: a downloaded update chosen "Later" is installed now (no relaunch)."""
+        path = getattr(self, "_pending_update", None)
+        if path:
+            from ..ui.update_runner import install_and_quit
+            self._pending_update = None
+            install_and_quit(self, path, relaunch=False)

@@ -16,7 +16,7 @@ from string import Template
 
 from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
-from PySide6.QtWidgets import QComboBox, QMenu, QMessageBox, QProxyStyle
+from PySide6.QtWidgets import QAbstractButton, QComboBox, QMenu, QMessageBox, QProxyStyle, QTabBar
 
 FONT_DIR = Path(__file__).parent / "assets" / "fonts"
 SANS = "IBM Plex Sans"
@@ -325,8 +325,8 @@ class _MenuInWindow(QObject):
 
 
 class AppStyle(QProxyStyle):
-    """Fusion everywhere (same look on every OS) + every dropdown gets a pointing-hand cursor and a visible
-    scrollbar. Done in polish(), which Qt calls once per widget; an app-wide event filter is NOT safe here
+    """Fusion everywhere (same look on every OS); every clickable control (buttons, checkboxes, tabs, dropdowns)
+    gets the pointing-hand cursor, and dropdown lists a visible scrollbar. Done in polish(), which Qt calls once per widget; an app-wide event filter is NOT safe here
     (it runs for every QObject event, including QtQuick internals, and recursed until the app crashed)."""
 
     def __init__(self):
@@ -337,6 +337,8 @@ class AppStyle(QProxyStyle):
     def polish(self, *args):
         res = super().polish(*args)
         w = args[0] if args else None
+        if isinstance(w, (QAbstractButton, QTabBar)):  # buttons, tool buttons, checkboxes, radios, tabs
+            w.setCursor(Qt.CursorShape.PointingHandCursor)
         if isinstance(w, QMessageBox) and not w.property("wyrm_frameless"):
             # message boxes have their own Cancel / Close buttons: no OS title bar with a second close button
             w.setProperty("wyrm_frameless", True)

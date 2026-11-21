@@ -40,16 +40,23 @@ class Updater(QObject):
         return True
 
     def _on_finished(self, ok, res):
-        from .. import updater
         if not ok:
             self.win._update_failed(f"Download failed: {res}")
             return
-        try:
-            updater.run_installer(Path(res))
-        except Exception as e:  # noqa: BLE001
-            self.win._update_failed(f"Could not start the installer: {e}")
-            return
-        self.win._update_restarting()
+        self.win._update_ready(Path(res))  # downloaded: the window asks "Restart now" or "Later"
+
+
+def install_and_quit(win, path: Path, relaunch: bool) -> bool:
+    """Start the installer for a downloaded update, then quit so it can replace the app.
+    relaunch=True: "Restart now"; False: installing on close ("Later")."""
+    from .. import updater
+    try:
+        updater.run_installer(path, relaunch=relaunch)
+    except Exception as e:  # noqa: BLE001
+        win._update_failed(f"Could not start the installer: {e}")
+        return False
+    if relaunch:
         for w in QApplication.topLevelWidgets():  # the installer needs us gone: no "Close Wyrm?" prompt
             w._force_close = True
         QTimer.singleShot(800, QApplication.instance().quit)
+    return True

@@ -5,7 +5,7 @@ Chromium engine, built-in ad/malware/phishing protection, Tor windows, anti-fing
 panel of tools for **authorized** web security testing.
 
 Built by **[ByKh R&D Group](https://bykh.org)** and **HackPi — Ethical Hackers Group** · Website: [bykh.org](https://bykh.org)
-Copyright © 2023–present ByKh R&D Group · Version 0.0.2
+Copyright © 2023–present ByKh R&D Group · Version 0.0.3
 
 ### History
 
@@ -149,6 +149,9 @@ rm -rf ~/.local/opt/hiddenbrowser ~/.local/bin/Wyrm ~/.local/share/applications/
 - **Scanner** (developer: @kwan): port scan (top 100 TCP; nmap if installed, otherwise built-in),
   **CORS misconfiguration test** (after Chen et al., USENIX Security 2018) and **clickjacking test** with a
   framing proof-of-concept (after Huang et al., USENIX Security 2012) — active checks only on in-scope hosts
+- **ProjectDiscovery tools** in Scanner (developer: @kwan): if you have them installed, run **subfinder, dnsx,
+  naabu, httpx, katana, nuclei, tlsx, asnmap, cdncheck, uncover, mapcidr, alterx** with live results; only
+  installed tools are shown, and tools that contact the target run on in-scope hosts only
 - **Overview**: passive security grade (headers, CSP, TLS, cookies, tech + CVE lookup, JS secrets/endpoints)
 - **Traffic**: every request, filterable, with **per-site focus**; route through **Burp/ZAP** (Settings → Network)
 - **Site map**: host/path tree built from observed traffic

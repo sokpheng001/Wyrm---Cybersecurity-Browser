@@ -117,15 +117,16 @@ def download(url: str, dest: Path, proxies=None, verify=True, progress=None) -> 
     return dest
 
 
-def run_installer(path: Path) -> None:
-    """Launch the downloaded installer so it can update the app in place; caller then quits."""
+def run_installer(path: Path, relaunch: bool = True) -> None:
+    """Launch the downloaded installer so it updates the app in place once we quit; caller then quits.
+    relaunch=True ("Restart now") starts the new version afterwards; False ("Later" → installed on close) doesn't."""
     import subprocess
     if sys.platform == "win32":
-        # Inno Setup: close the running app, update, relaunch it; detached so it survives our exit.
-        subprocess.Popen([str(path), "/SILENT", "/NORESTART", "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS"],
-                         creationflags=0x08000000)  # CREATE_NO_WINDOW
+        # Inno Setup, silent: closes the app if still running, updates, and (with /RELAUNCH) starts it again
+        args = [str(path), "/SILENT", "/NORESTART", "/CLOSEAPPLICATIONS"] + (["/RELAUNCH"] if relaunch else [])
+        subprocess.Popen(args, creationflags=0x08000000)  # CREATE_NO_WINDOW; detached so it survives our exit
     elif sys.platform == "darwin":
-        if not install_macos(path):
+        if not install_macos(path, relaunch):
             subprocess.Popen(["open", str(path)])  # dev run / unexpected layout: let the user drag it
     else:
         import os
@@ -148,7 +149,7 @@ def _running_bundle() -> Path | None:
     return bundle if bundle.suffix == ".app" else None
 
 
-def install_macos(dmg: Path) -> bool:
+def install_macos(dmg: Path, relaunch: bool = True) -> bool:
     """In-place macOS update. Starts a small detached helper that waits for Wyrm to quit, copies the new app
     out of the downloaded .dmg over the installed one (same folder, e.g. /Applications), clears the download
     quarantine flag, and relaunches. Falls back to opening the .dmg if anything goes wrong. Returns False when
@@ -184,7 +185,7 @@ mv "$DEST.updating" "$DEST" || fallback
 hdiutil detach "$MNT" -quiet 2>/dev/null
 rmdir "$MNT" 2>/dev/null
 rm -f "$DMG"
-open "$DEST"
+{'open "$DEST"' if relaunch else '# installed on quit: not relaunched'}
 """
     fd, helper = tempfile.mkstemp(prefix="wyrm-update-", suffix=".sh")
     with os.fdopen(fd, "w") as fh:
