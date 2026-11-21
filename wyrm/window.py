@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 
 from html import escape
 
-from . import __version__, engines, linkguard, pages, scholar, theme, winframe
+from . import __version__, engines, years, linkguard, pages, scholar, theme, winframe
 from . import shields as shields_mod
 from .security import news as news_mod, rewrite, secsearch
 from .shields import PageStats, Shields
@@ -1003,7 +1003,7 @@ class MainWindow(QMainWindow):
                           f"<b>Wyrm</b> {__version__}<br>"
                           "A <i>wyrm</i> is a wingless dragon — our mark, and the name of this browser.<br><br>"
                           "Built by <b>ByKh R&amp;D Group</b><br><b>HackPi</b> — Ethical Hackers Group<br>"
-                          f"Copyright © 2021–2026 HackPi{tor}<br><br>"
+                          f"Copyright © {years()} ByKh R&amp;D Group · HackPi{tor}<br><br>"
                           "Chromium engine via Qt WebEngine · Ad/tracker blocking via community filter lists · Tor: Tor Project")
 
     # ================================================================ Tor

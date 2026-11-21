@@ -27,6 +27,7 @@ BG_COLORS = [
 BG_COLOR_CSS = {k: css for k, _, css in BG_COLORS}
 
 from . import engines
+from . import years as _years
 
 THEME = "dark"  # set by the window; internal pages follow the browser theme
 MODE = "blue"   # "blue" (defensive) keeps the blue accent; "red" (offensive) swaps it to red
@@ -144,6 +145,8 @@ form.big{max-width:620px;margin:0 auto;position:relative;display:block}
 .foot{color:var(--helper);font-size:12px;margin:40px 0 0}
 .credit{color:var(--muted);font-size:12px;margin:10px 0 0;letter-spacing:.3px}
 .credit b{color:var(--fg);font-weight:600}
+.copy{color:var(--helper);font-size:12px;margin:6px 0 24px;letter-spacing:.3px}
+body.hasbg .copy{color:#e0e0e0;text-shadow:0 1px 10px rgba(0,0,0,.6)}
 @media (max-width:620px){.grid{grid-template-columns:1fr 1fr}}
 /* latest cybersecurity news */
 .news a.it{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--layer);border:1px solid var(--line);
@@ -317,6 +320,7 @@ def render_home(ctx: dict) -> str:
         + news_html + feed
         + "<p class='foot'>Only test systems you own or are explicitly authorized to test.</p>"
         + "<p class='credit'>Built by <b>ByKh R&amp;D Group</b> · <b>HackPi</b> — Ethical Hackers Group</p>"
+        + f"<p class='copy'>© {_years()} ByKh R&amp;D Group · MIT License</p>"
     )
     if ctx.get("tor"):   # Tor window: purple + onion watermark background instead of a web photo
         html = _page("New tab", body, HOME_CSS + TOR_BG_CSS, "home")
