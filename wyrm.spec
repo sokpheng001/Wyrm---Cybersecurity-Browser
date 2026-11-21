@@ -6,6 +6,19 @@ import sys
 # single source of truth: wyrm/__init__.py
 VERSION = re.search(r'__version__\s*=\s*"([^"]+)"', open("wyrm/__init__.py", encoding="utf-8").read()).group(1)
 
+# Windows file details (Properties > Details): fill the template with the current version and year range
+VERSION_FILE = None
+if sys.platform == "win32":
+    import datetime, os
+    nums = [int(x) for x in re.findall(r"\d+", VERSION)][:4]
+    nums += [0] * (4 - len(nums))
+    text = open("installer/version_info.txt", encoding="utf-8").read()
+    text = (text.replace("{VT}", str(tuple(nums))).replace("{V4}", ".".join(map(str, nums)))
+                .replace("{V}", VERSION).replace("{YEARS}", f"2023-{datetime.date.today().year}"))
+    os.makedirs("build", exist_ok=True)
+    VERSION_FILE = os.path.join("build", "version_info.txt")
+    open(VERSION_FILE, "w", encoding="utf-8").write(text)
+
 a = Analysis(
     ["run.py"],
     pathex=["."],
@@ -27,7 +40,7 @@ exe = EXE(
     console=False,                   # GUI app, no terminal window
     upx=False,
     icon="wyrm/assets/icon.ico" if sys.platform == "win32" else None,
-    version="installer/version_info.txt" if sys.platform == "win32" else None,
+    version=VERSION_FILE,
 )
 coll = COLLECT(exe, a.binaries, a.datas, name="Wyrm", upx=False)
 

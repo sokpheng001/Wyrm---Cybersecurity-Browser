@@ -2,11 +2,11 @@
 from datetime import date
 
 __version__ = "0.0.1"
-START_YEAR = 2021  # development started
+START_YEAR = 2023  # development started (first public release: 2026)
 
 
 def years() -> str:
-    """'2021–<current year>', evaluated each time so it rolls over on New Year without a rebuild."""
+    """'2023–<current year>', evaluated each time so it rolls over on New Year without a rebuild."""
     return f"{START_YEAR}–{date.today().year}"
 
 

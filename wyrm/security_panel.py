@@ -1595,7 +1595,12 @@ class SiteMapTab(QWidget):
         b = QPushButton("Refresh")
         b.clicked.connect(self._build)
         row.addWidget(b)
+        clr = QPushButton("Clear")
+        clr.setToolTip("Clear the site map (the Traffic history is kept)")
+        clr.clicked.connect(self._clear)
+        row.addWidget(clr)
         v.addLayout(row)
+        self._cleared_after = None  # last traffic row at the moment of "Clear"; only newer rows are mapped
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels(["Path", "Methods", "Source"])
         self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
@@ -1609,6 +1614,22 @@ class SiteMapTab(QWidget):
         super().showEvent(e)
         self._build()
 
+    def _clear(self):
+        rows = self.win.security.traffic.model.rows
+        self._cleared_after = rows[-1] if rows else None
+        self._discovered.clear()
+        self._build()
+        self.win.toast("Site map cleared — new pages you browse will appear here")
+
+    def _rows_since_clear(self, rows):
+        mark = self._cleared_after
+        if mark is None:
+            return rows
+        for i in range(len(rows) - 1, -1, -1):
+            if rows[i] is mark:
+                return rows[i + 1:]
+        return rows  # marker rotated out of the traffic buffer: everything left is newer
+
     def _in_scope_host(self, host: str) -> bool:
         eng = self.win.engagement
         return eng.in_scope(host) is not False if eng and eng.scope else True
@@ -1616,7 +1637,7 @@ class SiteMapTab(QWidget):
     def _build(self):
         f = self.filter.text().lower().strip()
         self.tree.clear()
-        rows = self.win.security.traffic.model.rows if hasattr(self.win, "security") else []
+        rows = self._rows_since_clear(self.win.security.traffic.model.rows if hasattr(self.win, "security") else [])
         hosts: dict[str, dict] = {}
 
         def add(host, path, method, url, source):

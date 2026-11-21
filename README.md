@@ -5,7 +5,12 @@ Chromium engine, built-in ad/malware/phishing protection, Tor windows, anti-fing
 panel of tools for **authorized** web security testing.
 
 Built by **ByKh R&D Group** and **HackPi — Ethical Hackers Group**
-Copyright © 2021–present ByKh R&D Group · Version 0.0.1
+Copyright © 2023–present ByKh R&D Group · Version 0.0.1
+
+### History
+
+Wyrm was developed by **ByKh R&D Group** from **2023 to 2025** and had its **first public release in 2026**
+(v0.0.1). Every release since then is published on the [Releases](../../releases) page.
 
 ### The name
 
@@ -190,6 +195,6 @@ CSP Is Dead Long Live CSP (CCS 2016), EPSS (FIRST), CiteSee (CHI 2023).
 
 ## License
 
-Wyrm is released under the [MIT License](LICENSE) — Copyright © 2021–2026 **ByKh R&D Group**.
+Wyrm is released under the [MIT License](LICENSE) — Copyright © 2023–present **ByKh R&D Group**.
 You may use, modify and redistribute it, including commercially, as long as the copyright and license
 notice are kept. It comes with no warranty.

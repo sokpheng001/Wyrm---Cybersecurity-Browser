@@ -207,7 +207,12 @@ details.cust[open]::before{content:"";position:fixed;inset:0;background:rgba(0,0
 /* daily background photo (Brave-style): full-bleed, with a scrim so content stays legible */
 body.hasbg{background:#0b0b10}
 body.hasbg::before{content:"";position:fixed;inset:0;z-index:-2;background-size:cover;background-position:center;
-  background-attachment:fixed;background-image:var(--wyrm-bg)}
+  background-attachment:fixed;background-image:var(--wyrm-bg);opacity:0;transition:opacity 1.1s ease}
+body.hasbg.bg-ready::before{opacity:1}  /* fade in once the image has loaded: no pop / blink */
+/* next wallpaper: loaded off-screen, then cross-faded over the current one */
+#bgnext{position:fixed;inset:0;z-index:-2;background-size:cover;background-position:center;opacity:0;
+  transition:opacity 1.6s ease;pointer-events:none}
+#bgnext.on{opacity:1}
 body.hasbg::after{content:"";position:fixed;inset:0;z-index:-1;
   background:linear-gradient(180deg,rgba(8,8,14,.55),rgba(8,8,14,.72))}
 body.hasbg .wordmark,body.hasbg .tagline,body.hasbg .modeline,body.hasbg .foot,body.hasbg .credit{color:#f4f4f4;text-shadow:0 1px 10px rgba(0,0,0,.6)}
@@ -267,7 +272,8 @@ _TOR_ONION_SVG = (
     "</svg>")
 _TOR_ONION = "data:image/svg+xml;base64," + base64.b64encode(_TOR_ONION_SVG.encode()).decode()
 TOR_BG_CSS = (
-    "body.tor::before{background:radial-gradient(circle at 50% 30%,#3c2252 0%,#20122e 55%,#0e0818 100%)!important}"
+    "body.tor::before{background:radial-gradient(circle at 50% 30%,#3c2252 0%,#20122e 55%,#0e0818 100%)!important;"
+    "opacity:1}"
     f"body.tor::after{{background:url('{_TOR_ONION}') center 24%/300px no-repeat,"
     "linear-gradient(180deg,rgba(14,8,24,.25),rgba(14,8,24,.55))!important}"
     "body.tor .wordmark b{color:#c9a6ff}"
@@ -378,14 +384,19 @@ def render_home(ctx: dict) -> str:
     panel = _customize_panel(bgc)
 
     def page(css: str, cls: str = "") -> str:
-        html = _page("New tab", body, css, "home").replace("</main>", "</main>" + panel, 1)
+        html = _page("New tab", body, css, "home").replace("</main>", "</main>" + panel + BG_FADE_JS, 1)
         return html.replace("<body>", f"<body class='{cls}'>", 1) if cls else html
     if bmode == "random":  # 4K tech/hacker wallpaper via wyrm://bg; same image for the chosen interval
         url = f"wyrm://bg?r={secrets.token_hex(6)}"
         # switch when the current wallpaper expires (time left comes from the handler), then every interval
         left = int(ctx.get("bg_ms_left") or BG_ROTATE_MS) + 1000  # BG_ROTATE_MS = the user's interval
-        body += ("<script>(function(){function swap(){document.documentElement.style.setProperty("
-                 "'--wyrm-bg',\"url('wyrm://bg?r=\"+Date.now()+\"')\");}"
+        # soft change: preload the next wallpaper, cross-fade it in, then make it the base layer
+        body += ("<script>(function(){function swap(){var u='wyrm://bg?r='+Date.now(),im=new Image();"
+                 "im.onload=function(){var n=document.createElement('div');n.id='bgnext';"
+                 "n.style.backgroundImage=\"url('\"+u+\"')\";document.body.appendChild(n);"
+                 "requestAnimationFrame(function(){requestAnimationFrame(function(){n.classList.add('on');});});"
+                 "setTimeout(function(){document.documentElement.style.setProperty('--wyrm-bg',\"url('\"+u+\"')\");"
+                 "setTimeout(function(){n.remove();},120);},1700);};im.src=u;}"
                  f"setTimeout(function(){{swap();setInterval(swap,{BG_ROTATE_MS});}},{left});}})();</script>")
         return page(HOME_CSS + f"\n:root{{--wyrm-bg:url('{url}')}}", "hasbg")
     if bmode == "color" and bgc.get("color") in BG_COLOR_CSS:
@@ -394,6 +405,15 @@ def render_home(ctx: dict) -> str:
     if bmode == "image" and bgc.get("image_ver"):  # the user's own picture, served by wyrm://bgimg
         return page(HOME_CSS + f"\n:root{{--wyrm-bg:url('wyrm://bgimg?v={escape(str(bgc['image_ver']))}')}}", "hasbg")
     return page(HOME_CSS)
+
+
+# fades the start-page background in once its image is ready (colors are ready at once)
+BG_FADE_JS = ("<script>(function(){var b=document.body;if(!b.classList.contains('hasbg'))return;"
+              "var v=getComputedStyle(document.documentElement).getPropertyValue('--wyrm-bg'),"
+              "m=/url\\(['\"]?([^'\")]+)['\"]?\\)/.exec(v);"
+              "function ready(){b.classList.add('bg-ready');}"
+              "if(!m){requestAnimationFrame(ready);return;}"
+              "var im=new Image();im.onload=im.onerror=ready;im.src=m[1];})();</script>")
 
 
 def _customize_panel(bgc: dict) -> str:
