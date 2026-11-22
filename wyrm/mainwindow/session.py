@@ -86,6 +86,7 @@ class SessionMixin:
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("sec/visible", self.security.isVisible())
         self.runner.shutdown()
+        self._ext_shutdown()  # switch extensions off first: Qt crashes tearing down profiles with them on
         self.tabbar.blockSignals(True)
         while self.tabbar.count():
             view = self.tabbar.tabData(0)

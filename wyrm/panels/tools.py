@@ -306,16 +306,13 @@ class ToolsTab(QWidget):
         from PySide6.QtWebEngineCore import QWebEngineSettings
         self.r_resp = mono(QTextBrowser())
         self.r_resp.setOpenLinks(False)
-        self.r_preview = QWebEngineView()
-        self.r_preview.settings().setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, False)
+        self.r_preview = None  # web view created on first Preview click (keeps startup fast)
         self.r_resp_stack = QStackedWidget()
         self.r_resp_stack.addWidget(self.r_resp)
-        self.r_resp_stack.addWidget(self.r_preview)
         self.r_busy = BusyOverlay(self.r_resp_stack)
         # Preview: spinner while the HTML (and its images/CSS) renders; a timer stops it if a resource hangs
         self._preview_timeout = QTimer(self, singleShot=True, interval=15000)
         self._preview_timeout.timeout.connect(self._preview_done)
-        self.r_preview.loadFinished.connect(self._preview_done)
         self.r_seg = {}
 
         def resp_toggle(head):
@@ -502,10 +499,10 @@ class ToolsTab(QWidget):
                 self.win.save_rules()
                 self._rw_refresh()
 
-    def load_request(self, method, url, headers: dict):
+    def load_request(self, method, url, headers: dict, body: str = ""):
         self._select_tool("Repeater")
         # open each sent request in its own tab so earlier ones are never lost
-        self._r_new_session(method or "GET", url, "\n".join(f"{k}: {v}" for k, v in headers.items()))
+        self._r_new_session(method or "GET", url, "\n".join(f"{k}: {v}" for k, v in headers.items()), body or "")
         self._r_relabel()
 
     def _send(self):
@@ -548,6 +545,13 @@ class ToolsTab(QWidget):
         for k, b in self.r_seg.items():
             b.setChecked(k == key)
         if key == "preview":
+            if self.r_preview is None:
+                from PySide6.QtWebEngineWidgets import QWebEngineView
+                from PySide6.QtWebEngineCore import QWebEngineSettings
+                self.r_preview = QWebEngineView()
+                self.r_preview.settings().setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, False)
+                self.r_preview.loadFinished.connect(self._preview_done)
+                self.r_resp_stack.addWidget(self.r_preview)
             self.r_resp_stack.setCurrentWidget(self.r_preview)
             body = getattr(self, "_last_body", "")
             if body:

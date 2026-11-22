@@ -4,6 +4,17 @@ What's new in each version of Wyrm Browser. The release workflow publishes the s
 version (from `wyrm/__init__.py`) as the release description and the in-app **Update** tooltip, so keep the
 most important points first. Each build of a version adds an "Also in this build" list automatically.
 
+## v0.0.5
+
+- Fixed: Wyrm crashed when closing with an extension switched on and an engagement profile open
+- Fixed: extension popups closed as soon as you clicked inside them; they now stay open (Esc or click away closes)
+- New Extensions button (puzzle piece) in the toolbar: your extensions and their popups in one click
+- Intercept (Burp-style), ⋮ → Intercept requests or Ctrl+Alt+I: hold page requests and form submissions, edit the
+  method, URL, headers and body, then Forward, Drop, or send to Repeater / Intruder
+- Traffic: right-click → Send to Intruder, next to Send to Repeater
+- Faster: the window opens about 40% sooner, and ad/tracker checks on every request are 4x faster
+- New theme: ⋮ → Theme → Hacker (pro dark), graphite with an orange accent and monospace data views
+
 ## v0.0.4
 
 - Fixed: the browser froze or closed after adding an extension, and when it started with one switched on.

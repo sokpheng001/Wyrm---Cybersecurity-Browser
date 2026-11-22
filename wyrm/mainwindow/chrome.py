@@ -13,7 +13,7 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QSize, QTimer, QUrl, Qt
 from PySide6.QtGui import QAction, QKeySequence, QPixmap
 from PySide6.QtWebEngineCore import QWebEnginePage
-from PySide6.QtWidgets import QComboBox, QCompleter, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy, QStackedWidget, QTabBar, QToolBar, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QCompleter, QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton, QSizePolicy, QStackedWidget, QTabBar, QToolBar, QToolButton, QVBoxLayout, QWidget
 
 from .. import engines, theme, winframe
 from ..widgets import InfoBanner, LoadingBar, OfflineBanner
@@ -210,6 +210,15 @@ class ChromeMixin:
         self.shield_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.shield_badge.hide()
         n.addWidget(self.b_shield)
+        # Extensions (puzzle piece, like Chrome): click lists your extensions; each opens its popup
+        self.b_ext = self._tool("puzzle", "Extensions")
+        self.b_ext.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        ext_menu = QMenu(self.b_ext)
+        ext_menu.aboutToShow.connect(lambda m=ext_menu: self._ext_fill_menu(m))
+        self.b_ext.setMenu(ext_menu)
+        self.b_ext.setStyleSheet("QToolButton::menu-indicator{image:none;width:0}")
+        self.b_ext.setVisible(not self.ephemeral)  # private / Tor windows never run extensions
+        n.addWidget(self.b_ext)
         self._shield_timer = QTimer(self, singleShot=True, interval=250)
         self._shield_timer.timeout.connect(self._update_shield_button)
         # main menu (like other browsers): new tab / Tor window / theme / settings / about
@@ -279,6 +288,7 @@ class ChromeMixin:
             (["Ctrl+G"], lambda: self._find_step(True)),
             (["Ctrl+P"], self._print_page),
             (["Ctrl+Shift+Delete"], self.clear_browsing_data),
+            (["Ctrl+Alt+I"], self.open_intercept),
         ):
             a = QAction(self)
             a.setShortcuts([QKeySequence(k) for k in keys])

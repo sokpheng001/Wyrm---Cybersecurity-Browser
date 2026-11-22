@@ -40,6 +40,17 @@ PALETTES = {
                   error="#da1e28", success="#24a148", warning="#f1c21b",
                   tag_ok_bg="#a7f0ba", tag_ok_fg="#0e6027", tag_bad_bg="#ffd7d9", tag_bad_fg="#a2191f",
                   banner="#fcf4d6", banner_text="#161616", banner_border="#f1c21b"),
+    # Hacker: the dark "pro tool" look used by professional testing tools (graphite neutrals, orange accent, as in
+    # Burp Suite's dark theme), with mono type in the address bar and data views (see HACKER_QSS).
+    "hacker": dict(shell="#0b0d10", shell_text="#e6e8eb", shell_muted="#9aa3ad", shell_hover="#1a1e23",
+                   shell_active="#23282e", shell_border="#2a3037",
+                   bg="#111418", layer="#181c21", layer2="#21262c", hover="#1f242a", selected="#2a2f36",
+                   field="#14181c", text="#e6e8eb", muted="#9aa3ad", placeholder="#5f6873", border="#2a3037",
+                   strong="#4b545e", interactive="#ff7a1a", button="#e8620c", button_hover="#ff7a1a",
+                   secondary="#2f353c", secondary_hover="#3a4149", link="#ffa45c", focus="#ff7a1a", icon="#d5d9de",
+                   error="#ff5c5c", success="#3fb950", warning="#f0b429",
+                   tag_ok_bg="#0f2e1a", tag_ok_fg="#7ee2a0", tag_bad_bg="#4a1414", tag_bad_fg="#ffb0b0",
+                   banner="#2b1d0e", banner_text="#ffc078", banner_border="#e8620c"),
 }
 
 # Red/Blue team modes: Blue (default, defensive) keeps the blue accent; Red (offensive) swaps it to red.
@@ -49,6 +60,8 @@ MODE_ACCENT = {
         "dark": dict(interactive="#fa4d56", button="#da1e28", button_hover="#ba1b23", link="#ff8389", select="#da1e28"),
         "light": dict(interactive="#da1e28", button="#da1e28", button_hover="#ba1b23", link="#da1e28",
                       select="#da1e28", focus="#da1e28"),
+        "hacker": dict(interactive="#ff4d4f", button="#d9363e", button_hover="#ff4d4f", link="#ff8a8c",
+                       select="#ff4d4f", focus="#ff4d4f"),
     },
 }
 
@@ -277,7 +290,26 @@ def stylesheet(theme: str, cache_dir: Path, mode: str = "blue") -> str:
     dfloat = _write_svg(cache_dir, f"dfloat-{theme}.svg",
                         f"<rect x='4' y='5' width='8' height='7' fill='none' stroke='{p['text']}' stroke-width='1.3'/>"
                         f"<path d='M6 5V3h7v7h-2' fill='none' stroke='{p['text']}' stroke-width='1.3'/>")
-    return QSS.substitute(p, sans=SANS, check=check, chevron=chevron, close=close, dclose=dclose, dfloat=dfloat)
+    qss = QSS.substitute(p, sans=SANS, check=check, chevron=chevron, close=close, dclose=dclose, dfloat=dfloat)
+    if theme == "hacker":
+        qss += HACKER_QSS.substitute(p, mono=MONO)
+    return qss
+
+
+# Extra rules for the Hacker theme: mono type where you read data, accent edges, flatter controls.
+HACKER_QSS = Template("""
+QLineEdit#UrlBar { font-family: "$mono"; letter-spacing: 0.2px; border: 1px solid $border; }
+QLineEdit#UrlBar:focus { border: 1px solid $interactive; }
+QPlainTextEdit, QTextBrowser, QTextEdit, QTreeView, QTreeWidget, QTableView, QListWidget { font-family: "$mono"; }
+QTreeView::item:selected, QTableView::item:selected, QListWidget::item:selected {
+    background: $selected; color: $interactive; }
+QHeaderView::section { font-family: "$mono"; text-transform: uppercase; color: $muted; }
+QPushButton#Primary { border: 1px solid $interactive; }
+QPushButton:hover { border-color: $interactive; }
+QToolTip { background: $layer; color: $text; border: 1px solid $interactive; font-family: "$mono"; }
+QTabBar::tab:selected { border-top: 2px solid $interactive; }
+QDockWidget::title { font-family: "$mono"; color: $interactive; }
+""")
 
 
 def palette(theme: str, mode: str = "blue") -> QPalette:
@@ -348,10 +380,15 @@ class AppStyle(QProxyStyle):
             w.setProperty("wyrm_frameless", True)
             w.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
         if isinstance(w, QMenu):
-            if AppStyle._menu_filter is None:
-                AppStyle._menu_filter = _MenuInWindow()  # one shared instance, kept alive on the class
-            w.removeEventFilter(AppStyle._menu_filter)
-            w.installEventFilter(AppStyle._menu_filter)
+            import shiboken6
+            # one shared instance, kept alive on the class; recreated if Qt already destroyed it (app shutdown)
+            if AppStyle._menu_filter is None or not shiboken6.isValid(AppStyle._menu_filter):
+                AppStyle._menu_filter = _MenuInWindow()
+            try:
+                w.removeEventFilter(AppStyle._menu_filter)
+                w.installEventFilter(AppStyle._menu_filter)
+            except RuntimeError:  # the menu itself is being destroyed
+                pass
         if isinstance(w, QComboBox):
             hand = Qt.CursorShape.PointingHandCursor
             w.setCursor(hand)

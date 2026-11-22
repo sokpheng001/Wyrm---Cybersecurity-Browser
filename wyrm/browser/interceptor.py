@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QTimer, QUrl
 from PySide6.QtWebEngineCore import QWebEngineUrlRequestInterceptor
 
 from .. import linkguard
@@ -48,6 +48,24 @@ class TrafficInterceptor(QWebEngineUrlRequestInterceptor):
             view.stats = PageStats(host=host)
         st = view.stats
         sh = win.shields
+
+        # 0. Intercept (Burp-style): hold top-level page requests for the user to edit / forward / drop
+        if main and win.intercept_on:
+            if u in win._intercept_pass:
+                win._intercept_pass.discard(u)   # forwarded from the Intercept window: let it through once
+            else:
+                held = {"method": "GET", "url": u, "headers": {}, "body": b""}
+                try:
+                    held["method"] = bytes(info.requestMethod()).decode() or "GET"
+                    held["headers"] = {bytes(k).decode(): bytes(v).decode() for k, v in info.httpHeaders().items()}
+                    dev = info.requestBody()
+                    if dev is not None and dev.isReadable():
+                        held["body"] = bytes(dev.readAll())
+                except Exception:  # noqa: BLE001 - details differ between Qt versions
+                    pass
+                info.block(True)
+                QTimer.singleShot(0, lambda v=view, h=held: win.intercept_hold(v, h))  # leave the interceptor first
+                return
 
         # 1. encrypt: upgrade plain HTTP/WS to HTTPS/WSS (local/lab hosts and user exceptions excluded)
         if scheme in ("http", "ws") and win.https_only() and not linkguard.is_private_host(host) \

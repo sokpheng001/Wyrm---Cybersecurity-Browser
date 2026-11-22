@@ -33,6 +33,7 @@ from .tabs import TabsMixin
 from .tor import TorMixin
 from .updates import UpdatesMixin
 from .extensions import ExtensionsMixin
+from .intercept import InterceptMixin
 from .. import shields as shields_mod, winframe
 from ..async_util import Runner
 from ..library import Library
@@ -63,6 +64,7 @@ class MainWindow(
     SessionMixin,
     BrowsingDataMixin,
     ExtensionsMixin,
+    InterceptMixin,
     QMainWindow,
 ):
     def __init__(self, tor=None, private: bool = False):
@@ -88,7 +90,7 @@ class MainWindow(
             self.setAttribute(Qt.WidgetAttribute.WA_ContentsMarginsRespectsSafeArea, False)
         self.settings = QSettings()
         self.theme_mode = self.settings.value("theme", "system")
-        if self.theme_mode not in ("dark", "light", "system"):
+        if self.theme_mode not in ("dark", "light", "hacker", "system"):
             self.theme_mode = "system"
         self.mode = self.settings.value("mode", "blue")  # blue (defensive) | red (offensive)
         if self.mode not in ("blue", "red"):
@@ -143,15 +145,17 @@ class MainWindow(
         self.engagement = self.store.engagement(last) if last and not tor else None
         self._load_rules()
         self.profile = self._profile_for(self.engagement)
-        if self.shields.needs_update():  # refresh filter lists in the background (daily)
-            self.runner.run(lambda: shields_mod.build_engines(shields_mod.fetch_lists(self.shields.cache)),
-                            self._filters_ready)
+        # Background downloads start once the window is up: Python runs one thread at a time, so starting them
+        # during construction slowed the first paint by seconds.
+        if self.shields.needs_update():  # refresh filter lists in the background (daily); compiled engines saved
+            QTimer.singleShot(5000, lambda: self.runner.run(lambda: shields_mod.build_and_save(self.shields.cache),
+                                                            self._filters_ready))
         self._kev_recent: list = []  # latest exploited-in-the-wild CVEs, shown on the start page
         self._news: list = []        # latest cybersecurity headlines, shown on the start page while online
         self._is_online = True
         if not tor:
-            self.runner.run(secsearch.recent_kev, self._kev_ready)
-            self._fetch_news()
+            QTimer.singleShot(2500, lambda: self.runner.run(secsearch.recent_kev, self._kev_ready))
+            QTimer.singleShot(2500, self._fetch_news)
             self._news_timer = QTimer(self)
             self._news_timer.timeout.connect(self._fetch_news)
             self._news_timer.start(30 * 60 * 1000)  # refresh headlines every 30 minutes

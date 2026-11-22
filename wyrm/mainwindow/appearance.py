@@ -21,13 +21,13 @@ class AppearanceMixin:
 
     # ================================================================ theme / settings
     def _effective_theme(self) -> str:
-        if self.theme_mode in ("dark", "light"):
+        if self.theme_mode in ("dark", "light", "hacker"):
             return self.theme_mode
         scheme = QGuiApplication.styleHints().colorScheme()
         return "light" if scheme == Qt.ColorScheme.Light else "dark"
 
     def apply_theme(self, mode: str):
-        """mode: 'dark' | 'light' | 'system' (follows the OS setting live)."""
+        """mode: 'dark' | 'light' | 'hacker' | 'system' (follows the OS setting live)."""
         self.theme_mode = mode
         self.settings.setValue("theme", mode)
         name = self._effective_theme()
@@ -39,7 +39,7 @@ class AppearanceMixin:
         app.setPalette(theme.palette(name, self.mode))
         app.setStyleSheet(theme.stylesheet(name, self.data_dir / "ui", self.mode))
         p = theme.resolve_palette(name, self.mode)
-        pages.THEME = name
+        pages.THEME = "dark" if name == "hacker" else name  # internal pages: dark styling
         pages.MODE = self.mode
         self.loading_bar.COLOR = QColor(p["interactive"])
         ic = p["icon"]

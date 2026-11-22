@@ -136,7 +136,8 @@ class SettingsDialog(QDialog):
         self.engine.setCurrentIndex(max(0, self.engine.findData(self.settings.value("search/engine", engines.DEFAULT_ENGINE))))
         f.addRow("Default search engine", self.engine)
         self.theme = QComboBox()
-        for key, label in (("system", "Follow system"), ("dark", "Dark"), ("light", "Light")):
+        for key, label in (("system", "Follow system"), ("dark", "Dark"), ("light", "Light"),
+                           ("hacker", "Hacker (pro dark)")):
             self.theme.addItem(label, key)
         self.theme.setCurrentIndex(max(0, self.theme.findData(self.settings.value("theme", "system"))))
         f.addRow("Theme", self.theme)

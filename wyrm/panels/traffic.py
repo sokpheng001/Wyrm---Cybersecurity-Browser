@@ -123,6 +123,10 @@ class TrafficTab(QWidget):
         self.c_static.toggled.connect(self._refilter)
         row.addWidget(self.c_scope)
         row.addWidget(self.c_static)
+        b_int = QPushButton("Intercept…")
+        b_int.setToolTip("Hold page requests to edit, forward or drop them (Burp-style), Ctrl+Alt+I")
+        b_int.clicked.connect(lambda: self.win.open_intercept())
+        row.addWidget(b_int)
         clear = QPushButton("Clear")
         clear.clicked.connect(self.clear)
         row.addWidget(clear)
@@ -213,12 +217,17 @@ class TrafficTab(QWidget):
         r = self._row(idx)
         m = QMenu(self)
         m.addAction("Send to Repeater", lambda: self._send_to_repeater(r))
+        m.addAction("Send to Intruder", lambda: self._send_to_intruder(r))
         m.addAction("Open in new tab", lambda: self.win.open_url(r["url"], new_tab=True))
         m.addSeparator()
         m.addAction("Copy URL", lambda: QGuiApplication.clipboard().setText(r["url"]))
         m.addAction("Copy as cURL", lambda: QGuiApplication.clipboard().setText(
             tools.to_curl(r["method"], r["url"], r.get("headers"))))
         m.exec(self.table.viewport().mapToGlobal(pos))
+
+    def _send_to_intruder(self, r):
+        self.win.security.intruder.load_request(r["method"], r["url"], r.get("headers") or {})
+        self.win.security.show_tab("Intruder")
 
     def _send_to_repeater(self, r):
         self.win.security.tools_tab.load_request(r["method"], r["url"], r.get("headers") or {})

@@ -90,6 +90,49 @@ def build_engines(texts: dict[str, str]) -> dict[str, adblock.Engine]:
     return engines
 
 
+def _signature(cache: Path) -> str:
+    """Changes whenever a filter list (or the adblock library) changes: keys the saved engines and rule counts."""
+    parts = [getattr(adblock, "__version__", "?")]
+    for f in sorted(cache.glob("*.txt")):
+        st = f.stat()
+        parts.append(f"{f.name}:{st.st_size}:{st.st_mtime_ns}")
+    return "|".join(parts)
+
+
+def save_engines(cache: Path, engines: dict) -> None:
+    """Save compiled engines (adblock's native Rust format): loading them takes ~0.08 s instead of rebuilding
+    every engine from ~18 MB of filter text at each start (~0.5 s, all on the UI thread)."""
+    try:
+        for cat, eng in engines.items():
+            eng.serialize_to_file(str(cache / f"engine-{cat}.dat"))
+        (cache / "engine.sig").write_text(_signature(cache), encoding="utf-8")
+    except Exception:  # noqa: BLE001 - a cache only; never break the browser over it
+        pass
+
+
+def load_saved_engines(cache: Path) -> dict | None:
+    try:
+        if (cache / "engine.sig").read_text(encoding="utf-8") != _signature(cache):
+            return None
+        out = {}
+        for cat in LISTS:
+            f = cache / f"engine-{cat}.dat"
+            if f.exists():
+                eng = adblock.Engine(filter_set=adblock.FilterSet(), optimize=True)
+                eng.deserialize_from_file(str(f))
+                out[cat] = eng
+        return out or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def build_and_save(cache: Path) -> dict:
+    """Worker thread: download fresh lists, compile them and save the compiled engines."""
+    engines = build_engines(fetch_lists(cache))
+    save_engines(cache, engines)
+    return engines
+
+
 class Shields:
     def __init__(self, data_dir: Path, settings):
         self.cache = data_dir / "filters"
@@ -103,16 +146,25 @@ class Shields:
             self.cache.mkdir(parents=True, exist_ok=True)
             for f in bundled.glob("*.txt"):
                 (self.cache / f.name).write_bytes(f.read_bytes())
-        cached = load_cached(self.cache)
-        if cached:
-            self.engines = build_engines(cached)
+        self.engines = load_saved_engines(self.cache) or {}
+        if not self.engines:
+            cached = load_cached(self.cache)
+            if cached:
+                self.engines = build_engines(cached)
+                save_engines(self.cache, self.engines)
+        self._counts: tuple[str, dict] | None = None
 
     # ---------------------------------------------------------- settings
     def enabled(self, what: str) -> bool:
-        return self.settings.value(f"shields/{what}", True, type=bool)
+        # cached: called several times for every network request, and each QSettings read is a registry lookup
+        cache = self.__dict__.setdefault("_enabled_cache", {})
+        if what not in cache:
+            cache[what] = self.settings.value(f"shields/{what}", True, type=bool)
+        return cache[what]
 
     def set_enabled(self, what: str, on: bool):
         self.settings.setValue(f"shields/{what}", on)
+        self.__dict__.setdefault("_enabled_cache", {})[what] = bool(on)
 
     def site_enabled(self, host: str) -> bool:
         return host not in self.disabled_sites
@@ -135,8 +187,28 @@ class Shields:
             return "never"
 
     def rule_counts(self) -> dict[str, int]:
-        return {cat: sum(1 for line in t.splitlines() if line and not line.startswith(("!", "[")))
-                for cat, t in load_cached(self.cache).items()}
+        """Rules per category. Counted once per filter-list version (memory + counts.json), not on every Shields
+        panel refresh: counting re-read ~18 MB of lists each time."""
+        import json
+        sig = _signature(self.cache)
+        if self._counts and self._counts[0] == sig:
+            return self._counts[1]
+        f = self.cache / "counts.json"
+        try:
+            saved = json.loads(f.read_text(encoding="utf-8"))
+            if saved.get("sig") == sig:
+                self._counts = (sig, saved["counts"])
+                return saved["counts"]
+        except (OSError, ValueError, KeyError):
+            pass
+        counts = {cat: sum(1 for line in t.splitlines() if line and not line.startswith(("!", "[")))
+                  for cat, t in load_cached(self.cache).items()}
+        try:
+            f.write_text(json.dumps({"sig": sig, "counts": counts}), encoding="utf-8")
+        except OSError:
+            pass
+        self._counts = (sig, counts)
+        return counts
 
     # ---------------------------------------------------------- decisions
     def check(self, url: str, source_url: str, rtype: str, source_host: str) -> str | None:

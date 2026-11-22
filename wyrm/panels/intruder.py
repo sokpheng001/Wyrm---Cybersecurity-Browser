@@ -140,6 +140,15 @@ class IntruderTab(QWidget):
         self._update_positions()
         self._update_budget()
 
+    def load_request(self, method: str, url: str, headers: dict, body: str = ""):
+        """Fill Intruder from another tool (Traffic, Intercept). Mark what to fuzz with §…§ (e.g. select a value
+        and press the §-button), then Start."""
+        self.method.setCurrentText(method or "GET")
+        self.url.setText(url)
+        lines = [f"{k}: {v}" for k, v in headers.items() if k.lower() not in ("content-length", "host")]
+        self.headers.setPlainText("\n".join(lines))
+        self.body.setPlainText(body or "")
+
     def showEvent(self, e):
         super().showEvent(e)
         self._refresh_scope()

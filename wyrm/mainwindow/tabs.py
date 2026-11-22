@@ -204,6 +204,12 @@ class TabsMixin:
             url = info.url().toString()
             host = info.url().host()
             self._failed[view] = QUrl(url)
+            if url in getattr(self, "_intercept_held", ()):  # waiting in the Intercept window
+                self._intercept_held.discard(url)
+                self._failed.pop(view, None)
+                from ..panels.intercept import held_page
+                view.setHtml(held_page(url), QUrl("data:text/html,intercept"))
+                return
             reason = self.block_reasons.pop(url, None)
             if reason:  # blocked by Shields / smart link check: explain why, offer a way through
                 self._failed.pop(view, None)

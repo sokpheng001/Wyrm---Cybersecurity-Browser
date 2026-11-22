@@ -64,6 +64,18 @@ class ExtensionsMixin:
         for e in ext.library(self._ext_lib()):
             mgr.loadExtension(str(e["path"]))
 
+    def _ext_shutdown(self):
+        """Called while the window closes. With more than one profile (personal + engagements) and an extension
+        switched on, Qt WebEngine aborts (0x80000003) while destroying the profiles. Switching our extensions off
+        first avoids it. The saved on/off choices are not touched, so they come back on at the next start."""
+        for mgr in self._ext_managers():
+            for info in list(mgr.extensions()):
+                if info.isEnabled() and self._ext_folder(info) and (self._ext_lib() / self._ext_folder(info)).is_dir():
+                    try:
+                        mgr.setExtensionEnabled(info, False)
+                    except RuntimeError:
+                        pass
+
     @staticmethod
     def _ext_folder(info) -> str:
         return Path(info.path()).name if info.path() else ""
@@ -240,22 +252,26 @@ class ExtensionsMixin:
         menu.addAction("Manage extensions…", self.manage_extensions)
 
     def _ext_popup(self, url, name: str):
-        """An extension's toolbar popup, shown under the top-right of the window like in Chrome."""
-        from PySide6.QtWebEngineCore import QWebEnginePage
-        from PySide6.QtWebEngineWidgets import QWebEngineView
+        """An extension's popup under the Extensions button, like Chrome's. A frameless tool window (not a Qt
+        Popup: on Windows a Popup grabs the mouse and closes as soon as you click into the web page inside it).
+        It closes when you click elsewhere or press Esc."""
         old = getattr(self, "_ext_pop", None)
         if old is not None:
-            old.close()
-        view = QWebEngineView()
-        view.setWindowFlags(Qt.WindowType.Popup)
-        view.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+            try:
+                old.close()
+            except RuntimeError:
+                pass
+        view = _ExtPopup(self.profile, self)
         view.setWindowTitle(name)
-        view.setPage(QWebEnginePage(self.profile, view))
-        view.resize(380, 560)
-        top_right = self.mapToGlobal(QPoint(self.width() - 396, 96))
-        view.move(top_right)
+        anchor = getattr(self, "b_ext", None)
+        if anchor is not None and anchor.isVisible():
+            pos = anchor.mapToGlobal(QPoint(anchor.width(), anchor.height() + 4))
+            view.move(pos.x() - view.width(), pos.y())
+        else:
+            view.move(self.mapToGlobal(QPoint(self.width() - view.width() - 16, 96)))
         view.load(url)
         view.show()
+        view.activateWindow()
         self._ext_pop = view
 
     # ---------------------------------------------------------------- manager dialog
@@ -365,3 +381,39 @@ class ExtensionsMixin:
 def _esc(s: str) -> str:
     from html import escape
     return escape(str(s or ""))
+
+
+def _ExtPopup(profile, owner):
+    """Factory (keeps the QtWebEngine imports lazy): the extension popup window."""
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QKeySequence, QShortcut
+    from PySide6.QtWebEngineCore import QWebEnginePage
+    from PySide6.QtWebEngineWidgets import QWebEngineView
+
+    class ExtPopup(QWebEngineView):
+        def __init__(self):
+            super().__init__()
+            self.setWindowFlags(Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
+            self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+            self.setPage(QWebEnginePage(profile, self))
+            self.resize(400, 580)
+            self.page().windowCloseRequested.connect(self.close)  # the extension calls window.close()
+            QShortcut(QKeySequence("Esc"), self, activated=self.close)
+            self._ready = False
+            QTimer.singleShot(400, lambda: setattr(self, "_ready", True))  # ignore the activation dance on open
+
+        def changeEvent(self, e):
+            super().changeEvent(e)
+            if e.type() == QEvent.Type.ActivationChange and self._ready and not self.isActiveWindow():
+                QTimer.singleShot(150, self._close_if_inactive)  # clicked outside it
+
+        def _close_if_inactive(self):
+            try:
+                from PySide6.QtWidgets import QApplication
+                active = QApplication.activeWindow()
+                if active is not self and (active is None or not self.isAncestorOf(active)):
+                    self.close()
+            except RuntimeError:
+                pass
+
+    return ExtPopup()

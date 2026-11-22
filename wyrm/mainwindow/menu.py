@@ -45,7 +45,8 @@ class MenuMixin:
         tm = m.addMenu("Theme")
         group = QActionGroup(self)
         self._theme_actions = {}
-        for mode, label in (("system", "Follow system"), ("dark", "Dark"), ("light", "Light")):
+        for mode, label in (("system", "Follow system"), ("dark", "Dark"), ("light", "Light"),
+                            ("hacker", "Hacker (pro dark)")):
             act = tm.addAction(label, lambda md=mode: self.apply_theme(md))
             act.setCheckable(True)
             act.setData(mode)
@@ -58,6 +59,8 @@ class MenuMixin:
         hk = QKeySequence(self.HISTORY_KEYS[0]).toString(QKeySequence.SequenceFormat.NativeText)
         m.addAction(f"History   {hk}", self.open_history)
         m.addAction("Clear browsing data…", self.clear_browsing_data)
+        a = m.addAction("Intercept requests…   Ctrl+Alt+I", self.open_intercept)
+        a.setEnabled(not self.tor)
         em = m.addMenu("Extensions")
         em.aboutToShow.connect(lambda menu=em: self._ext_fill_menu(menu))
         m.addSeparator()
