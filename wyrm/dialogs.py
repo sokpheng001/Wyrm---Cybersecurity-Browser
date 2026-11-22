@@ -210,6 +210,14 @@ class SettingsDialog(QDialog):
             setattr(self, f"sh_{key}", cb)
             f.addRow("Shields" if key == "ads" else "", cb)
         # Location — control what websites get from navigator.geolocation
+        # Intercepting proxy (built-in, Burp/Caido-style) — enabled from its own panel (needs a restart + CA)
+        f.addRow(QLabel("<b>Intercepting proxy</b>"))
+        pnote = QLabel("Capture full HTTPS requests and responses (with bodies) and edit responses, in Security "
+                       "panel → <b>Proxy</b>. It installs a local certificate and restarts Wyrm. Developers: @kwan, @oda.")
+        pnote.setObjectName("Muted")
+        pnote.setWordWrap(True)
+        f.addRow("", pnote)
+
         f.addRow(QLabel("<b>Location</b>"))
         self.geo_mode = QComboBox()
         for key, label in (("off", "Normal — let sites ask for my real location"),

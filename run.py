@@ -114,6 +114,13 @@ def main():
         os.environ["NO_PROXY"] = "127.0.0.1,localhost"
     else:
         apply_proxy_flags()
+        if not private_mode:  # built-in intercepting proxy (HTTPS capture), if enabled
+            from wyrm.security import mitm
+            _dd = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))
+            mflags = mitm.start_if_enabled(_dd)
+            if mflags:
+                os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
+                    os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "") + " " + " ".join(mflags)).strip()
     register_scheme()  # must happen before QApplication exists
     app = QApplication(argv)
     app.setApplicationDisplayName("Wyrm Browser")  # shown name; data folder stays "Wyrm"

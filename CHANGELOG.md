@@ -4,6 +4,13 @@ What's new in each version of Wyrm Browser. The release workflow publishes the s
 version (from `wyrm/__init__.py`) as the release description and the in-app **Update** tooltip, so keep the
 most important points first. Each build of a version adds an "Also in this build" list automatically.
 
+## v0.2.0
+
+- Intercepting HTTPS proxy (Burp/Caido-style) — Security panel → Proxy. Turn it on (installs a local CA and
+  restarts) and every request/response flows through Wyrm: the full messages, with bodies, are captured and
+  searchable. Turn on "Intercept responses" to pause a response, edit its body, and forward it to the page.
+  Right-click a flow → Send to Repeater / Intruder. Developers: @kwan, @oda.
+
 ## v0.1.0
 
 - First-run welcome screen introducing Wyrm's main tools

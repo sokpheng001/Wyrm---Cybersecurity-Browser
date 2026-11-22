@@ -35,6 +35,7 @@ from .updates import UpdatesMixin
 from .extensions import ExtensionsMixin
 from .intercept import InterceptMixin
 from .capture import CaptureMixin
+from .proxy import ProxyMixin
 from .. import shields as shields_mod, winframe
 from ..async_util import Runner
 from ..library import Library
@@ -67,6 +68,7 @@ class MainWindow(
     ExtensionsMixin,
     InterceptMixin,
     CaptureMixin,
+    ProxyMixin,
     QMainWindow,
 ):
     def __init__(self, tor=None, private: bool = False):

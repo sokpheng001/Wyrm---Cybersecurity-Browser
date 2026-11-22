@@ -34,7 +34,7 @@ a = Analysis(
            ("wyrm/assets", "wyrm/assets")]
           # ProjectDiscovery tools (tools/fetch_pdtools.py); skipped if not fetched (e.g. a quick local build)
           + ([("wyrm/bin", "wyrm/bin")] if os.path.isdir("wyrm/bin") else []),
-    hiddenimports=["PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtSvg", "PySide6.QtNetwork", "adblock", "stem", "stem.process", "stem.control", "socks", "wyrm.security.triage", "wyrm.security.fuzzer", "wyrm.security.secsearch", "wyrm.security.rewrite"],
+    hiddenimports=["PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtSvg", "PySide6.QtNetwork", "adblock", "stem", "stem.process", "stem.control", "socks", "wyrm.security.triage", "wyrm.security.fuzzer", "wyrm.security.secsearch", "wyrm.security.rewrite", "wyrm.security.mitm", "cryptography", "certifi"],
     # trim Qt modules we never use (keeps the bundle smaller)
     excludes=["PySide6.Qt3DCore", "PySide6.QtQuick3D", "PySide6.QtCharts", "PySide6.QtDataVisualization",
               "PySide6.QtMultimedia", "PySide6.QtBluetooth", "PySide6.QtSensors", "PySide6.QtSerialPort",

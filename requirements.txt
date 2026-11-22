@@ -4,3 +4,5 @@ adblock>=0.6
 stem>=1.8
 PySocks>=1.7
 pillow>=10
+cryptography>=42   # intercepting proxy: local CA + per-host certs
+certifi>=2023    # upstream TLS verification for the proxy
