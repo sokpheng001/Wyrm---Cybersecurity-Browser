@@ -241,9 +241,9 @@ class ExtensionsMixin:
             manifest = {}
         bg = manifest.get("background") or {}
         if isinstance(bg, dict) and (bg.get("service_worker") or bg.get("scripts")):
-            return ("⚠ May not work fully — this extension runs a background script, and Wyrm (Qt WebEngine) "
-                    "supports only part of Chrome's background/toolbar features. Its popup and page features work.",
-                    "#f0b429")
+            return ("⚠ Limited — this extension relies on Chrome background APIs (toolbar, webRequest, tab events) "
+                    "that Qt WebEngine doesn't support yet, so it may not fully work. For technology detection, "
+                    "use Scanner → Technologies, which is built in.", "#f0b429")
         return ("✓ On", "#3fb950")
 
     # ---------------------------------------------------------------- menu + popups

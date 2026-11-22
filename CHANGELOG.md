@@ -6,6 +6,10 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.0.8
 
+- Home page background can now be a video: pick a built-in video wallpaper, or upload your own (Customize →
+  Background). Videos are WebM; your uploaded MP4 may not play because Wyrm's engine ships no H.264 codec
+- Extensions: clearer note that extensions needing Chrome background APIs (like Wappalyzer) can't fully run in
+  Wyrm yet — use Scanner → Technologies for technology detection instead
 - New Scanner → JS recon: pulls endpoints, API paths and leaked secrets (AWS, Google, GitHub, Stripe, Slack,
   JWTs, private keys and more) from the open page's scripts — inline and same-scope external (LinkFinder /
   SecretFinder style). Interesting endpoints (admin, token, api, graphql …) are starred

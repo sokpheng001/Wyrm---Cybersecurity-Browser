@@ -63,17 +63,35 @@ class HomeMixin:
         except OSError:
             return None
 
+    VIDEO_EXTS = {".mp4": b"video/mp4", ".webm": b"video/webm", ".m4v": b"video/mp4", ".mov": b"video/quicktime"}
+    VIDEO_MAX_BYTES = 60 * 1024 * 1024
+
+    def _custom_video_path(self) -> "Path | None":
+        d = self.data_dir / self.BG_DIR
+        return next((f for f in sorted(d.glob("customvid.*")) if f.suffix.lower() in self.VIDEO_EXTS), None) \
+            if d.is_dir() else None
+
+    def _custom_video(self):
+        f = self._custom_video_path()
+        return (f.read_bytes(), self.VIDEO_EXTS[f.suffix.lower()]) if f else None
+
     def _bg_settings(self) -> dict:
         s = self.settings
         mode = s.value("home/bg_mode", "", type=str)
-        if mode not in ("random", "color", "image", "none"):  # older versions: a single on/off switch
+        if mode not in ("random", "color", "image", "video", "video_local", "none"):  # older: a single on/off switch
             mode = "random" if s.value("home/background", True, type=bool) else "none"
         f = self._custom_bg_path()
         ver = str(int(f.stat().st_mtime)) if f else ""
+        vf = self._custom_video_path()
+        vver = str(int(vf.stat().st_mtime)) if vf else ""
         if mode == "image" and not ver:
             mode = "random"
+        if mode == "video" and not self._bundled_videos():  # no bundled loops available
+            mode = "video_local" if vver else "random"
+        if mode == "video_local" and not vver:
+            mode = "video" if self._bundled_videos() else "random"
         return {"mode": mode, "color": s.value("home/bg_color", "midnight", type=str), "image_ver": ver,
-                "interval": self._bg_interval()}
+                "video_ver": vver, "interval": self._bg_interval()}
 
     def _bg_interval(self) -> int:
         """Minutes between wallpaper changes (Customize → Change wallpaper every); also applied to pages."""
@@ -85,7 +103,7 @@ class HomeMixin:
 
     def _set_background(self, params: dict):
         mode = params.get("mode", "")
-        if mode not in ("random", "color", "image", "none"):
+        if mode not in ("random", "color", "image", "video", "video_local", "none"):
             return
         if mode == "color":
             color = params.get("color", "")
@@ -118,6 +136,27 @@ class HomeMixin:
             old.unlink(missing_ok=True)
         (d / f"custom{ext}").write_bytes(src.read_bytes())
         self._set_background({"mode": "image"})
+
+    def _pick_background_video(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Choose a background video", str(Path.home() / "Videos"),
+                                              "Videos (*.mp4 *.webm *.m4v *.mov)")
+        if not path:
+            return
+        src = Path(path)
+        ext = src.suffix.lower()
+        try:
+            size = src.stat().st_size
+        except OSError:
+            return
+        if ext not in self.VIDEO_EXTS or size > self.VIDEO_MAX_BYTES:
+            QMessageBox.warning(self, "Background", "Please choose an MP4 or WebM video up to 60 MB.")
+            return
+        d = self.data_dir / self.BG_DIR
+        d.mkdir(parents=True, exist_ok=True)
+        for old in d.glob("customvid.*"):
+            old.unlink(missing_ok=True)
+        (d / f"customvid{ext}").write_bytes(src.read_bytes())
+        self._set_background({"mode": "video_local"})
 
     def scheme_action(self, action: str, params: dict) -> str | None:
         """Called by wyrm://allow and wyrm://do links. Returns a URL to continue to (or None)."""
@@ -152,6 +191,8 @@ class HomeMixin:
                 self.toast("Browsing history cleared")
             elif do == "bg-upload" and not self.tor:
                 QTimer.singleShot(0, self._pick_background_image)  # don't block the scheme request on a dialog
+            elif do == "bg-upload-video" and not self.tor:
+                QTimer.singleShot(0, self._pick_background_video)
             return None
         host, url = params.get("host", ""), params.get("url", "")
         if action == "allow-threat" and host:
@@ -170,7 +211,36 @@ class HomeMixin:
                 "background": (not self.tor) and self._bg_settings()["mode"] != "none",
                 "bg": self._bg_settings(), "news": self._news if self._is_online else [],
                 "weather": getattr(self, "_weather", None) if self._is_online else None,
+                "vid_url": self._bg_video_url(), "have_videos": bool(self._bundled_videos()),
                 "tor": bool(self.tor), "private": self.private}
+
+    VIDEO_ASSET_DIR = Path(__file__).resolve().parents[1] / "assets" / "video"
+
+    def _bundled_videos(self) -> list:
+        """CC0 ambient WebM loops shipped with Wyrm (downloaded at build time); may be empty."""
+        d = self.VIDEO_ASSET_DIR
+        return sorted(d.glob("*.webm")) if d.is_dir() else []
+
+    def _active_bg_video_path(self):
+        """The video file the background server should serve now, for the current mode. Read by bgserver.py."""
+        mode = self.settings.value("home/bg_mode", "", type=str)
+        if mode == "video_local":
+            return self._custom_video_path()
+        if mode == "video":  # a random bundled loop, stable within the chosen interval, rotating each interval
+            vids = self._bundled_videos()
+            if vids:
+                import time
+                bucket = int(time.time() // max(60, self._bg_interval() * 60))
+                return vids[bucket % len(vids)]
+        return None
+
+    def _bg_video_url(self) -> str:
+        srv = getattr(self, "bg_video_server", None)
+        p = self._active_bg_video_path()
+        if srv is None or p is None:
+            return ""
+        # cache-bust so switching video / rotating reloads the <video>
+        return f"{srv.url()}?v={int(p.stat().st_mtime)}-{p.name}"
 
     def _fetch_weather(self):
         # location + weather for the start page; off in private/Tor and when the user disables it

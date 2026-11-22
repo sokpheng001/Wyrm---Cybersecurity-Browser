@@ -121,6 +121,9 @@ class MainWindow(
         self.scheme_handler = HiddenSchemeHandler(self.library, self.runner, self.default_engine, self.home_context, self)
         self.scheme_handler.actions = self.scheme_action
         self.scheme_handler.custom_bg = self._custom_bg
+        from ..bgserver import BackgroundVideoServer
+        # serves the active background video (uploaded or a bundled loop) over 127.0.0.1 with Range support
+        self.bg_video_server = BackgroundVideoServer(self._active_bg_video_path)
         self.scheme_handler.history_page = self._history_page
         self.scheme_handler.bg_cache_dir = self.data_dir / "cache"  # current wallpaper survives restarts
 

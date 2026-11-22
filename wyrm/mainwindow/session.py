@@ -86,6 +86,8 @@ class SessionMixin:
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("sec/visible", self.security.isVisible())
         self.runner.shutdown()
+        if getattr(self, "bg_video_server", None) is not None:
+            self.bg_video_server.stop()
         self._ext_shutdown()  # switch extensions off first: Qt crashes tearing down profiles with them on
         self.tabbar.blockSignals(True)
         while self.tabbar.count():

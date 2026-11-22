@@ -218,6 +218,8 @@ details.cust[open]::before{content:"";position:fixed;inset:0;background:rgba(0,0
 .cpanel .opt .pv{width:56px;height:36px;flex:none;background-size:cover;background-position:center;border:1px solid var(--line)}
 .cpanel .opt .pv.photo{background:linear-gradient(135deg,#0f62fe,#8a3ffc 50%,#da1e28)}
 .cpanel .opt .pv.plain{background:var(--bg)}
+.cpanel .opt .pv.video{background:linear-gradient(135deg,#001141,#0f62fe 60%,#08bdba);position:relative}
+.cpanel .opt .pv.video::after{content:'▶';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px}
 .cpanel .opt .pv.up{display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--muted)}
 .cpanel .opt b{display:block;font-size:13px;font-weight:600}
 .cpanel .opt small{display:block;font-size:12px;color:var(--muted)}
@@ -232,6 +234,9 @@ body.hasbg::before{content:"";position:fixed;inset:0;z-index:-2;background-size:
   background-attachment:fixed;background-image:var(--wyrm-bg);opacity:0;transition:opacity 1.1s ease}
 body.hasbg.bg-ready::before{opacity:1}
 body.hasbg.bg-instant::before{transition:none}  /* already cached (back to Home): show at once, no fade */  /* fade in once the image has loaded: no pop / blink */
+.bgvideo{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2;border:0;pointer-events:none;
+  opacity:0;transition:opacity 1.1s ease}
+.bgvideo.on{opacity:1}
 /* next wallpaper: loaded off-screen, then cross-faded over the current one */
 #bgnext{position:fixed;inset:0;z-index:-2;background-size:cover;background-position:center;opacity:0;
   transition:opacity 1.6s ease;pointer-events:none}
@@ -429,7 +434,7 @@ def render_home(ctx: dict) -> str:
     bgc = ctx.get("bg") or {"mode": "random" if ctx.get("background") else "none"}
     bmode = bgc.get("mode", "random")
     # Customize lives outside <main>: main's entry animation would otherwise trap position:fixed inside it
-    panel = _customize_panel(bgc)
+    panel = _customize_panel(bgc, bool(ctx.get('have_videos')))
 
     def page(css: str, cls: str = "") -> str:
         html = _page("New tab", body, css, "home").replace("</main>", "</main>" + panel + BG_FADE_JS, 1)
@@ -448,6 +453,14 @@ def render_home(ctx: dict) -> str:
                  "setTimeout(function(){n.remove();},120);},1700);};im.src=u;}"
                  f"setTimeout(function(){{swap();setInterval(swap,{BG_ROTATE_MS});}},{left});}})();</script>")
         return page(HOME_CSS + f"\n:root{{--wyrm-bg:url('{url}')}}", "hasbg")
+    if bmode in ("video", "video_local"):
+        src = ctx.get("vid_url") or ""   # served from 127.0.0.1 with Range support (see bgserver.py)
+        if src:
+            video = (f"<video class='bgvideo' autoplay muted loop playsinline preload='auto' "
+                     f"src='{escape(src, quote=True)}' onloadeddata='this.classList.add(\"on\")'></video>")
+            html = _page("New tab", body, HOME_CSS, "home").replace("</main>", "</main>" + video + panel, 1)
+            return html.replace("<body>", "<body class='hasbg'>", 1)
+        return _page("New tab", body, HOME_CSS, "home").replace("</main>", "</main>" + panel, 1)
     if bmode == "color" and bgc.get("color") in BG_COLOR_CSS:
         return page(HOME_CSS + f"\n:root{{--wyrm-bg:{BG_COLOR_CSS[bgc['color']]}}}"
                     "\nbody.hasbg::after{background:rgba(0,0,0,.12)}", "hasbg")
@@ -466,7 +479,7 @@ BG_FADE_JS = ("<script>(function(){var b=document.body;if(!b.classList.contains(
               "var im=new Image();im.onload=im.onerror=ready;im.src=m[1];})();</script>")  # cached image: no fade
 
 
-def _customize_panel(bgc: dict) -> str:
+def _customize_panel(bgc: dict, have_videos: bool = False) -> str:
     """Bottom-right "Customize" button: a centered panel to pick the start-page background and how often the
     wallpaper changes (applied instantly, remembered). Stays open after a choice (wyrm://home#customize)."""
     m = bgc.get("mode", "random")
@@ -486,6 +499,15 @@ def _customize_panel(bgc: dict) -> str:
                  "</span><span><b>Your image</b><small>The picture you uploaded</small></span></a>")
     opts += opt("wyrm://do?a=bg-upload", "up", "Upload from device…" if not has_img else "Upload another image…",
                 "JPG, PNG, WebP or GIF, up to 25 MB", False)
+    # Video backgrounds
+    if have_videos:
+        opts += opt("wyrm://do?a=bg&amp;mode=video", "video", "Video wallpapers",
+                    f"Random ambient video, new one {every_txt}", m == "video")
+    if bgc.get("video_ver"):
+        opts += opt("wyrm://do?a=bg&amp;mode=video_local", "video", "Your video", "The video you uploaded",
+                    m == "video_local")
+    opts += opt("wyrm://do?a=bg-upload-video", "up", "Upload a video…" if not bgc.get("video_ver")
+                else "Upload another video…", "MP4 or WebM, up to 60 MB", False)
     opts += opt("wyrm://do?a=bg&amp;mode=none", "plain", "No background", "Plain light / dark theme", m == "none")
     ivs = "".join(f"<a class='iv{' on' if mins == every else ''}' href='wyrm://do?a=bg-interval&amp;min={mins}'>{lbl}</a>"
                   for mins, lbl in BG_INTERVALS)
