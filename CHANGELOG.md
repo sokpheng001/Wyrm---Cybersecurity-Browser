@@ -6,6 +6,8 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.0.8
 
+- Downloads button in the toolbar (Ctrl+J) with a downloads panel, like other browsers: see progress, and
+  Open or Show-in-folder each finished file (Open now checks the file is there and reports if it can't open it)
 - Home page background can now be a video: pick a built-in video wallpaper, or upload your own (Customize →
   Background). Videos are WebM; your uploaded MP4 may not play because Wyrm's engine ships no H.264 codec
 - Extensions: clearer note that extensions needing Chrome background APIs (like Wappalyzer) can't fully run in

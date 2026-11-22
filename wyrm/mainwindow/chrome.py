@@ -211,6 +211,13 @@ class ChromeMixin:
         self.shield_badge.hide()
         n.addWidget(self.b_shield)
         # Intercept (Burp-style): opens the Intercept window; highlighted while requests are being held
+        # Downloads (like other browsers): opens the downloads list; a badge shows active/finished counts
+        self.b_downloads = self._tool("download", "Downloads (Ctrl+J)", lambda: self.show_downloads(), ["Ctrl+J"])
+        self.dl_badge = QLabel(self.b_downloads, objectName="Badge")
+        self.dl_badge.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.dl_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.dl_badge.hide()
+        n.addWidget(self.b_downloads)
         self.b_int = self._tool("intercept", "Intercept requests: hold, edit, forward or drop (Ctrl+Alt+I)",
                                 lambda: self.open_intercept())
         self.b_int.setObjectName("InterceptButton")
