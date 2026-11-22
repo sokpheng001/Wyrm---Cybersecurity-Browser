@@ -6,6 +6,12 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.2.0
 
+- Everything's bundled now: Tor and the nuclei templates ship inside the installer, so Tor windows and nuclei
+  scans work right after install with no extra download
+- The security tools auto-update: when you're online, Wyrm quietly fetches newer ProjectDiscovery releases
+  (and nuclei templates) in the background, once a day
+- Smarter updates: routine updates (same version line) now install automatically when you restart Wyrm — no
+  more clicking "Update" on every build. Only feature/major releases (or unusually large ones) ask you to update
 - Intercepting HTTPS proxy (Burp/Caido-style) — Security panel → Proxy. Turn it on (installs a local CA and
   restarts) and every request/response flows through Wyrm: the full messages, with bodies, are captured and
   searchable. Turn on "Intercept responses" to pause a response, edit its body, and forward it to the page.

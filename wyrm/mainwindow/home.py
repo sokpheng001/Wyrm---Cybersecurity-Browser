@@ -242,6 +242,23 @@ class HomeMixin:
         # cache-bust so switching video / rotating reloads the <video>
         return f"{srv.url()}?v={int(p.stat().st_mtime)}-{p.name}"
 
+    def _update_pd_tools(self):
+        """Daily, while online: update the ProjectDiscovery tools + nuclei templates if newer ones are released."""
+        if self.ephemeral or not self._is_online:
+            return
+        from ..security import pdtools, pdupdate
+        px, verify = self.proxies(), self.verify_tls()
+
+        def work():
+            msgs = []
+            n = pdupdate.check_and_update(pdtools.USER_DIR, px, verify, lambda m: msgs.append(m))
+            return n, msgs
+
+        def done(ok, res):
+            if ok and res[0]:
+                self.toast(f"Updated {res[0]} security tool(s) to the latest ProjectDiscovery release", 6000)
+        self.runner.run(work, done)
+
     def _fetch_weather(self):
         # location + weather for the start page; off in private/Tor and when the user disables it
         if self.ephemeral or not self._is_online \

@@ -33,7 +33,8 @@ VERSIONS = {
     "mapcidr": "1.1.97", "alterx": "0.1.0",
 }
 
-DEST = Path(__file__).resolve().parent.parent / "wyrm" / "bin"
+BINROOT = Path(__file__).resolve().parent.parent / "wyrm" / "bin"
+DEST = BINROOT / "pdtools"   # the recon/scan tool binaries
 UA = {"User-Agent": "Wyrm build (fetch_pdtools)"}
 
 
@@ -89,6 +90,62 @@ def main() -> None:
             s.headers["Authorization"] = f"Bearer {token}"
         for tool, ver in VERSIONS.items():
             fetch_tool(tool, ver, tag, s)
+    fetch_tor()
+    fetch_nuclei_templates()
+
+
+def fetch_nuclei_templates() -> None:
+    """Bundle the nuclei templates (projectdiscovery/nuclei-templates) into wyrm/bin/nuclei-templates/, so the
+    first nuclei scan runs offline with no template download. Non-fatal."""
+    import tarfile
+    dest = BINROOT / "nuclei-templates"
+    try:
+        url = "https://github.com/projectdiscovery/nuclei-templates/archive/refs/heads/main.tar.gz"
+        data = requests.get(url, timeout=600, headers=UA).content
+        shutil.rmtree(dest, ignore_errors=True)
+        dest.mkdir(parents=True)
+        with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
+            members = tf.getmembers()
+            root = members[0].name.split("/")[0] + "/" if members else ""
+            for m in members:
+                if m.name.startswith(root) and (m.isfile() or m.isdir()):
+                    m.name = m.name[len(root):] or "."
+                    if ".." not in m.name and not m.name.startswith("/"):
+                        tf.extract(m, dest)
+        n = sum(1 for _ in dest.rglob("*.yaml"))
+        print(f"  nuclei-templates: {n} templates bundled ({len(data) // 1048576} MB download)")
+    except Exception as e:  # noqa: BLE001 - non-fatal
+        print("  nuclei-templates skipped:", type(e).__name__, e)
+
+
+def fetch_tor() -> None:
+    """Download + verify the Tor Expert Bundle and unpack it into wyrm/bin/tor/, so Tor windows work right after
+    install with no runtime download. Non-fatal: if it fails, Wyrm downloads Tor on first use instead."""
+    import hashlib as _h
+    import tarfile
+    import platform as _plat
+    dest = BINROOT / "tor"
+    try:
+        m = _plat.machine().lower()
+        arch = "aarch64" if m in ("arm64", "aarch64") else "x86_64"
+        osname = {"Windows": "windows", "Darwin": "macos", "Linux": "linux"}[_plat.system()]
+        tag = f"{osname}-{arch}"
+        ver = requests.get("https://aus1.torproject.org/torbrowser/update_3/release/downloads.json",
+                           timeout=30).json()["version"]
+        base = f"https://dist.torproject.org/torbrowser/{ver}"
+        name = f"tor-expert-bundle-{tag}-{ver}.tar.gz"
+        sums = requests.get(f"{base}/sha256sums-signed-build.txt", timeout=30).text
+        expected = next((ln.split()[0] for ln in sums.splitlines() if ln.endswith(name)), None)
+        data = requests.get(f"{base}/{name}", timeout=300).content
+        if not expected or _h.sha256(data).hexdigest() != expected:
+            raise RuntimeError("Tor checksum mismatch")
+        shutil.rmtree(dest, ignore_errors=True)
+        dest.mkdir(parents=True)
+        with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
+            tf.extractall(dest, filter="data")
+        print(f"  tor {ver}: bundled ({len(data) // 1048576} MB)")
+    except Exception as e:  # noqa: BLE001 - non-fatal
+        print("  tor bundle skipped:", type(e).__name__, e)
 
 
 if __name__ == "__main__":

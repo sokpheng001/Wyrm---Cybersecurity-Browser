@@ -39,6 +39,12 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
+def _shipped_tor_dir():
+    """The Tor Expert Bundle shipped inside Wyrm (wyrm/bin/tor/, downloaded at build time), or None."""
+    d = Path(__file__).parent / "bin" / "tor"
+    return d if d.is_dir() else None
+
+
 def platform_tag() -> str:
     m = platform.machine().lower()
     arch = "aarch64" if m in ("arm64", "aarch64") else "x86_64"
@@ -70,9 +76,21 @@ class TorManager:
     # ---------------------------------------------------------- binary
     def tor_path(self) -> str | None:
         exe = "tor.exe" if sys.platform == "win32" else "tor"
-        bundled = self.root / "tor" / exe
-        if bundled.exists():
-            return str(bundled)
+        inst = self.root / "tor" / exe
+        if inst.exists():
+            return str(inst)
+        # shipped with Wyrm (wyrm/bin/tor/): copy into the writable data dir on first use, then run it
+        shipped = _shipped_tor_dir()
+        if shipped is not None and (shipped / "tor" / exe).exists():
+            try:
+                if self.root.exists():
+                    shutil.rmtree(self.root, ignore_errors=True)
+                shutil.copytree(shipped, self.root)
+                if sys.platform != "win32":
+                    (self.root / "tor" / exe).chmod(0o755)
+                return str(self.root / "tor" / exe)
+            except OSError:
+                pass
         return shutil.which("tor")
 
     def install(self, log) -> str:

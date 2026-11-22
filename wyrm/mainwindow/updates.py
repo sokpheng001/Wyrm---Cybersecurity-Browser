@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QMessageBox
 
 from .. import __build__, __version__, version_label
 from ..ui.update_runner import Updater
+from ..updater import _ver_tuple
 
 
 class UpdatesMixin:
@@ -26,6 +27,22 @@ class UpdatesMixin:
         self.runner.run(lambda: updater.check(__version__, px, verify, __build__),
                         lambda ok, r: self._updates_checked(ok, r, manual))
 
+    # ---- Wyrm update policy (so users aren't nagged to click "Update" on every push) ----
+    # A routine update (same MAJOR.MINOR — a patch or a new build, which is most pushes) that isn't unusually
+    # large installs SILENTLY: it downloads in the background and is applied the next time Wyrm is restarted.
+    # A feature update (MINOR or MAJOR version bump) or an unusually large download is USER-CHOSEN: the Update
+    # button appears and the user decides when. A manual "Check for updates…" always offers to update now.
+    LARGE_UPDATE_BYTES = 400 * 1024 * 1024
+
+    def _update_kind(self, info) -> str:
+        cur = _ver_tuple(__version__)
+        new = _ver_tuple(info.get("version", ""))
+        if new[:2] != cur[:2]:
+            return "feature"
+        if int(info.get("asset_size", 0) or 0) > self.LARGE_UPDATE_BYTES:
+            return "feature"
+        return "auto"
+
     def _updates_checked(self, ok, info, manual):
         if not ok:
             if manual:
@@ -33,13 +50,24 @@ class UpdatesMixin:
             return
         if not info.get("newer"):
             self._update_info = None
-            self.b_update.hide()  # nothing new: no button
+            self.b_update.hide()
             if manual:
                 QMessageBox.information(self, "Updates", f"You're on the latest version ({version_label()}).")
             return
-        if getattr(self, "_updater", None):  # already updating
-            return
+        if getattr(self, "_updater", None) or getattr(self, "_pending_update", None):
+            return  # already downloading or downloaded
         self._update_info = info
+        kind = self._update_kind(info)
+        if kind == "auto" and not manual:
+            # silent: download in the background now, apply on next restart — no button, no click
+            self._auto_update = True
+            self._updater = Updater(self, info)
+            if not self._updater.start():
+                self._updater = None
+                self._auto_update = False
+            return
+        # feature update (or manual check): show the Update button and let the user choose
+        self._auto_update = False
         self.b_update.setText("  Update")
         self.b_update.setEnabled(True)
         from .. import updater
@@ -72,6 +100,9 @@ class UpdatesMixin:
 
     def _update_failed(self, msg: str):
         self._updater = None
+        if getattr(self, "_auto_update", False):  # silent update failed: stay quiet, retry next check
+            self._auto_update = False
+            return
         self.b_update.setEnabled(True)
         self.b_update.setText("  Update failed — retry")
         self.toast(msg, 6000)
@@ -80,9 +111,13 @@ class UpdatesMixin:
         self.b_update.setText("  Restarting…")
 
     def _update_ready(self, path):
-        """Update downloaded: keep it and ask whether to restart now or later."""
+        """Update downloaded. Silent (auto) updates just wait for the next restart; feature updates ask now."""
         self._updater = None
         self._pending_update = path
+        if getattr(self, "_auto_update", False):
+            # routine update: it installs automatically when Wyrm is next closed/restarted — no prompt
+            self.toast("Wyrm will finish updating automatically next time you restart it.", 7000)
+            return
         self.b_update.setEnabled(True)
         self.b_update.setText("  Restart to update")
         self.b_update.setToolTip("The update is downloaded. Click to restart Wyrm Browser and finish updating — "

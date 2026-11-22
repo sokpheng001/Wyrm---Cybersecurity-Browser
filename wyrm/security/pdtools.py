@@ -159,12 +159,26 @@ def probe_scheme(target: str, proxies=None) -> str:
 
 
 BUNDLED = Path(__file__).resolve().parents[1] / "bin"  # wyrm/bin (also inside the packaged app)
+USER_DIR: "Path | None" = None  # writable dir for auto-updated tools (set by the window); checked before BUNDLED
 
 
 def find(key: str) -> str | None:
-    """Path of a tool: the copy bundled with Wyrm, else one on the PATH."""
-    exe = BUNDLED / (key + (".exe" if sys.platform == "win32" else ""))
+    """Path of a tool: an auto-updated copy if present, else the one bundled with Wyrm, else one on the PATH."""
+    exe_name = key + (".exe" if sys.platform == "win32" else "")
+    if USER_DIR is not None:
+        upd = USER_DIR / "pdtools" / exe_name
+        if upd.is_file():
+            return str(upd)
+    exe = BUNDLED / "pdtools" / exe_name
     return str(exe) if exe.is_file() else shutil.which(key)
+
+
+def templates_dir() -> "Path | None":
+    """nuclei templates: an auto-updated copy if present, else the bundled one."""
+    if USER_DIR is not None and (USER_DIR / "nuclei-templates").is_dir():
+        return USER_DIR / "nuclei-templates"
+    b = BUNDLED / "nuclei-templates"
+    return b if b.is_dir() else None
 
 
 def installed() -> list[Tool]:
@@ -202,6 +216,10 @@ def run(tool: Tool, target: str, on_line, proxies=None, timeout: int = 600, shou
     if not exe:
         raise RuntimeError(f"{tool.key} is not installed")
     args = [a.replace("{t}", target) for a in tool.args]
+    if tool.key == "nuclei":  # use the templates bundled with (or auto-updated by) Wyrm, offline
+        tpl = templates_dir()
+        if tpl is not None:
+            args = ["-disable-update-check", "-t", str(tpl)] + args
     stdin_data = None
     if "{t}" not in "".join(tool.args):      # mapcidr / alterx read the target from stdin
         stdin_data = target + "\n"

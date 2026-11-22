@@ -160,7 +160,11 @@ class MainWindow(
         self._kev_recent: list = []  # latest exploited-in-the-wild CVEs, shown on the start page
         self._news: list = []        # latest cybersecurity headlines, shown on the start page while online
         self._is_online = True
+        # keep the bundled ProjectDiscovery tools current: auto-updated copies go to a writable dir
+        from ..security import pdtools as _pdt
+        _pdt.USER_DIR = self.data_dir / "pdtools-update"
         if not tor:
+            QTimer.singleShot(6000, self._update_pd_tools)
             QTimer.singleShot(2500, lambda: self.runner.run(secsearch.recent_kev, self._kev_ready))
             QTimer.singleShot(2500, self._fetch_news)
             self._weather: dict | None = None
