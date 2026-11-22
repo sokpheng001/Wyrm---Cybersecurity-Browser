@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from .common import SEV_COLOR, sev_badge
-from ..security import pdtools, portscan, techdetect, webchecks
+from ..security import jsrecon, pdtools, portscan, techdetect, webchecks
 from ..widgets import BusyOverlay
 
 
@@ -78,6 +78,8 @@ class ScannerTab(QWidget):
         for label, fn, tip in (
                 ("Technologies", self.technologies, "What the site is built with: CMS, frameworks, servers, analytics "
                  "(Wappalyzer-style, built in). One normal request, like opening the page."),
+                ("JS recon", self.js_recon, "Pull endpoints, API paths and leaked secrets (API keys, tokens) "
+                 "from the open page's scripts (LinkFinder / SecretFinder style)"),
                 ("Port scan", self.port_scan, "Top 100 TCP ports (TCP connect, polite timing)"),
                 ("CORS test", self.cors, "Crafted Origin headers — after Chen et al., USENIX Security 2018"),
                 ("Clickjacking test", self.clickjacking, "Frame protection — after Huang et al., USENIX Security 2012"),
@@ -386,6 +388,80 @@ class ScannerTab(QWidget):
         url = self._url()
         if url:
             self.win.open_url("wyrm://frametest?u=" + quote(url, safe=""), new_tab=True)
+
+    # ---------------------------------------------------------------- JS recon (endpoints + secrets)
+    def js_recon(self):
+        """Pull endpoints and leaked secrets from the open page's scripts (inline + same-scope external)."""
+        view = self.win.current_view()
+        cur = view.url() if view else None
+        if cur is None or cur.scheme() not in ("http", "https"):
+            self.status.setText("Open the page you want to scan in a tab first, then run JS recon.")
+            return
+        base = cur.toString()
+        px, verify = self.win.proxies(), self.win.verify_tls()
+        self.busy.start("Reading page scripts…")
+        self.status.setText("JS recon: reading the page's scripts…")
+        js = ("(function(){var s=document.getElementsByTagName('script'),src=[],inl=[];"
+              "for(var i=0;i<s.length;i++){if(s[i].src)src.push(s[i].src);"
+              "else if(s[i].textContent)inl.push(s[i].textContent);}"
+              "return JSON.stringify({src:src,inline:inl});})();")
+
+        def have_scripts(res):
+            import json
+            try:
+                data = json.loads(res or "{}")
+            except ValueError:
+                data = {}
+            inline = data.get("inline") or []
+            srcs = jsrecon.scripts_to_fetch(data.get("src") or [], base)
+
+            def work():
+                import requests
+                endpoints, secrets, scanned = set(), [], 0
+                blobs = list(inline)
+                for u in srcs[:40]:  # cap so a huge app can't run forever
+                    try:
+                        r = requests.get(u, timeout=20, proxies=px, verify=verify,
+                                         headers={"User-Agent": "Mozilla/5.0 Wyrm JS recon"})
+                        if r.status_code == 200 and len(r.content) < 8_000_000:
+                            blobs.append(r.text)
+                            scanned += 1
+                    except requests.RequestException:
+                        pass
+                for b in blobs:
+                    endpoints.update(jsrecon.find_endpoints(b, base))
+                    for name, snippet, sev in jsrecon.find_secrets(b):
+                        secrets.append((name, snippet, sev))
+                uniq, seen = [], set()
+                for s in secrets:
+                    if s not in seen:
+                        seen.add(s)
+                        uniq.append(s)
+                return {"endpoints": jsrecon.rank_endpoints(endpoints, base), "secrets": uniq,
+                        "inline": len(inline), "external": scanned, "base": base}
+            self.status.setText(f"JS recon: scanning {len(inline)} inline + {len(srcs)} external script(s)…")
+            self._run("JS recon", work, self._js_render)
+        view.page().runJavaScript(js, have_scripts)
+
+    def _js_render(self, r):
+        self.tree.clear()
+        for name, snippet, sev in r["secrets"]:
+            self._add(f"Secret: {name}", sev,
+                      f"{sev_badge(sev)} <b>{escape(name)}</b><br><br><code>{escape(snippet)}</code>"
+                      "<br><br>Found in the page's JavaScript. Verify it is live and in scope before reporting.",
+                      {"url": r["base"]})
+        for absolute, shown, interesting in r["endpoints"]:
+            self._add(("★ " if interesting else "") + shown, "warning" if interesting else "",
+                      f"<b>Endpoint</b><br><br><a href='{escape(absolute)}'>{escape(absolute)}</a>"
+                      + ("<br><br>Flagged as interesting (admin / token / api / graphql …).</i>" if interesting else ""),
+                      {"url": absolute})
+        ne, ns = len(r["endpoints"]), len(r["secrets"])
+        if not ne and not ns:
+            self._add("Nothing found in the page's scripts", "", "No endpoints or secrets matched.", {"url": r["base"]})
+        self.status.setText(f"JS recon: {ns} secret(s), {ne} endpoint(s) from "
+                            f"{r['inline']} inline + {r['external']} external script(s).")
+        if self.tree.topLevelItemCount():
+            self.tree.setCurrentItem(self.tree.topLevelItem(0))
 
     # ---------------------------------------------------------------- details / findings
     def _show(self, it, _prev=None):

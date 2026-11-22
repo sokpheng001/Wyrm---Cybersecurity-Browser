@@ -4,6 +4,12 @@ What's new in each version of Wyrm Browser. The release workflow publishes the s
 version (from `wyrm/__init__.py`) as the release description and the in-app **Update** tooltip, so keep the
 most important points first. Each build of a version adds an "Also in this build" list automatically.
 
+## v0.0.8
+
+- New Scanner → JS recon: pulls endpoints, API paths and leaked secrets (AWS, Google, GitHub, Stripe, Slack,
+  JWTs, private keys and more) from the open page's scripts — inline and same-scope external (LinkFinder /
+  SecretFinder style). Interesting endpoints (admin, token, api, graphql …) are starred
+
 ## v0.0.7
 
 - Scanner → Technologies detects far more, with versions and categories: it now inspects the live page like
