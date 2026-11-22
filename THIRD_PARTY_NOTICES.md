@@ -41,19 +41,12 @@ Tor Project's published SHA-256 checksums.
 - Shields filter lists (ad/tracker/malware/phishing) — their respective upstream licenses (e.g. EasyList CC-BY-SA).
 - Technology fingerprints — via wappalyzergo (MIT).
 
-## Background videos — ACTION NEEDED for a fully-open release
+## Background wallpapers — fully original (no third-party media)
 
-The built-in video wallpapers are currently downloaded at build time from:
-- **Big Buck Bunny** (© Blender Foundation) — **CC-BY 3.0** (requires attribution — see below);
-- **flower.webm** (MDN) — **CC0 / public domain**;
-- a **Jellyfish** sample from test-videos.co.uk — license not clearly stated.
-
-For a fully clean open-source distribution, the recommendation is to ship **CC0 / public-domain only** (keep
-flower.webm, drop the Jellyfish clip, and either keep Big Buck Bunny *with the CC-BY attribution below* or drop
-it). User-uploaded video backgrounds have no licensing concern.
-
-Attribution if Big Buck Bunny is kept: *"Big Buck Bunny" © 2008 Blender Foundation, licensed CC-BY 3.0
-(peach.blender.org).*
+The built-in animated "live wallpapers" (Aurora, Matrix rain, Particle network, Starfield) are drawn by Wyrm
+itself with HTML5 Canvas (`ANIM_SCENES` in `wyrm/pages.py`) — **original code under Wyrm's own MIT license**.
+No video files are bundled, so there is **no third-party video/media licensing** to consider. Users may still
+set their own uploaded image or video as a background (their own content).
 
 ---
 *If any version's license differs from the above, the upstream project's own LICENSE prevails. Please open an

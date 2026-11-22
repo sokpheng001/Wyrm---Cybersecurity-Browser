@@ -18,6 +18,53 @@ BG_SOURCES = [
     "https://loremflickr.com/3840/2160/hacker,cybersecurity,technology,quantum,circuit,matrix,code",
     "https://picsum.photos/3840/2160",
 ]
+# Live wallpapers drawn by Wyrm itself (HTML5 Canvas) — original code, MIT, no third-party video/licensing.
+ANIM_SCENES = {
+    "aurora": "Aurora",
+    "matrix": "Matrix rain",
+    "network": "Particle network",
+    "starfield": "Starfield",
+}
+
+
+def _anim_js(scene: str) -> str:
+    """Self-contained Canvas animation for the start-page background. Pauses when the tab is hidden."""
+    common = """(function(){var c=document.getElementById('bgcanvas');if(!c)return;var x=c.getContext('2d');
+var W,H,DPR=Math.min(window.devicePixelRatio||1,2);
+function size(){W=c.width=innerWidth*DPR;H=c.height=innerHeight*DPR;}
+size();addEventListener('resize',size);var run=true;
+document.addEventListener('visibilitychange',function(){run=!document.hidden;if(run)requestAnimationFrame(frame);});
+"""
+    scenes = {
+        "aurora": """var t=0;function frame(){if(!run)return;t+=0.003;
+var g=x.createLinearGradient(0,0,W,H);
+function col(p,a){return 'rgba('+Math.round(20+40*Math.sin(t+p))+','+Math.round(60+120*Math.sin(t*1.3+p))+','+Math.round(120+120*Math.sin(t*0.7+p))+','+a+')';}
+g.addColorStop(0,'#05070d');g.addColorStop(1,'#0b1020');x.fillStyle=g;x.fillRect(0,0,W,H);
+for(var i=0;i<4;i++){var gy=x.createRadialGradient(W*(0.3+0.2*Math.sin(t+i)),H*(0.4+0.3*Math.cos(t*0.8+i)),0,W*0.5,H*0.5,W*0.6);
+gy.addColorStop(0,col(i*1.7,0.22));gy.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=gy;x.fillRect(0,0,W,H);}
+requestAnimationFrame(frame);}frame();""",
+        "matrix": """x.fillStyle='#05070d';x.fillRect(0,0,W,H);var fs=16*DPR,cols=Math.floor(W/fs),y=[];
+for(var i=0;i<cols;i++)y[i]=Math.random()*H/fs;var ch='01<>/*[]{}#$%&';
+function frame(){if(!run)return;x.fillStyle='rgba(5,7,13,0.08)';x.fillRect(0,0,W,H);
+x.fillStyle='#00e676';x.font=fs+'px monospace';
+for(var i=0;i<cols;i++){var t=ch[Math.floor(Math.random()*ch.length)];x.fillText(t,i*fs,y[i]*fs);
+if(y[i]*fs>H&&Math.random()>0.975)y[i]=0;y[i]++;}requestAnimationFrame(frame);}frame();""",
+        "network": """var n=Math.min(90,Math.floor(W*H/26000/DPR)),p=[];for(var i=0;i<n;i++)p.push(
+{x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-0.5)*0.5*DPR,vy:(Math.random()-0.5)*0.5*DPR});
+function frame(){if(!run)return;x.fillStyle='#070b12';x.fillRect(0,0,W,H);
+for(var i=0;i<n;i++){var a=p[i];a.x+=a.vx;a.y+=a.vy;if(a.x<0||a.x>W)a.vx*=-1;if(a.y<0||a.y>H)a.vy*=-1;
+for(var j=i+1;j<n;j++){var b=p[j],dx=a.x-b.x,dy=a.y-b.y,d=dx*dx+dy*dy,m=(140*DPR)*(140*DPR);
+if(d<m){x.strokeStyle='rgba(69,137,255,'+(0.5*(1-d/m))+')';x.lineWidth=DPR;x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke();}}
+x.fillStyle='#78a9ff';x.beginPath();x.arc(a.x,a.y,1.6*DPR,0,7);x.fill();}requestAnimationFrame(frame);}frame();""",
+        "starfield": """var n=400,s=[];for(var i=0;i<n;i++)s.push({x:(Math.random()-0.5)*W,y:(Math.random()-0.5)*H,z:Math.random()*W});
+function frame(){if(!run)return;x.fillStyle='#04060a';x.fillRect(0,0,W,H);x.save();x.translate(W/2,H/2);
+for(var i=0;i<n;i++){var o=s[i];o.z-=2.2*DPR;if(o.z<1){o.z=W;o.x=(Math.random()-0.5)*W;o.y=(Math.random()-0.5)*H;}
+var k=W/o.z,sx=o.x*k,sy=o.y*k,r=(1-o.z/W)*2.2*DPR;x.fillStyle='rgba(200,225,255,'+(1-o.z/W)+')';
+x.beginPath();x.arc(sx,sy,r,0,7);x.fill();}x.restore();requestAnimationFrame(frame);}frame();""",
+    }
+    return common + scenes.get(scene, scenes["aurora"]) + "})();"
+
+
 BG_ROTATE_MS = 30 * 60 * 1000  # how often the wallpaper changes; set by the window from the user's choice
 # choices offered in Customize → "Change every" (minutes, label)
 BG_INTERVALS = [(5, "5 min"), (15, "15 min"), (30, "30 min"), (60, "1 hour"), (360, "6 hours"), (1440, "Daily")]
@@ -451,7 +498,7 @@ def render_home(ctx: dict) -> str:
     bgc = ctx.get("bg") or {"mode": "random" if ctx.get("background") else "none"}
     bmode = bgc.get("mode", "random")
     # Customize lives outside <main>: main's entry animation would otherwise trap position:fixed inside it
-    panel = _customize_panel(bgc, bool(ctx.get('have_videos')))
+    panel = _customize_panel(bgc)
 
     def page(css: str, cls: str = "") -> str:
         html = _page("New tab", body, css, "home").replace("</main>", "</main>" + panel + BG_FADE_JS, 1)
@@ -470,8 +517,13 @@ def render_home(ctx: dict) -> str:
                  "setTimeout(function(){n.remove();},120);},1700);};im.src=u;}"
                  f"setTimeout(function(){{swap();setInterval(swap,{BG_ROTATE_MS});}},{left});}})();</script>")
         return page(HOME_CSS + f"\n:root{{--wyrm-bg:url('{url}')}}", "hasbg")
-    if bmode in ("video", "video_local"):
-        src = ctx.get("vid_url") or ""   # served from 127.0.0.1 with Range support (see bgserver.py)
+    if bmode == "animated":   # a live wallpaper drawn by Wyrm itself (Canvas) — our own code, no video files
+        scene = bgc.get("anim") if bgc.get("anim") in ANIM_SCENES else "aurora"
+        canvas = (f"<canvas class='bgvideo on' id='bgcanvas'></canvas><script>{_anim_js(scene)}</script>")
+        html = _page("New tab", body, HOME_CSS, "home").replace("</main>", "</main>" + canvas + panel, 1)
+        return html.replace("<body>", "<body class='hasbg'>", 1)
+    if bmode == "video_local":
+        src = ctx.get("vid_url") or ""   # the user's own uploaded video, served from 127.0.0.1 (bgserver.py)
         if src:
             video = (f"<video class='bgvideo' autoplay muted loop playsinline preload='auto' "
                      f"src='{escape(src, quote=True)}' onloadeddata='this.classList.add(\"on\")'></video>")
@@ -496,7 +548,7 @@ BG_FADE_JS = ("<script>(function(){var b=document.body;if(!b.classList.contains(
               "var im=new Image();im.onload=im.onerror=ready;im.src=m[1];})();</script>")  # cached image: no fade
 
 
-def _customize_panel(bgc: dict, have_videos: bool = False) -> str:
+def _customize_panel(bgc: dict) -> str:
     """Bottom-right "Customize" button: a centered panel to pick the start-page background and how often the
     wallpaper changes (applied instantly, remembered). Stays open after a choice (wyrm://home#customize)."""
     m = bgc.get("mode", "random")
@@ -516,10 +568,12 @@ def _customize_panel(bgc: dict, have_videos: bool = False) -> str:
                  "</span><span><b>Your image</b><small>The picture you uploaded</small></span></a>")
     opts += opt("wyrm://do?a=bg-upload", "up", "Upload from device…" if not has_img else "Upload another image…",
                 "JPG, PNG, WebP or GIF, up to 25 MB", False)
-    # Video backgrounds
-    if have_videos:
-        opts += opt("wyrm://do?a=bg&amp;mode=video", "video", "Video wallpapers",
-                    f"Random ambient video, new one {every_txt}", m == "video")
+    # Animated live wallpapers (drawn by Wyrm, no video files) + your own uploaded video
+    cur_anim = bgc.get("anim", "aurora")
+    for key, label in ANIM_SCENES.items():
+        on = (m == "animated" and cur_anim == key)
+        opts += opt(f"wyrm://do?a=bg&amp;mode=animated&amp;anim={key}", "video", f"Animated · {label}",
+                    "Live wallpaper, runs offline", on)
     if bgc.get("video_ver"):
         opts += opt("wyrm://do?a=bg&amp;mode=video_local", "video", "Your video", "The video you uploaded",
                     m == "video_local")

@@ -78,7 +78,7 @@ class HomeMixin:
     def _bg_settings(self) -> dict:
         s = self.settings
         mode = s.value("home/bg_mode", "", type=str)
-        if mode not in ("random", "color", "image", "video", "video_local", "none"):  # older: a single on/off switch
+        if mode not in ("random", "color", "image", "animated", "video_local", "none"):
             mode = "random" if s.value("home/background", True, type=bool) else "none"
         f = self._custom_bg_path()
         ver = str(int(f.stat().st_mtime)) if f else ""
@@ -86,12 +86,15 @@ class HomeMixin:
         vver = str(int(vf.stat().st_mtime)) if vf else ""
         if mode == "image" and not ver:
             mode = "random"
-        if mode == "video" and not self._bundled_videos():  # no bundled loops available
-            mode = "video_local" if vver else "random"
+        if mode == "video" and vver:        # legacy "video" (bundled) → the user's uploaded video or animated
+            mode = "video_local"
+        elif mode == "video":
+            mode = "animated"
         if mode == "video_local" and not vver:
-            mode = "video" if self._bundled_videos() else "random"
+            mode = "animated"
         return {"mode": mode, "color": s.value("home/bg_color", "midnight", type=str), "image_ver": ver,
-                "video_ver": vver, "interval": self._bg_interval()}
+                "video_ver": vver, "anim": s.value("home/anim", "aurora", type=str),
+                "interval": self._bg_interval()}
 
     def _bg_interval(self) -> int:
         """Minutes between wallpaper changes (Customize → Change wallpaper every); also applied to pages."""
@@ -103,13 +106,17 @@ class HomeMixin:
 
     def _set_background(self, params: dict):
         mode = params.get("mode", "")
-        if mode not in ("random", "color", "image", "video", "video_local", "none"):
+        if mode not in ("random", "color", "image", "animated", "video_local", "none"):
             return
         if mode == "color":
             color = params.get("color", "")
             if color not in pages.BG_COLOR_CSS:
                 return
             self.settings.setValue("home/bg_color", color)
+        if mode == "animated":
+            anim = params.get("anim", "")
+            if anim in pages.ANIM_SCENES:
+                self.settings.setValue("home/anim", anim)
         self.settings.setValue("home/bg_mode", mode)
         self.settings.setValue("home/background", mode != "none")
         self.settings.sync()
@@ -211,27 +218,13 @@ class HomeMixin:
                 "background": (not self.tor) and self._bg_settings()["mode"] != "none",
                 "bg": self._bg_settings(), "news": self._news if self._is_online else [],
                 "weather": getattr(self, "_weather", None) if self._is_online else None,
-                "vid_url": self._bg_video_url(), "have_videos": bool(self._bundled_videos()),
+                "vid_url": self._bg_video_url(),
                 "tor": bool(self.tor), "private": self.private}
 
-    VIDEO_ASSET_DIR = Path(__file__).resolve().parents[1] / "assets" / "video"
-
-    def _bundled_videos(self) -> list:
-        """CC0 ambient WebM loops shipped with Wyrm (downloaded at build time); may be empty."""
-        d = self.VIDEO_ASSET_DIR
-        return sorted(d.glob("*.webm")) if d.is_dir() else []
-
     def _active_bg_video_path(self):
-        """The video file the background server should serve now, for the current mode. Read by bgserver.py."""
-        mode = self.settings.value("home/bg_mode", "", type=str)
-        if mode == "video_local":
+        """The user's uploaded background video, served by bgserver.py (built-in wallpapers are animated, no files)."""
+        if self.settings.value("home/bg_mode", "", type=str) == "video_local":
             return self._custom_video_path()
-        if mode == "video":  # a random bundled loop, stable within the chosen interval, rotating each interval
-            vids = self._bundled_videos()
-            if vids:
-                import time
-                bucket = int(time.time() // max(60, self._bg_interval() * 60))
-                return vids[bucket % len(vids)]
         return None
 
     def _bg_video_url(self) -> str:
@@ -239,7 +232,6 @@ class HomeMixin:
         p = self._active_bg_video_path()
         if srv is None or p is None:
             return ""
-        # cache-bust so switching video / rotating reloads the <video>
         return f"{srv.url()}?v={int(p.stat().st_mtime)}-{p.name}"
 
     def _update_pd_tools(self):

@@ -6,6 +6,8 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.2.0
 
+- Animated live wallpapers (Customize → Background): Aurora, Matrix rain, Particle network, Starfield — drawn
+  by Wyrm itself, no video files, run offline. (Replaces the bundled sample videos; keeps your own image/video upload.)
 - Everything's bundled now: Tor and the nuclei templates ship inside the installer, so Tor windows and nuclei
   scans work right after install with no extra download
 - The security tools auto-update: when you're online, Wyrm quietly fetches newer ProjectDiscovery releases
