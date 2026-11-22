@@ -33,6 +33,7 @@ class ScannerTab(QWidget):
     _pd_line = Signal(str, object)   # one streamed line from a ProjectDiscovery tool (worker -> UI thread)
     _pd_done = Signal(bool, object)
     _pd_status = Signal(str)         # status text from the worker (e.g. the scheme it picked)
+    _logo_ready = Signal(object, str)  # (tree item, local icon path) — technology logo fetched off-thread
 
     def __init__(self, win):
         super().__init__()
@@ -41,6 +42,7 @@ class ScannerTab(QWidget):
         self._pd_line.connect(self._on_pd_line)
         self._pd_done.connect(self._on_pd_done)
         self._pd_status.connect(lambda t: self.status.setText(t))  # status label is created below
+        self._logo_ready.connect(self._set_logo)
         v = QVBoxLayout(self)
         intro = QLabel("<b>Scanner</b> — for targets you are <b>authorized</b> to test. Port scan and CORS test only "
                        "run on hosts in your engagement scope; the clickjacking check works on any page you open.")
@@ -327,6 +329,11 @@ class ScannerTab(QWidget):
                          "layer could be identified. Open the site in a tab and run Technologies with the target "
                          "empty: Wyrm then analyses the page your browser received.</i>")
             cats = r.get("cats") or {}
+            icons = r.get("icons")
+            if icons is None:  # remote (httpx) path: map names to the Wappalyzer icon files ourselves
+                icons = {name: techdetect.icon_for(name) for name, _ in r["tech"]}
+            icons = {k: v for k, v in icons.items() if v}
+            logo_items = {}   # name -> tree item, for the lazy logo loader
             from urllib.parse import quote_plus
             for name, ver in r["tech"]:
                 q = quote_plus(f"{name} {ver}".strip())
@@ -335,11 +342,14 @@ class ScannerTab(QWidget):
                        f"<a href='https://nvd.nist.gov/vuln/search/results?query={q}'>NVD</a> · "
                        f"<a href='https://www.cvedetails.com/google-search-results.php?q={q}'>CVE Details</a>"
                        + ("" if ver else "<br><i>No version detected — results will be broad.</i>"))
-                self._add(name + (f"  {ver}" if ver else "") + (f"   · {cats[name]}" if cats.get(name) else ""), "",
-                          f"<b>{escape(name)}</b>{' version ' + escape(ver) if ver else ''}"
-                          + (f"<br><span style='color:#8d8d8d'>{escape(cats[name])}</span>" if cats.get(name) else "")
-                          + f"<br><br>{info}{cve}",
-                          {"url": r["final_url"]})
+                it = self._add(name + (f"  {ver}" if ver else "") + (f"   · {cats[name]}" if cats.get(name) else ""), "",
+                               f"<b>{escape(name)}</b>{' version ' + escape(ver) if ver else ''}"
+                               + (f"<br><span style='color:#8d8d8d'>{escape(cats[name])}</span>" if cats.get(name) else "")
+                               + f"<br><br>{info}{cve}",
+                               {"url": r["final_url"]})
+                if icons.get(name):
+                    logo_items[name] = it
+            self._load_tech_logos(logo_items, icons)
             if not r["tech"]:
                 self._add("No technologies identified", "", info, {"url": r["final_url"]})
             self.status.setText(f"{len(r['tech'])} technolog{'y' if len(r['tech']) == 1 else 'ies'} on "
@@ -377,7 +387,8 @@ class ScannerTab(QWidget):
                     return {"url": cur.toString(), "final_url": cur.toString(), "status": 200, "title": view.title(),
                             "server": server.splitlines()[0] if server else "", "cdn": "", "from_page": True,
                             "tech": [(f["name"], f["version"]) for f in found],
-                            "cats": {f["name"]: ", ".join(f["categories"]) for f in found}}
+                            "cats": {f["name"]: ", ".join(f["categories"]) for f in found},
+                            "icons": {f["name"]: f["icon"] for f in found if f.get("icon")}}
                 self.busy.stop()
                 self._run("Matching technologies", work, render)
 
@@ -393,6 +404,33 @@ class ScannerTab(QWidget):
             def work():
                 return pdtools.detect_technologies(pdtools.probe_scheme(target, px), px)
             self._run("Detecting technologies", work, render)
+
+    def _load_tech_logos(self, items: dict, icons: dict):
+        """Fetch each detected technology's logo (Wappalyzer MIT icon set) off-thread and show it on its row."""
+        if not items:
+            return
+        cache = self.win.data_dir / "tech-icons"
+        px, verify = self.win.proxies(), self.win.verify_tls()
+        want = {name: icons[name] for name in items if icons.get(name)}
+
+        def work():
+            for name, icon in want.items():
+                try:
+                    p = techdetect.ensure_icon(icon, cache, px, verify)
+                except Exception:  # noqa: BLE001
+                    p = None
+                if p:
+                    self._logo_ready.emit(items[name], str(p))
+            return True
+        self.win.runner.run(work, lambda *_: None)
+
+    def _set_logo(self, item, path):
+        from PySide6.QtGui import QIcon
+        try:
+            if item is not None and path:
+                item.setIcon(0, QIcon(path))
+        except RuntimeError:  # item was removed (a new scan cleared the tree)
+            pass
 
     def frame_poc(self):
         url = self._url()

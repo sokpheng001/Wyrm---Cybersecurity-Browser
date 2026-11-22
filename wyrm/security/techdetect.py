@@ -27,6 +27,51 @@ CAT_URL = "https://raw.githubusercontent.com/projectdiscovery/wappalyzergo/main/
 BUNDLED = Path(__file__).resolve().parents[1] / "assets" / "tech"
 REFRESH = 7 * 86400  # refresh the cached fingerprints weekly
 
+# Technology logos (the Wappalyzer icon set, MIT, via the open enthec/webappanalyzer fork). There are ~7,000 of
+# them, so instead of bundling the lot we fetch each detected technology's icon on demand and cache it locally
+# (data_dir/tech-icons). A page usually uses a handful, so this is a few small files and then it's offline.
+ICON_BASE_URL = "https://raw.githubusercontent.com/enthec/webappanalyzer/main/src/images/icons/"
+
+
+_ICON_INDEX: "dict | None" = None
+
+
+def icon_for(name: str) -> str:
+    """The icon filename for a technology name (from the bundled fingerprints), e.g. 'Nginx' -> 'Nginx.svg'."""
+    global _ICON_INDEX
+    if _ICON_INDEX is None:
+        _ICON_INDEX = {}
+        f = BUNDLED / "fingerprints.json"
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+            apps = d.get("apps", d)
+            _ICON_INDEX = {n: a.get("icon", "") for n, a in apps.items() if a.get("icon")}
+        except Exception:  # noqa: BLE001
+            _ICON_INDEX = {}
+    return _ICON_INDEX.get(name, "")
+
+
+def ensure_icon(icon: str, cache: Path, proxies=None, verify=True) -> "Path | None":
+    """Return a local path to the technology's logo, downloading + caching it on first use. None if unavailable."""
+    if not icon or "/" in icon or "\\" in icon or ".." in icon:
+        return None
+    f = cache / icon
+    if f.exists():
+        return f if f.stat().st_size else None
+    try:
+        import requests
+        from urllib.parse import quote
+        r = requests.get(ICON_BASE_URL + quote(icon), timeout=20, proxies=proxies, verify=verify,
+                         headers={"User-Agent": "Wyrm (tech logos)"})
+        cache.mkdir(parents=True, exist_ok=True)
+        if r.status_code == 200 and r.content and len(r.content) < 2_000_000:
+            f.write_bytes(r.content)
+            return f
+        f.write_bytes(b"")  # remember the miss so we don't hammer the server every detection
+    except Exception:  # noqa: BLE001 - offline / blocked: just show no logo
+        return None
+    return None
+
 
 def _fetch(cache: Path, name: str, url: str) -> Path | None:
     f = cache / name
@@ -288,5 +333,6 @@ def analyze(fp: Fingerprints, ev: dict, headers: dict | None = None) -> list[dic
         a = fp.apps.get(f["name"], {})
         f["categories"] = [fp.cats.get(c, str(c)) for c in a.get("cats", [])]
         f["website"] = a.get("website", "")
+        f["icon"] = a.get("icon", "")
         out.append(f)
     return sorted(out, key=lambda f: ((f["categories"] or ["~"])[0].lower(), f["name"].lower()))

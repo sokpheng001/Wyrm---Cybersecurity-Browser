@@ -4,6 +4,21 @@ What's new in each version of Wyrm Browser. The release workflow publishes the s
 version (from `wyrm/__init__.py`) as the release description and the in-app **Update** tooltip, so keep the
 most important points first. Each build of a version adds an "Also in this build" list automatically.
 
+## v0.3.0
+
+- WebSocket frame editing (Security panel → WebSocket): with the intercepting proxy on, every WebSocket frame
+  — even over wss:// (TLS) — is decoded and shown live. Turn on "Intercept frames" to pause a text frame, edit
+  its payload and forward it, forward it unchanged, or drop it. Developers: @kwan, @oda.
+- Workflows (Security panel → Workflows): Caido-style automation pipelines that rewrite live traffic through the
+  proxy — set/remove request or response headers, regex find/replace in bodies, force a response status — scoped
+  to URLs you choose, applied to HTTPS too. Build, enable and reorder steps; each workflow shows how often it fired.
+- Session / auth macros (Security panel → Session / auth): define a login macro (one request). When a response
+  looks logged-out (a 401/403, or text you specify), Wyrm re-runs the macro, grabs the fresh session cookies and
+  injects them into later in-scope requests — so long Scanner/Intruder runs don't die when the session expires.
+  Right-click a proxy flow → Send to Session macro to fill it in.
+- Technology logos: Scanner → Technologies now shows each detected technology's logo (the open Wappalyzer icon
+  set, fetched on demand and cached locally).
+
 ## v0.2.0
 
 - Animated live wallpapers (Customize → Background): Aurora, Matrix rain, Particle network, Starfield — drawn

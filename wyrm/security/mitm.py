@@ -313,20 +313,25 @@ def _read_body(f, headers):
     return b""
 
 
-def decode_body(headers, body: bytes) -> str:
-    """Decompress gzip/deflate for display; returns text (best-effort)."""
+def inflate(headers, body: bytes) -> bytes:
+    """Decompress gzip/deflate/br to raw bytes (full, untruncated). Returns body unchanged if not compressed."""
     enc = (_header(headers, "content-encoding") or "").lower()
     try:
         if "gzip" in enc:
-            body = gzip.decompress(body)
-        elif "deflate" in enc:
-            body = zlib.decompress(body)
-        elif "br" in enc:
+            return gzip.decompress(body)
+        if "deflate" in enc:
+            return zlib.decompress(body)
+        if "br" in enc:
             import brotli  # optional
-            body = brotli.decompress(body)
+            return brotli.decompress(body)
     except Exception:  # noqa: BLE001
         pass
-    return body.decode("utf-8", "replace")[:200000]
+    return body
+
+
+def decode_body(headers, body: bytes) -> str:
+    """Decompress gzip/deflate for display; returns text (best-effort)."""
+    return inflate(headers, body).decode("utf-8", "replace")[:200000]
 
 
 # ---------------------------------------------------------------- the proxy
@@ -339,6 +344,16 @@ class MitmProxy:
         self.on_flow = on_flow          # optional UI notifier(flow); settable after construction
         self.edit_response = edit_response  # optional (flow)->(status,headers,body)|None for response interception
         self.flows: list = []           # full history (capped), so the panel has it even for early flows
+        # Extension hooks shared by Workflows and Session handling (all default to no-ops so nothing changes
+        # until a feature registers one). Each is a list of callbacks run in order on the proxy worker thread.
+        self.request_rewriters: list = []   # fn(req: dict) -> None; mutate method/path/headers/body before forwarding
+        self.response_rewriters: list = []  # fn(flow: dict) -> None; mutate status/resp_headers/resp_body after it returns
+        self.response_observers: list = []  # fn(flow: dict) -> None; passive (e.g. detect a logged-out response)
+        # WebSocket frame hooks (Burp/Caido-style). When either is set, WebSocket upgrades are parsed frame by
+        # frame instead of blind-relayed, so frames can be viewed and edited.
+        self.on_ws = None               # fn(frame: dict) for each WebSocket frame seen (live + history)
+        self.edit_ws = None             # fn(frame: dict) -> bytes|None|False : new payload / unchanged / drop
+        self.ws_flows: list = []        # WebSocket frame history (capped)
         self._srv = None
         self.port = 0
         self._stop = False
@@ -410,9 +425,14 @@ class MitmProxy:
                 break
             method, path = parts[0].decode("latin-1"), parts[1].decode("latin-1")
             headers = _parse_headers(header_lines)
-            # a WebSocket / upgrade: stop intercepting this connection, blind-relay it
+            # a WebSocket upgrade. If a WebSocket hook is registered (the panel is open), parse the connection
+            # frame by frame so frames can be viewed/edited; otherwise blind-relay it (no overhead).
             if (_header(headers, "upgrade") or "").lower() == "websocket":
-                self._blind_relay(tls, host, 443, first + b"\r\n" + b"\r\n".join(header_lines) + b"\r\n\r\n")
+                raw = first + b"\r\n" + b"\r\n".join(header_lines) + b"\r\n\r\n"
+                if self.on_ws is not None or self.edit_ws is not None:
+                    self._ws_relay(tls, host, 443, path, raw)
+                else:
+                    self._blind_relay(tls, host, 443, raw)
                 return
             body = _read_body(f, headers)
             if not self._transaction("https", host, 443, method, path, headers, body, tls):
@@ -434,6 +454,15 @@ class MitmProxy:
         """Forward one request upstream, relay the response to out_sock, capture the flow. Returns keep-alive."""
         import http.client
         started = time.time()
+        # request rewriting (Workflows match/replace on requests, Session cookie/token injection)
+        req = {"scheme": scheme, "host": host, "port": port, "method": method, "path": path,
+               "headers": list(headers), "body": body}
+        for rw in self.request_rewriters:
+            try:
+                rw(req)
+            except Exception:  # noqa: BLE001
+                pass
+        method, path, headers, body = req["method"], req["path"], req["headers"], req["body"]
         try:
             if scheme == "https":
                 conn = http.client.HTTPSConnection(host, port, timeout=30, context=_upstream_ctx())
@@ -455,10 +484,18 @@ class MitmProxy:
                 pass
             return False
         flow = {"time": time.strftime("%H:%M:%S"), "method": method, "scheme": scheme, "host": host,
-                "path": path, "url": f"{scheme}://{host}{path}", "status": status,
+                "path": path, "url": f"{scheme}://{host}{path}", "status": status, "reason": reason,
                 "req_headers": headers, "req_body": body, "resp_headers": rheaders, "resp_body": rbody,
                 "ms": int((time.time() - started) * 1000)}
-        # response interception: let the caller rewrite status/headers/body
+        # response rewriting (Workflows match/replace on responses): mutate the flow in place
+        for rw in self.response_rewriters:
+            try:
+                rw(flow)
+            except Exception:  # noqa: BLE001
+                pass
+        status, reason = flow["status"], flow.get("reason", reason)
+        rheaders, rbody = flow["resp_headers"], flow["resp_body"]
+        # response interception: let the caller rewrite status/headers/body (blocking hold → edit → forward)
         if self.edit_response is not None:
             try:
                 edited = self.edit_response(flow)
@@ -468,6 +505,11 @@ class MitmProxy:
                 pass
         self.flows.append(flow)
         del self.flows[:-2000]
+        for obs in self.response_observers:   # passive observers (Session logged-out detection)
+            try:
+                obs(flow)
+            except Exception:  # noqa: BLE001
+                pass
         if self.on_flow is not None:
             try:
                 self.on_flow(flow)
@@ -516,3 +558,103 @@ class MitmProxy:
                         pass
         threading.Thread(target=pipe, args=(client_sock, up), daemon=True).start()
         pipe(up, client_sock)
+
+    # ---------------------------------------------------------------- WebSocket (frame-level)
+    def _record_ws(self, frame):
+        self.ws_flows.append(frame)
+        del self.ws_flows[:-4000]
+        if self.on_ws is not None:
+            try:
+                self.on_ws(frame)
+            except Exception:  # noqa: BLE001
+                pass
+
+    def _ws_relay(self, client_tls, host, port, path, raw_request):
+        """Relay a WebSocket connection frame by frame so each frame can be shown and (optionally) edited."""
+        from . import wsframe
+        try:
+            up = _upstream_ctx().wrap_socket(socket.create_connection((host, port), timeout=30),
+                                             server_hostname=host)
+            up.sendall(raw_request)
+        except OSError:
+            return
+        head = _read_head_raw(up)   # the server's handshake response (don't swallow the first frames)
+        if not head:
+            return
+        rline, rlines, leftover = head
+        try:
+            client_tls.sendall(rline + b"\r\n" + b"\r\n".join(rlines) + b"\r\n\r\n")
+        except OSError:
+            return
+        parts = rline.split(b" ")
+        if len(parts) < 2 or parts[1] != b"101":   # not an upgrade after all: fall back to a blind pipe
+            try:
+                if leftover:
+                    client_tls.sendall(leftover)
+            except OSError:
+                return
+            self._ws_blind(client_tls, up)
+            return
+        creader = wsframe.SockReader(client_tls)         # frames FROM the page (masked)
+        sreader = wsframe.SockReader(up, leftover)        # frames FROM the server (unmasked)
+        t = threading.Thread(target=self._ws_pump, args=("out", creader, up, host, path, True), daemon=True)
+        t.start()
+        self._ws_pump("in", sreader, client_tls, host, path, False)
+        for s in (client_tls, up):
+            try:
+                s.close()
+            except OSError:
+                pass
+
+    def _ws_pump(self, direction, reader, dest, host, path, mask_out):
+        """Read frames from `reader`, show/edit them, re-encode and send to `dest`. direction: 'out'=page→server."""
+        from . import wsframe
+        while not self._stop:
+            try:
+                fr = wsframe.read_frame(reader)
+            except OSError:
+                break
+            if not fr:
+                break
+            opname = wsframe.OPCODE.get(fr["opcode"], str(fr["opcode"]))
+            frame = {"dir": direction, "opcode": fr["opcode"], "opname": opname, "fin": fr["fin"],
+                     "payload": fr["payload"], "host": host, "path": path, "url": f"wss://{host}{path}",
+                     "time": time.strftime("%H:%M:%S")}
+            self._record_ws(frame)
+            payload, drop = fr["payload"], False
+            if self.edit_ws is not None:
+                try:
+                    dec = self.edit_ws(frame)
+                    if dec is False:
+                        drop = True
+                    elif isinstance(dec, (bytes, bytearray)):
+                        payload = bytes(dec)
+                except Exception:  # noqa: BLE001
+                    pass
+            if not drop:
+                try:
+                    dest.sendall(wsframe.build_frame(fr["fin"], fr["opcode"], payload, mask_out))
+                except OSError:
+                    break
+            if fr["opcode"] == 0x8:   # close
+                break
+
+    @staticmethod
+    def _ws_blind(a, b):
+        def pipe(x, y):
+            try:
+                while True:
+                    d = x.recv(65536)
+                    if not d:
+                        break
+                    y.sendall(d)
+            except OSError:
+                pass
+            finally:
+                for s in (x, y):
+                    try:
+                        s.close()
+                    except OSError:
+                        pass
+        threading.Thread(target=pipe, args=(a, b), daemon=True).start()
+        pipe(b, a)

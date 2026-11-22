@@ -40,6 +40,8 @@ Tor Project's published SHA-256 checksums.
 
 - Shields filter lists (ad/tracker/malware/phishing) — their respective upstream licenses (e.g. EasyList CC-BY-SA).
 - Technology fingerprints — via wappalyzergo (MIT).
+- Technology logos — the Wappalyzer icon set via the open **enthec/webappanalyzer** fork (**MIT**). Not bundled;
+  each detected technology's icon is fetched on demand at runtime and cached in the user's profile.
 
 ## Background wallpapers — fully original (no third-party media)
 
