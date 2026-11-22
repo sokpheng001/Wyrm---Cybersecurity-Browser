@@ -311,10 +311,6 @@ class ScannerTab(QWidget):
             self.status.setText(str(e))
             return
         px = self.win.proxies()
-
-        def work():
-            return pdtools.detect_technologies(pdtools.probe_scheme(target, px), px)
-
         def render(r):
             self.tree.clear()
             blocked = r["status"] in (202, 403, 429, 503) and not [n for n, _ in r["tech"] if n.lower() not in
@@ -323,10 +319,10 @@ class ScannerTab(QWidget):
                     + (f" · Server: {escape(r['server'])}" if r["server"] else "")
                     + (f" · CDN/WAF: {escape(r['cdn'])}" if r["cdn"] else "")
                     + (f"<br>Title: {escape(r['title'])}" if r["title"] else ""))
-            if blocked:
+            if blocked and not r.get("from_page"):
                 info += ("<br><br><i>The site answered with a bot check / block page, so only its protection "
-                         "layer could be identified. Install Wappalyzer from the Chrome Web Store (⋮ → Extensions) "
-                         "to see technologies of pages you've opened in the browser.</i>")
+                         "layer could be identified. Open the site in a tab and run Technologies with the target "
+                         "empty: Wyrm then analyses the page your browser received.</i>")
             for name, ver in r["tech"]:
                 self._add(name + (f"  {ver}" if ver else ""), "",
                           f"<b>{escape(name)}</b>{' version ' + escape(ver) if ver else ''}<br><br>{info}",
@@ -334,10 +330,28 @@ class ScannerTab(QWidget):
             if not r["tech"]:
                 self._add("No technologies identified", "", info, {"url": r["final_url"]})
             self.status.setText(f"{len(r['tech'])} technolog{'y' if len(r['tech']) == 1 else 'ies'} on "
-                                f"{r['final_url']}" + (" (bot check: partial)" if blocked else "") + ".")
+                                f"{r['final_url']}" + (" (from the open page)" if r.get("from_page") else
+                                                       " (bot check: partial)" if blocked else "") + ".")
             if self.tree.topLevelItemCount():
                 self.tree.setCurrentItem(self.tree.topLevelItem(0))
-        self._run("Detecting technologies", work, render)
+
+        # The page you have open: analyse what the browser actually received (HTML + response headers), like
+        # Wappalyzer does. Works past bot checks / logins and doesn't contact the site again.
+        view = self.win.current_view()
+        page = getattr(view, "resp_headers", None) if view else None
+        cur = view.url() if view else None
+        t_host = (urlparse(target.replace("?//", "https://", 1)).hostname or "").lower()
+        if page and cur is not None and cur.scheme() in ("http", "https") and cur.host().lower() == t_host:
+            page_url, headers = page[0], page[1]
+
+            def got_html(html):
+                self._run("Detecting technologies on this page",
+                          lambda: pdtools.detect_from_page(html or "", headers, cur.toString()), render)
+            view.page().toHtml(got_html)
+        else:
+            def work():
+                return pdtools.detect_technologies(pdtools.probe_scheme(target, px), px)
+            self._run("Detecting technologies", work, render)
 
     def frame_poc(self):
         url = self._url()

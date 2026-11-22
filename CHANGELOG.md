@@ -4,6 +4,14 @@ What's new in each version of Wyrm Browser. The release workflow publishes the s
 version (from `wyrm/__init__.py`) as the release description and the in-app **Update** tooltip, so keep the
 most important points first. Each build of a version adds an "Also in this build" list automatically.
 
+## v0.0.6
+
+- Scanner → Technologies now analyses the page you have open (its HTML and response headers), like Wappalyzer:
+  works behind bot checks and logins, and doesn't contact the site again. Leave the target empty to use it
+- Intercept button in the toolbar (pause icon, Ctrl+Alt+I); it lights up while requests are being held
+- Note: the Wappalyzer extension itself can't run in Wyrm (its background needs Chrome's toolbar API, which
+  Qt WebEngine doesn't provide); use Scanner → Technologies instead
+
 ## v0.0.5
 
 - Fixed: Wyrm crashed when closing with an extension switched on and an engagement profile open

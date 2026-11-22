@@ -309,3 +309,56 @@ def detect_technologies(url: str, proxies=None, should_stop=None) -> dict:
     return {"url": url, "final_url": o.get("final_url") or o.get("url") or url, "status": o.get("status_code"),
             "title": o.get("title") or "", "server": o.get("webserver") or "",
             "cdn": o.get("cdn_name") or "", "tech": sorted(tech, key=lambda x: x[0].lower())}
+
+
+def detect_from_page(html: str, headers: dict, page_url: str, should_stop=None) -> dict:
+    """Technologies of a page the user has OPEN: its real HTML (from the tab) and response headers are served to
+    the bundled httpx on a throw-away 127.0.0.1 server, so the Wappalyzer fingerprints see exactly what the
+    browser received (past bot checks / logins), and the site is not contacted again."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    body = html.encode("utf-8", "replace")
+    skip = {"content-length", "content-encoding", "transfer-encoding", "connection", "keep-alive",
+            "strict-transport-security", "location"}
+    server_hdr = next((str(v) for k, v in (headers or {}).items() if k.lower() == "server"), "")
+    keep = [(k, v) for k, v in (headers or {}).items() if k.lower() not in skip and k.lower() != "server"]
+
+    class Page(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            for k, v in keep:
+                for part in str(v).splitlines():   # several Set-Cookie values arrive joined by newlines
+                    self.send_header(k, part)
+            if not any(k.lower() == "content-type" for k, _ in keep):
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+        def version_string(self):  # pass on the site's own Server header, not "BaseHTTP/... Python/3.x"
+            return server_hdr
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), Page)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        local = f"http://127.0.0.1:{srv.server_address[1]}/"
+        tool = Tool("httpx", "Technologies", "", False, "url",
+                    ["-silent", "-json", "-tech-detect", "-title", "-status-code", "-web-server", "-u", "{t}"])
+        rows = []
+        res = run(tool, local, lambda _t, obj: rows.append(obj) if obj else None, timeout=60, should_stop=should_stop)
+        if res.get("stopped"):
+            raise RuntimeError(f"Technology detection {res['stopped']}.")
+        o = rows[-1] if rows else {}
+    finally:
+        srv.shutdown()
+        srv.server_close()
+    tech = []
+    for t in o.get("tech") or []:
+        name, _, ver = str(t).partition(":")
+        tech.append((name.strip(), ver.strip()))
+    server = next((v for k, v in (headers or {}).items() if k.lower() == "server"), "")
+    return {"url": page_url, "final_url": page_url, "status": 200, "title": o.get("title") or "",
+            "server": server, "cdn": "", "tech": sorted(tech, key=lambda x: x[0].lower()), "from_page": True}

@@ -196,6 +196,12 @@ class TabsMixin:
         if status == QWebEngineLoadingInfo.LoadStatus.LoadStartedStatus:
             if not info.url().toString().startswith("data:"):
                 self._failed.pop(view, None)
+        elif status == QWebEngineLoadingInfo.LoadStatus.LoadSucceededStatus and not info.isErrorPage()                 and info.url().scheme() in ("http", "https"):
+            try:  # the page's response headers, for Scanner -> Technologies on the open page
+                view.resp_headers = (info.url().toString(), {bytes(k).decode("latin-1"): bytes(v).decode("latin-1")
+                                                             for k, v in info.responseHeaders().items()})
+            except Exception:  # noqa: BLE001
+                view.resp_headers = (info.url().toString(), {})
         elif status == QWebEngineLoadingInfo.LoadStatus.LoadFailedStatus:
             code = info.errorCode()
             D = QWebEngineLoadingInfo.ErrorDomain

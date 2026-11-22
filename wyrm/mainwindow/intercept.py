@@ -39,6 +39,14 @@ class InterceptMixin:
             return
         self.intercept_on = bool(on)
         self.toast("Intercept ON: page requests are held for you to edit" if on else "Intercept OFF", 4000)
+        b = getattr(self, "b_int", None)
+        if b is not None:  # toolbar button shows the state
+            from .. import theme
+            p = theme.resolve_palette(self.theme_name, self.mode)
+            b.setStyleSheet(f"QToolButton#InterceptButton {{ background: {p['interactive']}; border-radius: 4px; }}"
+                            if on else "")
+            b.setToolTip("Intercept is ON: page requests are held (click to open)" if on else
+                         "Intercept requests: hold, edit, forward or drop (Ctrl+Alt+I)")
 
     def intercept_hold(self, view, req: dict):
         """Called (on the UI thread, after the interceptor returned) for each held page request."""

@@ -210,6 +210,12 @@ class ChromeMixin:
         self.shield_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.shield_badge.hide()
         n.addWidget(self.b_shield)
+        # Intercept (Burp-style): opens the Intercept window; highlighted while requests are being held
+        self.b_int = self._tool("intercept", "Intercept requests: hold, edit, forward or drop (Ctrl+Alt+I)",
+                                lambda: self.open_intercept())
+        self.b_int.setObjectName("InterceptButton")
+        self.b_int.setVisible(not self.tor)
+        n.addWidget(self.b_int)
         # Extensions (puzzle piece, like Chrome): click lists your extensions; each opens its popup
         self.b_ext = self._tool("puzzle", "Extensions")
         self.b_ext.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
