@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from .common import SEV_COLOR, sev_badge
-from ..security import pdtools, portscan, webchecks
+from ..security import pdtools, portscan, techdetect, webchecks
 from ..widgets import BusyOverlay
 
 
@@ -323,8 +323,9 @@ class ScannerTab(QWidget):
                 info += ("<br><br><i>The site answered with a bot check / block page, so only its protection "
                          "layer could be identified. Open the site in a tab and run Technologies with the target "
                          "empty: Wyrm then analyses the page your browser received.</i>")
+            cats = r.get("cats") or {}
             for name, ver in r["tech"]:
-                self._add(name + (f"  {ver}" if ver else ""), "",
+                self._add(name + (f"  {ver}" if ver else "") + (f"   · {cats[name]}" if cats.get(name) else ""), "",
                           f"<b>{escape(name)}</b>{' version ' + escape(ver) if ver else ''}<br><br>{info}",
                           {"url": r["final_url"]})
             if not r["tech"]:
@@ -342,12 +343,40 @@ class ScannerTab(QWidget):
         cur = view.url() if view else None
         t_host = (urlparse(target.replace("?//", "https://", 1)).hostname or "").lower()
         if page and cur is not None and cur.scheme() in ("http", "https") and cur.host().lower() == t_host:
-            page_url, headers = page[0], page[1]
+            headers = page[1]
 
-            def got_html(html):
-                self._run("Detecting technologies on this page",
-                          lambda: pdtools.detect_from_page(html or "", headers, cur.toString()), render)
-            view.page().toHtml(got_html)
+            def with_fp(ok, fp):
+                if not ok:
+                    self.busy.stop()
+                    self.status.setText(f"Technology detection failed: {fp}")
+                    return
+                self.win._tech_fp = fp
+                from PySide6.QtWebEngineCore import QWebEngineScript
+                view.page().runJavaScript(techdetect.collect_js(fp), QWebEngineScript.ScriptWorldId.MainWorld,
+                                          lambda res: got(fp, res))
+
+            def got(fp, res):
+                import json
+
+                def work():
+                    ev = json.loads(res or "{}")
+                    found = techdetect.analyze(fp, ev, headers)
+                    server = next((v for k, v in headers.items() if k.lower() == "server"), "")
+                    return {"url": cur.toString(), "final_url": cur.toString(), "status": 200, "title": view.title(),
+                            "server": server.splitlines()[0] if server else "", "cdn": "", "from_page": True,
+                            "tech": [(f["name"], f["version"]) for f in found],
+                            "cats": {f["name"]: ", ".join(f["categories"]) for f in found}}
+                self.busy.stop()
+                self._run("Matching technologies", work, render)
+
+            fp = getattr(self.win, "_tech_fp", None)
+            self.busy.start("Detecting technologies on this page…")
+            self.status.setText("Detecting technologies on this page…")
+            if fp is not None:
+                with_fp(True, fp)
+            else:
+                cache = self.win.data_dir / "tech"
+                self.win.runner.run(lambda: techdetect.Fingerprints.load(cache), with_fp)
         else:
             def work():
                 return pdtools.detect_technologies(pdtools.probe_scheme(target, px), px)

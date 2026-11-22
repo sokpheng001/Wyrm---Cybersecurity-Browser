@@ -198,8 +198,12 @@ class TabsMixin:
                 self._failed.pop(view, None)
         elif status == QWebEngineLoadingInfo.LoadStatus.LoadSucceededStatus and not info.isErrorPage()                 and info.url().scheme() in ("http", "https"):
             try:  # the page's response headers, for Scanner -> Technologies on the open page
-                view.resp_headers = (info.url().toString(), {bytes(k).decode("latin-1"): bytes(v).decode("latin-1")
-                                                             for k, v in info.responseHeaders().items()})
+                # values are lists (a header can repeat, e.g. Set-Cookie): join them with newlines
+                hdrs = {}
+                for k, v in info.responseHeaders().items():
+                    vals = v if isinstance(v, (list, tuple)) else [v]
+                    hdrs[bytes(k).decode("latin-1")] = "\n".join(bytes(x).decode("latin-1") for x in vals)
+                view.resp_headers = (info.url().toString(), hdrs)
             except Exception:  # noqa: BLE001
                 view.resp_headers = (info.url().toString(), {})
         elif status == QWebEngineLoadingInfo.LoadStatus.LoadFailedStatus:

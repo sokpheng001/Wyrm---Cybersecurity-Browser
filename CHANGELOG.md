@@ -4,6 +4,13 @@ What's new in each version of Wyrm Browser. The release workflow publishes the s
 version (from `wyrm/__init__.py`) as the release description and the in-app **Update** tooltip, so keep the
 most important points first. Each build of a version adds an "Also in this build" list automatically.
 
+## v0.0.7
+
+- Scanner → Technologies detects far more, with versions and categories: it now inspects the live page like
+  Wappalyzer (JavaScript globals, page elements, every script URL, meta tags, cookies, headers) against ~7,700
+  open fingerprints. Example: nextjs.org went from 3 to 16 technologies, with Next.js and other versions
+- Fixed: response headers (Server, Set-Cookie, ...) of open pages weren't captured
+
 ## v0.0.6
 
 - Scanner → Technologies now analyses the page you have open (its HTML and response headers), like Wappalyzer:

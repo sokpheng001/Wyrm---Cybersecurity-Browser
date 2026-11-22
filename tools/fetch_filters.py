@@ -18,3 +18,18 @@ from wyrm.shields import fetch_lists  # noqa: E402
 dest = Path(__file__).resolve().parent.parent / "wyrm" / "assets" / "filters"
 texts = fetch_lists(dest)
 print("filter snapshot:", {k: f"{len(v) // 1024} KB" for k, v in texts.items()})
+
+# Technology fingerprints (ProjectDiscovery wappalyzergo, MIT) for Scanner -> Technologies, so detection works
+# offline from the first run; the browser refreshes its own copy weekly.
+import requests  # noqa: E402
+from wyrm.security import techdetect  # noqa: E402
+
+tech = Path(__file__).resolve().parent.parent / "wyrm" / "assets" / "tech"
+tech.mkdir(parents=True, exist_ok=True)
+for name, url in (("fingerprints.json", techdetect.FP_URL), ("categories.json", techdetect.CAT_URL)):
+    r = requests.get(url, timeout=60)
+    r.raise_for_status()
+    import json  # noqa: E402
+    json.loads(r.text)
+    (tech / name).write_text(r.text, encoding="utf-8")
+print("tech fingerprints:", {p.name: f"{p.stat().st_size // 1024} KB" for p in tech.glob("*.json")})
