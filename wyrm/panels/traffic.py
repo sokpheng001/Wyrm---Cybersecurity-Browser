@@ -218,12 +218,19 @@ class TrafficTab(QWidget):
         m = QMenu(self)
         m.addAction("Send to Repeater", lambda: self._send_to_repeater(r))
         m.addAction("Send to Intruder", lambda: self._send_to_intruder(r))
+        m.addAction("Send to Comparer", lambda: self._send_to_comparer(r))
         m.addAction("Open in new tab", lambda: self.win.open_url(r["url"], new_tab=True))
         m.addSeparator()
         m.addAction("Copy URL", lambda: QGuiApplication.clipboard().setText(r["url"]))
         m.addAction("Copy as cURL", lambda: QGuiApplication.clipboard().setText(
             tools.to_curl(r["method"], r["url"], r.get("headers"))))
         m.exec(self.table.viewport().mapToGlobal(pos))
+
+    def _send_to_comparer(self, r):
+        hdrs = "".join(f"{k}: {v}\n" for k, v in (r.get("headers") or {}).items())
+        text = f"{r['method']} {r['url']}\n" + hdrs
+        self.win.security.tools_tab.compare_add(text)
+        self.win.security.show_tab("Tools")
 
     def _send_to_intruder(self, r):
         self.win.security.intruder.load_request(r["method"], r["url"], r.get("headers") or {})

@@ -88,6 +88,8 @@ class SessionMixin:
         self.runner.shutdown()
         if getattr(self, "bg_video_server", None) is not None:
             self.bg_video_server.stop()
+        if getattr(self.security, "oob", None) is not None:
+            self.security.oob.shutdown()  # stop the OOB interaction listener
         self._ext_shutdown()  # switch extensions off first: Qt crashes tearing down profiles with them on
         self.tabbar.blockSignals(True)
         while self.tabbar.count():

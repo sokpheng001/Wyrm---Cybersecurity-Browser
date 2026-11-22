@@ -44,12 +44,14 @@ class SecurityPanel(QDockWidget):
         self.intruder = IntruderTab(win)
         self.dom = DomTab(win)
         self.scanner = ScannerTab(win)
+        from .oob import OobTab
+        self.oob = OobTab(win)
         groups = [
             ("PROTECTION", [("Shields", self.shields)]),
             ("INTELLIGENCE", [("Overview", self.overview), ("Site map", self.sitemap), ("Recon", self.recon)]),
             ("TRAFFIC", [("Traffic", self.traffic)]),
             ("TESTING", [("Scanner", self.scanner), ("Intruder", self.intruder), ("DOM Analysis", self.dom),
-                         ("Tools", self.tools_tab)]),
+                         ("Tools", self.tools_tab), ("OOB Interactions", self.oob)]),
             ("FINDINGS", [("Findings", self.findings)]),
         ]
         root = QWidget()

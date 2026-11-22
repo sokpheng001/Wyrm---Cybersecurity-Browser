@@ -499,6 +499,14 @@ class ToolsTab(QWidget):
                 self.win.save_rules()
                 self._rw_refresh()
 
+    def compare_add(self, text: str):
+        """Send a request/response into the Comparer (fills A first, then B)."""
+        self._select_tool("Comparer")
+        if not self.cmp_a.toPlainText().strip():
+            self.cmp_a.setPlainText(text)
+        else:
+            self.cmp_b.setPlainText(text)
+
     def load_request(self, method, url, headers: dict, body: str = ""):
         self._select_tool("Repeater")
         # open each sent request in its own tab so earlier ones are never lost

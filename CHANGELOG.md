@@ -4,6 +4,17 @@ What's new in each version of Wyrm Browser. The release workflow publishes the s
 version (from `wyrm/__init__.py`) as the release description and the in-app **Update** tooltip, so keep the
 most important points first. Each build of a version adds an "Also in this build" list automatically.
 
+## v0.1.0
+
+- New OOB Interactions (Security panel → OOB Interactions): a Collaborator-style callback listener to confirm
+  blind bugs (blind SSRF, blind XSS, SSTI, XXE, OOB command injection). Start the listener, copy the unique
+  payload URL into a target, and watch incoming callbacks (time, source IP, method, path, headers, body).
+  It listens on your machine, so it catches callbacks from hosts that can reach you (internal targets, your LAN,
+  or any target when Wyrm runs on a public IP / with the port forwarded)
+- "Send to" bus: right-click traffic → Send to Repeater / Intruder / Comparer, so the tools work together
+- Everything from the 0.0.x line: built-in ProjectDiscovery tools, Intercept, Technologies + JS recon,
+  video/image backgrounds, downloads panel, Hacker theme, and many fixes
+
 ## v0.0.8
 
 - Downloads button in the toolbar (Ctrl+J) with a downloads panel, like other browsers: see progress, and
