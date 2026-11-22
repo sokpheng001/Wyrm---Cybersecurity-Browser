@@ -5,7 +5,7 @@ Chromium engine, built-in ad/malware/phishing protection, Tor windows, anti-fing
 panel of tools for **authorized** web security testing.
 
 Built by **[ByKh R&D Group](https://bykh.org)** and **HackPi — Ethical Hackers Group** · Website: [bykh.org](https://bykh.org)
-Copyright © 2023–present ByKh R&D Group · Version 0.0.3
+Copyright © 2023–present ByKh R&D Group · Version 0.3.0
 
 ### History
 
@@ -120,7 +120,7 @@ rm -rf ~/.local/opt/wyrm ~/.local/bin/Wyrm ~/.local/share/applications/wyrm.desk
   identifiers — type a `CVE-…`, `CWE-…` or `T####` and it goes straight to the right place
 - **History** page (⋮ → History, `⌘Y` / `Ctrl+H`): visited pages by day, search, remove; address-bar autocomplete
 - **Clear browsing data** (⋮ menu, `Ctrl+Shift+Delete`): history, address-bar history, cookies, cached files
-  (history, clearing and the Scanner below: developer @kwan)
+  (history, clearing and the Scanner below: developer Kwan)
 - **Light / Dark / Follow-system** themes
 - **Customize the start page background** (bottom-right **Customize** button): rotating cybersecurity
   wallpapers (change every 5 min … daily — your choice), color themes, your own image, or none
@@ -145,20 +145,32 @@ rm -rf ~/.local/opt/wyrm ~/.local/bin/Wyrm ~/.local/share/applications/wyrm.desk
 
 ### Test (authorized) — the 🛡 Security panel
 - **Engagements**: per-target scope with isolated sessions and an authorization gate; IN/OUT-of-scope badge
-- **Shields / Overview / Traffic / Site map / Recon / Tools / Findings** tabs
-- **Scanner** (developer: @kwan): port scan (top 100 TCP; nmap if installed, otherwise built-in),
+- **Shields / Overview / Traffic / Site map / Recon / Scanner / Intruder / Tools / Proxy / WebSocket / Workflows /
+  Session / auth / API & WebSocket / OOB / Findings** tabs
+- **Scanner** (developer: Kwan): port scan (top 100 TCP; nmap if installed, otherwise built-in),
   **CORS misconfiguration test** (after Chen et al., USENIX Security 2018) and **clickjacking test** with a
   framing proof-of-concept (after Huang et al., USENIX Security 2012) — active checks only on in-scope hosts
-- **ProjectDiscovery tools** in Scanner (developer: @kwan): if you have them installed, run **subfinder, dnsx,
+- **ProjectDiscovery tools** in Scanner (developer: Kwan): if you have them installed, run **subfinder, dnsx,
   naabu, httpx, katana, nuclei, tlsx, asnmap, cdncheck, uncover, mapcidr, alterx** with live results; only
   installed tools are shown, and tools that contact the target run on in-scope hosts only
 - **Overview**: passive security grade (headers, CSP, TLS, cookies, tech + CVE lookup, JS secrets/endpoints)
 - **Traffic**: every request, filterable, with **per-site focus**; route through **Burp/ZAP** (Settings → Network)
 - **Site map**: host/path tree built from observed traffic
 - **Recon**: subdomains (crt.sh), Wayback URLs, robots/sitemap/security.txt, and **ProjectDiscovery Chaos** —
-  search public bug-bounty programs and load their published subdomains (passive, no API key; developer: @oda)
-- **Tools**: Decoder · JWT · Hash · **Repeater** (colored, scope-aware) · **Match & Replace** · **Comparer** ·
-  **Sequencer** (token entropy) · **AI Triage**
+  search public bug-bounty programs and load their published subdomains (passive, no API key; developer: Oda)
+- **Tools**: Decoder · JWT · Hash · **Repeater** (per-tab sessions, raw edit, raw/preview, copy-as-cURL) ·
+  **Match & Replace** · **Comparer** · **Sequencer** (token entropy) · **AI Triage**
+- **Intercepting proxy** (Proxy tab; developers: Kwan, Oda): routes the browser's own traffic through a local
+  Burp/Caido-style proxy that terminates HTTPS with a local CA. Full request/response history **with bodies** and
+  full-text search; **Intercept requests** to pause, edit or drop *any* request (XHR and API calls too), and
+  **Intercept responses** to edit a response before the page sees it; right-click → Send to Repeater / Intruder /
+  Session macro
+- **WebSocket** (developers: Kwan, Oda): every WebSocket frame over **wss://** is decoded and shown live; edit a
+  text frame's payload and forward it, forward unchanged, or drop it
+- **Workflows**: Caido-style automation pipelines on live traffic — set/remove headers, regex find/replace in
+  bodies, force a status — scoped to URLs you choose; each workflow shows how often it fired
+- **Session / auth**: a login macro that re-runs when a response looks logged-out (401/403 or a body pattern),
+  grabs fresh session cookies and injects them into later in-scope requests — so long Scanner/Intruder runs don't die
 - **AI Triage**: a scope-gated, human-in-the-loop, non-destructive assistant that analyzes a request/response
   or code and proposes findings, safe verification steps, and remediation (bring your own API key, Settings → AI)
 - **Findings → report**: export HTML or Markdown
@@ -171,6 +183,36 @@ rm -rf ~/.local/opt/wyrm ~/.local/bin/Wyrm ~/.local/share/applications/wyrm.desk
 
 Shortcuts: `Ctrl+T/W` tabs · `Ctrl+L` address bar · `Ctrl+Shift+S` security panel · `Ctrl+Shift+F` add finding ·
 `Ctrl+Alt+N` Tor window · `Ctrl+,` settings · `F12` inspect · `Ctrl+U` view source.
+
+## Use cases
+
+**Bug-bounty hunting (recon → report):**
+1. Create an **Engagement** and set the target scope (the IN/OUT-of-scope badge and authorization gate keep you honest).
+2. **Recon** — subdomains (crt.sh with a Cert Spotter fallback), Wayback URLs, robots/sitemap/security.txt, Chaos
+   bug-bounty data; **Scanner** — subfinder, httpx, katana, nuclei, naabu… (if installed).
+3. Browse the app with the **intercepting proxy** on — full request/response history (with bodies) is captured and searchable.
+4. **Intercept a request** (XHR/API calls too), tamper a parameter or header, then Forward — or Drop it.
+5. Send interesting requests to **Repeater** to iterate, or **Intruder** to fuzz an ID/parameter.
+6. Confirm blind bugs (SSRF/XXE) with **OOB Interactions** (Collaborator-style callbacks).
+7. Record **Findings** and export an **HTML / Markdown report**.
+
+**API & web-app testing:**
+- Inspect/decode **JWTs**, hashes and encoded values in **Tools**.
+- **Match & Replace** / **Workflows** to strip CSP, inject headers or rewrite responses live across the whole session.
+- **Session / auth** macros re-login automatically so long Scanner / Intruder runs don't die when the session expires.
+
+**Real-time / WebSocket apps:**
+- See every **WebSocket** frame over `wss://`, edit a frame's payload before it's sent, or drop it.
+
+**Blue team / internal review:**
+- Passive **Overview** security grade (headers, CSP, TLS, cookies, tech + CVE) on any page you open.
+- **Security Search** for CVE / CWE / IP / domain / hash intel, ranked by real-world risk (CISA KEV → EPSS → CVSS).
+
+**Everyday private browsing (companies & individuals):**
+- Shields block ads / trackers / malware / phishing, anti-fingerprinting, HTTPS-Only + encrypted DNS, and
+  private / Tor windows — the security panel stays out of the way until you open it.
+
+> **Only test systems you own or have explicit written permission to test.**
 
 ## Why the warning (SmartScreen / antivirus)
 
@@ -208,11 +250,13 @@ run.py                 app entry (normal, --private, --tor windows)
 wyrm/
   mainwindow/          the main window, one module per area (tabs, search, session, home, privacy,
                        engagement, appearance, docks, chrome, menu, updates, tor, downloads, papers, layout)
-  panels/              the Security panel, one module per tab (overview, traffic, recon, tools, findings,
-                       shields, sitemap, intruder, dom) + panel.py / common.py
+  panels/              the Security panel, one module per tab (overview, traffic, recon, scanner, tools, intruder,
+                       dom, proxy, wsintercept, workflows, sessionauth, capture, oob, sitemap, shields, findings)
+                       + panel.py / common.py
   browser/             web-engine pieces: injected scripts, request interceptor, tab view
   ui/                  shared UI: icons/constants, one-click updater
-  security/            recon & analysis engines (no UI): secsearch, chaos, analyzer, intel, news, …
+  security/            recon, analysis & proxy engines (no UI): secsearch, chaos, analyzer, intel, news, mitm,
+                       wsframe, workflows, sessionauth, techdetect, pdtools, oob, …
   pages.py · scheme.py internal wyrm:// pages (start page, guide, search results)
   theme.py · widgets.py styling and reusable widgets
 installer/ · build_*   installers and build scripts; .github/workflows/build.yml = automatic releases
@@ -220,8 +264,15 @@ installer/ · build_*   installers and build scripts; .github/workflows/build.ym
 
 ## Developers
 
-- **ByKh R&D Group** — [bykh.org](https://bykh.org)
-- **HackPi — Ethical Hackers Group**
+Wyrm is built and maintained by **[ByKh R&D Group](https://bykh.org)** and **HackPi — Ethical Hackers Group**:
+
+- **Oda**
+- **Kwan**
+- **Kim**
+- **Lida**
+- **Naly**
+- **Buri**
+- **Vatanny**
 
 ## Credits
 

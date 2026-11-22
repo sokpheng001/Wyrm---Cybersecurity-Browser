@@ -13,6 +13,7 @@ Recon: crt.sh certificate transparency (subdomains), Wayback Machine CDX (histor
 from __future__ import annotations
 
 import re
+import time
 import xml.etree.ElementTree as ET
 
 import requests
@@ -76,15 +77,53 @@ def lookup_cves(tech: dict) -> list[dict]:
 
 
 # ------------------------------------------------------------------ recon
+def _get_json(url, params=None, timeout=45, tries=3):
+    """GET JSON with retries on the transient errors these public services throw (crt.sh loves a 502)."""
+    last = "request failed"
+    for i in range(tries):
+        try:
+            r = requests.get(url, params=params, headers=UA, timeout=timeout)
+            if r.status_code in (429, 500, 502, 503, 504):
+                last = f"{r.status_code} {r.reason}"
+                time.sleep(1.5 * (i + 1))
+                continue
+            r.raise_for_status()
+            return r.json()
+        except requests.RequestException as e:
+            last = str(e)
+            time.sleep(1.0 * (i + 1))
+    raise RuntimeError(last)
+
+
+def _add_hosts(names: set, values, domain: str):
+    for n in values:
+        n = n.strip().lower().lstrip("*.")
+        if n.endswith(domain) and " " not in n:
+            names.add(n)
+
+
 def subdomains_crtsh(domain: str) -> list[str]:
-    r = requests.get("https://crt.sh/", params={"q": f"%.{domain}", "output": "json"}, headers=UA, timeout=45)
-    r.raise_for_status()
-    names = set()
-    for row in r.json():
-        for n in row.get("name_value", "").splitlines():
-            n = n.strip().lower().lstrip("*.")
-            if n.endswith(domain) and " " not in n:
-                names.add(n)
+    """Subdomains from certificate transparency. Tries crt.sh (best coverage) with retries, then falls back to
+    certspotter (keyless) — so a crt.sh 502/overload doesn't fail the whole lookup."""
+    names: set[str] = set()
+    crt_err = None
+    try:  # 1) crt.sh
+        for row in _get_json("https://crt.sh/", {"q": f"%.{domain}", "output": "json"}, timeout=45, tries=3):
+            _add_hosts(names, row.get("name_value", "").splitlines(), domain)
+    except Exception as e:  # noqa: BLE001
+        crt_err = e
+    if not names:  # 2) fallback: Cert Spotter (free, keyless; recent certs)
+        try:
+            data = _get_json("https://api.certspotter.com/v1/issuances",
+                             {"domain": domain, "include_subdomains": "true", "expand": "dns_names"},
+                             timeout=30, tries=2)
+            for row in data:
+                _add_hosts(names, row.get("dns_names", []), domain)
+        except Exception as e2:  # noqa: BLE001
+            if not names:
+                hint = " crt.sh returns 502 when overloaded — try again in a minute." if crt_err else ""
+                raise RuntimeError(f"certificate-transparency sources are temporarily unavailable "
+                                   f"(crt.sh: {crt_err}; certspotter: {e2}).{hint}")
     return sorted(names, key=lambda n: (n.count("."), n))
 
 

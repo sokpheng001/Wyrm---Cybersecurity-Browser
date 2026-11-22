@@ -162,10 +162,19 @@ class DownloadsMixin:
             self._downloads_popup = None
 
     def show_downloads(self):
+        import time
         self._init_downloads()
         if self._downloads_popup is None:
             self._downloads_popup = DownloadsPopup(self)
         pop = self._downloads_popup
+        # Toggle: close it if it's open. Clicking the button first deactivates the popup (changeEvent hides it
+        # and stamps _dl_hidden_at), then fires this handler — so "just hidden" also counts as a toggle-close,
+        # otherwise the same click would hide then instantly re-open it.
+        just_hidden = (time.monotonic() - getattr(self, "_dl_hidden_at", 0.0)) < 0.25
+        if pop.isVisible() or just_hidden:
+            self._dl_hidden_at = 0.0
+            pop.hide()
+            return
         pop.rebuild()
         anchor = getattr(self, "b_downloads", None)
         if anchor is not None and anchor.isVisible():
@@ -336,4 +345,6 @@ class DownloadsPopup(QWidget):
         super().changeEvent(e)
         from PySide6.QtCore import QEvent
         if e.type() == QEvent.Type.ActivationChange and not self.isActiveWindow():
+            import time
+            self.win._dl_hidden_at = time.monotonic()   # so a click on the Downloads button toggles (not re-opens)
             self.hide()
