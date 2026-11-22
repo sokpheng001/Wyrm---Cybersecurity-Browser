@@ -213,7 +213,7 @@ class SettingsDialog(QDialog):
         # Intercepting proxy (built-in, Burp/Caido-style) — enabled from its own panel (needs a restart + CA)
         f.addRow(QLabel("<b>Intercepting proxy</b>"))
         pnote = QLabel("Capture full HTTPS requests and responses (with bodies) and edit responses, in Security "
-                       "panel → <b>Proxy</b>. It installs a local certificate and restarts Wyrm. Developers: @kwan, @oda.")
+                       "panel → <b>Proxy</b>. It installs a local certificate and restarts Wyrm. Developers: Kwan, Oda.")
         pnote.setObjectName("Muted")
         pnote.setWordWrap(True)
         f.addRow("", pnote)

@@ -8,7 +8,7 @@ most important points first. Each build of a version adds an "Also in this build
 
 - WebSocket frame editing (Security panel → WebSocket): with the intercepting proxy on, every WebSocket frame
   — even over wss:// (TLS) — is decoded and shown live. Turn on "Intercept frames" to pause a text frame, edit
-  its payload and forward it, forward it unchanged, or drop it. Developers: @kwan, @oda.
+  its payload and forward it, forward it unchanged, or drop it. Developers: Kwan, Oda.
 - Workflows (Security panel → Workflows): Caido-style automation pipelines that rewrite live traffic through the
   proxy — set/remove request or response headers, regex find/replace in bodies, force a response status — scoped
   to URLs you choose, applied to HTTPS too. Build, enable and reorder steps; each workflow shows how often it fired.
@@ -32,7 +32,7 @@ most important points first. Each build of a version adds an "Also in this build
 - Intercepting HTTPS proxy (Burp/Caido-style) — Security panel → Proxy. Turn it on (installs a local CA and
   restarts) and every request/response flows through Wyrm: the full messages, with bodies, are captured and
   searchable. Turn on "Intercept responses" to pause a response, edit its body, and forward it to the page.
-  Right-click a flow → Send to Repeater / Intruder. Developers: @kwan, @oda.
+  Right-click a flow → Send to Repeater / Intruder. Developers: Kwan, Oda.
 
 ## v0.1.0
 
