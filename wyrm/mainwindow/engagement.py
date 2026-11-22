@@ -15,12 +15,24 @@ from .. import theme
 from ..dialogs import EngagementDialog, FindingDialog
 from ..scheme import SCHEME
 from ..security import rewrite
-from ..browser.scripts import FINGERPRINT_JS, YOUTUBE_JS
+from ..browser.scripts import CAPTURE_JS, FINGERPRINT_JS, YOUTUBE_JS
 from ..ui.common import HOME
 
 
-def _geo_spoof_js(lat: float, lon: float) -> str:
-    """Override navigator.geolocation to report a fixed position (matches your VPN/Tor exit, not your real GPS)."""
+def _geo_js(mode: str, lat: float, lon: float) -> str:
+    """Control what websites get from navigator.geolocation:
+    'hide'   — disappear: every request is denied, so sites can't record your location at all;
+    'custom' — appear: report a fixed position (matches your VPN/Tor exit, not your real GPS)."""
+    if mode == "hide":
+        return """(function(){
+  if (navigator.geolocation){
+    var deny=function(_s,e){ if(e) setTimeout(function(){ try{ e({code:1,message:'User denied Geolocation',
+      PERMISSION_DENIED:1,POSITION_UNAVAILABLE:2,TIMEOUT:3}); }catch(x){} },0); };
+    navigator.geolocation.getCurrentPosition=function(s,e){ deny(s,e); };
+    navigator.geolocation.watchPosition=function(s,e){ deny(s,e); return 0; };
+    navigator.geolocation.clearWatch=function(){};
+  }
+})();"""
     return ("""(function(){
   var lat=%r, lon=%r;
   var pos={coords:{latitude:lat,longitude:lon,accuracy:50,altitude:null,altitudeAccuracy:null,heading:null,speed:null},
@@ -79,14 +91,18 @@ class EngagementMixin:
             inject("wyrm-youtube", YOUTUBE_JS)
         if self.shields.enabled("antifp"):  # anti-fingerprinting (PriVaricator-style), runs in all frames
             inject("wyrm-antifp", FINGERPRINT_JS, subframes=True)
-        if self.settings.value("privacy/geo_spoof", False, type=bool):
-            # report a chosen location to navigator.geolocation (so it matches your VPN/Tor exit, not your GPS)
+        if self.settings.value("capture/enabled", False, type=bool):
+            inject("wyrm-capture", CAPTURE_JS, subframes=True)  # in-page API & WebSocket capture (opt-in)
+        geo_mode = self.settings.value("privacy/geo_mode", "", type=str)
+        if not geo_mode:  # migrate the old boolean setting
+            geo_mode = "custom" if self.settings.value("privacy/geo_spoof", False, type=bool) else "off"
+        if geo_mode in ("hide", "custom"):
             try:
-                lat = float(self.settings.value("privacy/geo_lat", 0.0))
-                lon = float(self.settings.value("privacy/geo_lon", 0.0))
+                lat = float(self.settings.value("privacy/geo_lat", 0.0) or 0.0)
+                lon = float(self.settings.value("privacy/geo_lon", 0.0) or 0.0)
             except (TypeError, ValueError):
                 lat = lon = 0.0
-            inject("wyrm-geo", _geo_spoof_js(lat, lon), subframes=True)
+            inject("wyrm-geo", _geo_js(geo_mode, lat, lon), subframes=True)
         s = prof.settings()
         for attr in (QWebEngineSettings.WebAttribute.PluginsEnabled, QWebEngineSettings.WebAttribute.PdfViewerEnabled,
                      QWebEngineSettings.WebAttribute.FullScreenSupportEnabled,

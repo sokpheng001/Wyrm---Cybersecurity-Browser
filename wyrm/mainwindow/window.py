@@ -34,6 +34,7 @@ from .tor import TorMixin
 from .updates import UpdatesMixin
 from .extensions import ExtensionsMixin
 from .intercept import InterceptMixin
+from .capture import CaptureMixin
 from .. import shields as shields_mod, winframe
 from ..async_util import Runner
 from ..library import Library
@@ -65,6 +66,7 @@ class MainWindow(
     BrowsingDataMixin,
     ExtensionsMixin,
     InterceptMixin,
+    CaptureMixin,
     QMainWindow,
 ):
     def __init__(self, tor=None, private: bool = False):
@@ -193,7 +195,12 @@ class MainWindow(
             lambda *_: self.theme_mode == "system" and self.apply_theme("system"))
         self._refresh_engagement_ui()
         if not self._restore_session():
-            self.new_tab(QUrl(HOME))
+            first_run = not self.ephemeral and not self.settings.value("welcome/seen", False, type=bool)
+            if first_run:
+                self.settings.setValue("welcome/seen", True)
+                self.new_tab(QUrl("wyrm://welcome"))
+            else:
+                self.new_tab(QUrl(HOME))
         if not self.ephemeral:  # keep the saved session fresh, so tabs survive even a crash
             self._session_timer = QTimer(self)
             self._session_timer.timeout.connect(self._save_session)

@@ -18,6 +18,8 @@ YOUTUBE_JS = (Path(__file__).parent.parent / "youtube.js").read_text(encoding="u
 
 FINGERPRINT_JS = (Path(__file__).parent.parent / "fingerprint.js").read_text(encoding="utf-8")
 
+CAPTURE_JS = (Path(__file__).parent.parent / "capture.js").read_text(encoding="utf-8")
+
 
 COLLECT_JS = """JSON.stringify((function(){const c=new Set(),i=new Set();
 document.querySelectorAll('[class],[id]').forEach((e,n)=>{if(n>4000)return;

@@ -137,11 +137,11 @@ QLabel#UrlIcon { background: transparent; }
 LoadingBar { background: $layer; }
 #OfflineBanner { background: $banner; border-left: 3px solid $banner_border; }
 #OfflineBanner QLabel { color: $banner_text; }
-#DownloadsPopup { background: $bg; border: 1px solid $border; border-radius: 10px; }
-#DownloadsPopup QFrame#DlRow { background: $layer; border: 1px solid $border; border-radius: 8px; }
+#DownloadsPopup { background: $bg; border: 1px solid $border; }
+#DownloadsPopup QFrame#DlRow { background: $layer; border: 1px solid $border; }
 #DownloadsPopup QLabel#DlName { font-weight: 600; color: $text; }
-#DownloadsPopup QProgressBar { border: 1px solid $border; border-radius: 4px; text-align: center; height: 16px; background: $field; }
-#DownloadsPopup QProgressBar::chunk { background: $interactive; border-radius: 3px; }
+#DownloadsPopup QProgressBar { border: 1px solid $border; text-align: center; height: 16px; background: $field; }
+#DownloadsPopup QProgressBar::chunk { background: $interactive; }
 #InfoBanner { background: $banner; border-left: 3px solid $interactive; }
 #InfoBanner QLabel { color: $banner_text; }
 

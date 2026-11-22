@@ -162,6 +162,8 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
             self._reply(job, pages.render_frametest(unquote(target)))
         elif host == "help":  # built-in user guide
             self._reply(job, pages.render_help(sys.platform == "darwin"))
+        elif host == "welcome":  # first-run welcome screen
+            self._reply(job, pages.render_welcome())
         elif host == "assets":  # bundled fonts for internal pages
             name = url.path().rsplit("/", 1)[-1]
             f = ASSETS / "fonts" / name

@@ -259,6 +259,23 @@ body.hasbg .ex a{background:rgba(255,255,255,.82);color:#161616}
 :root[data-theme=dark] body.hasbg .feed .nm{color:#f4f4f4}
 :root[data-theme=dark] body.hasbg .ex a{background:rgba(255,255,255,.12);color:#f4f4f4}
 body.hasbg .credit b,body.hasbg .modeline b{color:#ffffff}
+/* frosted glass over the background image/video — IBM Carbon keeps square corners (no border-radius) */
+body.hasbg .tile,body.hasbg .feed a.cve,body.hasbg .news a.it{
+  backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);
+  box-shadow:0 8px 30px rgba(0,0,0,.18)}
+body.hasbg .big input{background:rgba(255,255,255,.60);border:1px solid rgba(255,255,255,.55);
+  backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);
+  box-shadow:0 8px 30px rgba(0,0,0,.18);color:#161616}
+body.hasbg .big input::placeholder{color:rgba(0,0,0,.5)}
+body.hasbg .big .mag{color:rgba(0,0,0,.55)}
+body.hasbg .pill,body.hasbg .ex a{backdrop-filter:blur(12px) saturate(160%);
+  -webkit-backdrop-filter:blur(12px) saturate(160%);border:1px solid rgba(255,255,255,.35)}
+:root[data-theme=dark] body.hasbg .big input{background:rgba(20,20,28,.55);border:1px solid rgba(255,255,255,.18);
+  color:#f4f4f4}
+:root[data-theme=dark] body.hasbg .big input::placeholder{color:rgba(255,255,255,.55)}
+:root[data-theme=dark] body.hasbg .big .mag{color:rgba(255,255,255,.7)}
+:root[data-theme=dark] body.hasbg .tile,:root[data-theme=dark] body.hasbg .feed a.cve,
+:root[data-theme=dark] body.hasbg .news a.it{box-shadow:0 8px 30px rgba(0,0,0,.35)}
 body.hasbg .foot{color:#e0e0e0}
 body.hasbg .feed h2{color:#f4f4f4;text-shadow:0 1px 8px rgba(0,0,0,.6)}
 /* ---- responsive start page: medium (side panel open / small window) and narrow widths ---- */
@@ -858,6 +875,56 @@ main.help{max-width:1080px;display:grid;grid-template-columns:220px 1fr;gap:40px
   .help td:first-child{white-space:normal}
 }
 """
+
+
+def render_welcome() -> str:
+    """First-run welcome screen: a quick intro to Wyrm's main tools, shown once after install."""
+    from pathlib import Path
+    try:
+        logo = (Path(__file__).parent / "assets" / "icon.svg").read_text(encoding="utf-8")
+        logo = logo[logo.index("<svg"):].replace("<svg", "<svg class='wlogo'", 1)
+    except (OSError, ValueError):
+        logo = ""
+    feats = [
+        ("Security panel", "Scan pages, map a site, run the built-in ProjectDiscovery tools, Intruder, Repeater "
+                           "and the Decoder/Comparer/Sequencer — press the shield in the toolbar."),
+        ("Intercept &amp; OOB", "Hold and edit requests (Ctrl+Alt+I), and catch blind-vuln callbacks with the "
+                               "OOB Interactions listener."),
+        ("Technologies &amp; JS recon", "See what a site is built with (versions + CVE links) and pull endpoints "
+                                       "and leaked secrets from its scripts — in the Scanner."),
+        ("Private &amp; Tor windows", "Open a private window (Ctrl+Shift+N) or a Tor window for anonymous browsing."),
+        ("Shields &amp; location", "Ads, trackers, malware and fingerprinting are blocked by default. Hide or spoof "
+                                  "your location in Settings → Privacy."),
+        ("Make it yours", "Set an image or video background and a theme (including Hacker) from Customize on the "
+                          "start page."),
+    ]
+    cards = "".join(f"<div class='wcard'><h3>{t}</h3><p>{d}</p></div>" for t, d in feats)
+    body = (f"{logo}<h1>Welcome to <b>Wyrm</b> Browser</h1>"
+            "<p class='wsub'>A privacy- and security-focused browser for ethical hackers and pentesters, "
+            "by ByKh R&amp;D Group · HackPi.</p>"
+            f"<div class='wgrid'>{cards}</div>"
+            "<p class='wnote'>Only test systems you own or are explicitly authorized to test.</p>"
+            "<div class='wact'><a class='wbtn' href='wyrm://home'>Get started</a>"
+            "<a class='wlink' href='wyrm://help'>Read the guide (F1)</a></div>")
+    css = """
+main.welcome{max-width:860px;padding-top:6vh;text-align:center}
+.wlogo{width:72px;height:72px;margin:0 auto 14px;display:block}
+.welcome h1{font-size:30px;font-weight:300;margin:0}
+.welcome h1 b{font-weight:600}
+.wsub{color:var(--muted);font-size:15px;margin:10px 0 28px}
+.wgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;text-align:left}
+.wcard{background:var(--layer);border:1px solid var(--line);border-left:3px solid var(--btn);padding:18px}
+.wcard h3{margin:0 0 6px;font-size:15px;color:var(--fg)}
+.wcard p{margin:0;font-size:13px;color:var(--muted);line-height:1.55}
+.wnote{color:var(--helper);font-size:12px;margin:26px 0 18px}
+.wact{display:flex;gap:14px;justify-content:center;align-items:center}
+.wbtn{background:var(--btn);color:#fff;font-weight:600;padding:12px 28px;font-size:15px}
+.wbtn:hover{background:var(--btn-hover,#0353e9);text-decoration:none}
+.wlink{color:var(--link);font-size:14px}
+@media(max-width:720px){.wgrid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.wgrid{grid-template-columns:1fr}}
+"""
+    return _page("Welcome to Wyrm", body, css, "welcome")
 
 
 def render_help(mac: bool = False) -> str:

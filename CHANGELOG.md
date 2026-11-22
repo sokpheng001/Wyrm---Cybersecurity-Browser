@@ -6,6 +6,12 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.1.0
 
+- First-run welcome screen introducing Wyrm's main tools
+- API & WebSocket capture (Security panel → API & WebSocket): opt-in, shows fetch/XHR calls with request and
+  response bodies, and WebSocket frames, from the pages you browse — no proxy needed (read-only; send to Repeater)
+- Location control now has three modes (Settings → Privacy): Normal, Hide (deny every request — disappear), or
+  Show a chosen location (appear elsewhere, e.g. match your VPN/Tor exit)
+- Frosted-glass start page over image/video backgrounds, keeping the IBM Carbon square style
 - New OOB Interactions (Security panel → OOB Interactions): a Collaborator-style callback listener to confirm
   blind bugs (blind SSRF, blind XSS, SSTI, XXE, OOB command injection). Start the listener, copy the unique
   payload URL into a target, and watch incoming callbacks (time, source IP, method, path, headers, body).

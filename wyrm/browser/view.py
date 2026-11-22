@@ -17,13 +17,28 @@ from .. import engines, linkguard
 from ..shields import PageStats
 
 
+_CAP_PREFIX = "[[WYRMCAP]]"
+
+
+class _CapturePage(QWebEnginePage):
+    """Routes the capture script's sentinel console messages to the window; real console logs pass through."""
+    def javaScriptConsoleMessage(self, level, message, line, source):
+        if message.startswith(_CAP_PREFIX):
+            win = getattr(self, "_wyrm_win", None)
+            if win is not None and hasattr(win, "_on_capture"):
+                win._on_capture(message[len(_CAP_PREFIX):])
+            return
+        super().javaScriptConsoleMessage(level, message, line, source)
+
+
 class BrowserView(QWebEngineView):
     def __init__(self, win: "MainWindow", popup: bool = False):
         super().__init__()
         self.win = win
         self.popup = popup
         self.stats = PageStats()
-        page = QWebEnginePage(win.profile, self)
+        page = _CapturePage(win.profile, self)
+        page._wyrm_win = win
         self.setPage(page)
         self.guard = TrafficInterceptor(win, self)
         page.setUrlRequestInterceptor(self.guard)

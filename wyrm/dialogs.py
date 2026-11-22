@@ -209,11 +209,18 @@ class SettingsDialog(QDialog):
             cb.setChecked(self.settings.value(f"shields/{key}", True, type=bool))
             setattr(self, f"sh_{key}", cb)
             f.addRow("Shields" if key == "ads" else "", cb)
-        # Location — report a chosen position to websites (navigator.geolocation), to match your VPN/Tor exit
+        # Location — control what websites get from navigator.geolocation
         f.addRow(QLabel("<b>Location</b>"))
-        self.geo_spoof = QCheckBox("Spoof my location (report the position below to websites)")
-        self.geo_spoof.setChecked(self.settings.value("privacy/geo_spoof", False, type=bool))
-        f.addRow("", self.geo_spoof)
+        self.geo_mode = QComboBox()
+        for key, label in (("off", "Normal — let sites ask for my real location"),
+                           ("hide", "Hide my location — deny every request (disappear)"),
+                           ("custom", "Show a chosen location (appear elsewhere)")):
+            self.geo_mode.addItem(label, key)
+        cur = self.settings.value("privacy/geo_mode", "", type=str)
+        if not cur:
+            cur = "custom" if self.settings.value("privacy/geo_spoof", False, type=bool) else "off"
+        self.geo_mode.setCurrentIndex(max(0, self.geo_mode.findData(cur)))
+        f.addRow("Location mode", self.geo_mode)
         geo_row = QWidget()
         gh = QHBoxLayout(geo_row)
         gh.setContentsMargins(0, 0, 0, 0)
@@ -240,7 +247,7 @@ class SettingsDialog(QDialog):
         if info and info.get("lat") is not None:
             self.geo_lat.setText(str(info["lat"]))
             self.geo_lon.setText(str(info["lon"]))
-            self.geo_spoof.setChecked(True)
+            self.geo_mode.setCurrentIndex(max(0, self.geo_mode.findData("custom")))
         else:
             self.geo_lat.setPlaceholderText("Couldn't fetch — enter manually")
 
@@ -283,7 +290,7 @@ class SettingsDialog(QDialog):
         s.setValue("ai/api_key", self.ai_key.text().strip())
         s.setValue("ai/model", self.ai_model.text().strip() or "kim-modeling-sp-001")
         s.setValue("privacy/https_only", self.https_only.isChecked())
-        s.setValue("privacy/geo_spoof", self.geo_spoof.isChecked())
+        s.setValue("privacy/geo_mode", self.geo_mode.currentData())
         s.setValue("privacy/geo_lat", self.geo_lat.text().strip())
         s.setValue("privacy/geo_lon", self.geo_lon.text().strip())
         s.setValue("privacy/doh_mode", self.doh_mode.currentData())
