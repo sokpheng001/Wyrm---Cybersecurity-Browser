@@ -113,7 +113,6 @@ class SecurityPanel(QDockWidget):
         btn, idx = self._nav_buttons[name]
         btn.setChecked(True)
         self.stack.setCurrentIndex(idx)
-        self._fade(self.stack.currentWidget())
 
     def show_tab(self, name):
         self.show()
@@ -121,17 +120,7 @@ class SecurityPanel(QDockWidget):
             self._select(name)
 
     def _fade(self, w):
-        from PySide6.QtCore import QEasingCurve, QPropertyAnimation
-        from PySide6.QtWidgets import QGraphicsOpacityEffect
-        if not w:
-            return
-        eff = QGraphicsOpacityEffect(w)
-        w.setGraphicsEffect(eff)
-        anim = QPropertyAnimation(eff, b"opacity", self)
-        anim.setDuration(150)
-        anim.setStartValue(0.0)
-        anim.setEndValue(1.0)
-        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        anim.finished.connect(lambda: w.setGraphicsEffect(None))
-        self._nav_anim = anim
-        anim.start()
+        # Deliberately a no-op. A QGraphicsOpacityEffect fade used to run here, but it disabled native rendering
+        # for web-view pages and swallowed the first click after switching tools ("had to click twice"). Switching
+        # tabs is now instant and reliable.
+        return

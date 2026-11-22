@@ -222,6 +222,30 @@ class ExtensionsMixin:
                            lambda i=ext_id: self._ext_add("store", i))
         banner.button.setEnabled(True)
 
+    def _ext_status(self, folder: str, path, enabled: bool) -> tuple[str, str]:
+        """(status text, colour) for an extension: load errors from Qt, plus a warning for extensions whose
+        features Qt WebEngine can't fully run (e.g. a background service worker, as Wappalyzer uses)."""
+        if not enabled:
+            return ("Off", "#9aa3ad")
+        info = None
+        for mgr in self._ext_managers():
+            info = self._ext_info(mgr, folder)
+            if info is not None:
+                break
+        if info is not None and not info.isLoaded() and info.error():
+            return (f"⚠ Failed to load: {info.error()[:80]}", "#ff5c5c")
+        try:
+            from .. import extensions as extmod
+            manifest = extmod.read_manifest(path)
+        except Exception:  # noqa: BLE001
+            manifest = {}
+        bg = manifest.get("background") or {}
+        if isinstance(bg, dict) and (bg.get("service_worker") or bg.get("scripts")):
+            return ("⚠ May not work fully — this extension runs a background script, and Wyrm (Qt WebEngine) "
+                    "supports only part of Chrome's background/toolbar features. Its popup and page features work.",
+                    "#f0b429")
+        return ("✓ On", "#3fb950")
+
     # ---------------------------------------------------------------- menu + popups
     def _ext_fill_menu(self, menu):
         """Rebuilt each time the Extensions submenu opens: enabled extensions (click = its popup) + Manage."""
@@ -318,8 +342,10 @@ class ExtensionsMixin:
                 row = QWidget()
                 h = QHBoxLayout(row)
                 h.setContentsMargins(8, 6, 8, 6)
+                status, color = self._ext_status(e["folder"], e["path"], e["folder"] in enabled)
                 txt = QLabel(f"<b>{_esc(e['name'])}</b> <span style='color:gray'>{_esc(e['version'])}</span>"
-                             f"<br><span style='color:gray'>{_esc(e['description'][:160])}</span>")
+                             f"<br><span style='color:{color}'>{_esc(status)}</span>"
+                             f"<br><span style='color:gray'>{_esc(e['description'][:140])}</span>")
                 txt.setWordWrap(True)
                 h.addWidget(txt, 1)
                 on = QCheckBox("On")

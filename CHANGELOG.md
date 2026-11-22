@@ -9,6 +9,18 @@ most important points first. Each build of a version adds an "Also in this build
 - New Scanner → JS recon: pulls endpoints, API paths and leaked secrets (AWS, Google, GitHub, Stripe, Slack,
   JWTs, private keys and more) from the open page's scripts — inline and same-scope external (LinkFinder /
   SecretFinder style). Interesting endpoints (admin, token, api, graphql …) are starred
+- Home page now shows a live clock, the date, and your location + weather (based on your exit IP, so it follows
+  a VPN / Tor; turn it off in Settings)
+- Downloads: choose where to save each file (or set a default folder in Settings), and Open / Show-in-folder
+  when a download finishes
+- Detected technologies now show their category and link straight to CVE searches (Wyrm, NVD, CVE Details),
+  with the version included
+- Location control (Settings → Privacy): report a chosen position to websites so it matches your VPN/Tor exit,
+  not your real GPS ("Use my IP location" fills it in)
+- Extensions manager shows each extension's status, and warns when an extension can't fully run in Wyrm
+- Fixed: switching tools in the Security panel sometimes needed two clicks
+- Fixed: Developer Tools showed two close buttons
+- Tor on macOS: load the bundled libraries correctly and clear the download quarantine so it starts
 
 ## v0.0.7
 

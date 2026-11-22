@@ -137,8 +137,21 @@ class TorManager:
             shutil.rmtree(self.root, ignore_errors=True)
             raise RuntimeError("Tor data files were missing from the download. Please reconnect — "
                                "Wyrm will re-download and verify Tor.")
-        if sys.platform.startswith("linux"):  # bundled tor ships its own libs next to the binary
-            os.environ["LD_LIBRARY_PATH"] = str(Path(tor).parent) + os.pathsep + os.environ.get("LD_LIBRARY_PATH", "")
+        # bundled tor ships its own libraries next to the binary; the loader must be able to find them
+        libdir = str(Path(tor).parent)
+        if sys.platform.startswith("linux"):
+            os.environ["LD_LIBRARY_PATH"] = libdir + os.pathsep + os.environ.get("LD_LIBRARY_PATH", "")
+        elif sys.platform == "darwin":
+            # macOS: without this the Tor Expert Bundle binary can fail to start (can't load libevent). Also clear
+            # the download quarantine so Gatekeeper doesn't kill it.
+            for var in ("DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH"):
+                os.environ[var] = libdir + os.pathsep + os.environ.get(var, "")
+            try:
+                import subprocess
+                subprocess.run(["xattr", "-dr", "com.apple.quarantine", str(self.root)],
+                               check=False, capture_output=True, timeout=20)
+            except (OSError, subprocess.SubprocessError):
+                pass
 
         def on_line(line):
             if "Bootstrapped" in line:

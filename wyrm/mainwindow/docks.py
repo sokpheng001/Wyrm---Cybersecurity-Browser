@@ -21,8 +21,9 @@ from ..ui.common import make_icon
 class DocksMixin:
     """Side panels (docks): title bars, floating/detaching, developer tools. (Mixed into MainWindow.)"""
 
-    def _dock_titlebar(self, dock, title: str):
-        """Custom, clearly-visible title bar for a dock (float + close), replacing Qt's tiny native buttons."""
+    def _dock_titlebar(self, dock, title: str, closable: bool = True):
+        """Custom, clearly-visible title bar for a dock (float + close), replacing Qt's tiny native buttons.
+        closable=False omits the close X (Developer Tools has Chromium's own close, so two looked redundant)."""
         bar = QWidget(objectName="DockTitle")
         h = QHBoxLayout(bar)
         # 6px top/bottom around the 30px buttons = 42px *natural* height. The dock lays its content out from the
@@ -35,19 +36,24 @@ class DocksMixin:
         b_float = QToolButton()
         b_float.setToolTip("Detach into its own window / dock back")
         b_float.clicked.connect(lambda: self._toggle_float(dock))
-        b_close = QToolButton(objectName="DockClose")
-        b_close.setToolTip("Close panel")
-        b_close.clicked.connect(dock.close)
-        for b, icon in ((b_float, "win_restore"), (b_close, "win_close")):
+        buttons = [(b_float, "win_restore")]
+        b_close = None
+        if closable:
+            b_close = QToolButton(objectName="DockClose")
+            b_close.setToolTip("Close panel")
+            b_close.clicked.connect(dock.close)
+            buttons.append((b_close, "win_close"))
+        for b, icon in buttons:
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.setFixedSize(30, 30)
             b.setIconSize(b.iconSize().scaled(18, 18, Qt.AspectRatioMode.KeepAspectRatio))
             self._icon_buttons.append((b, icon))  # recolored by apply_theme
             h.addWidget(b)
-        # close X turns white on the red hover (otherwise a dark X on red is hard to read)
-        b_close.enterEvent = lambda e, b=b_close: b.setIcon(make_icon("win_close", "#ffffff"))
-        b_close.leaveEvent = lambda e, b=b_close: b.setIcon(
-            make_icon("win_close", theme.PALETTES[self.theme_name]["icon"]))
+        if b_close is not None:
+            # close X turns white on the red hover (otherwise a dark X on red is hard to read)
+            b_close.enterEvent = lambda e, b=b_close: b.setIcon(make_icon("win_close", "#ffffff"))
+            b_close.leaveEvent = lambda e, b=b_close: b.setIcon(
+                make_icon("win_close", theme.PALETTES[self.theme_name]["icon"]))
         bar.setFixedHeight(42)
         dock.setTitleBarWidget(bar)
         # frame the panel whenever it becomes a separate window (button OR dragged out), so the split is obvious
@@ -100,7 +106,9 @@ class DocksMixin:
         self.devtools_dock = QDockWidget("Developer Tools", self)
         self.devtools_dock.setObjectName("DevToolsDock")
         self.devtools_dock.setWidget(self.devtools_view)
-        self._dock_titlebar(self.devtools_dock, "Developer Tools")
+        # no Wyrm close X: Chromium's DevTools has its own close. Wire that close to our dock so one button works.
+        self._dock_titlebar(self.devtools_dock, "Developer Tools", closable=False)
+        self.devtools_view.page().windowCloseRequested.connect(self.devtools_dock.close)
         self.apply_theme(self.theme_mode)  # recolor the new title-bar icons
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.devtools_dock)
         self.resizeDocks([self.devtools_dock], [340], Qt.Orientation.Vertical)

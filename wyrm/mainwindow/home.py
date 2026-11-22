@@ -169,4 +169,18 @@ class HomeMixin:
                 "saved": self.library.saved(), "kev": self._kev_recent, "mode": self.mode,
                 "background": (not self.tor) and self._bg_settings()["mode"] != "none",
                 "bg": self._bg_settings(), "news": self._news if self._is_online else [],
+                "weather": getattr(self, "_weather", None) if self._is_online else None,
                 "tor": bool(self.tor), "private": self.private}
+
+    def _fetch_weather(self):
+        # location + weather for the start page; off in private/Tor and when the user disables it
+        if self.ephemeral or not self._is_online \
+                or not self.settings.value("home/weather", True, type=bool):
+            return
+        from .. import homeinfo
+        self.runner.run(lambda: homeinfo.fetch(self.proxies(), self.verify_tls()), self._weather_ready)
+
+    def _weather_ready(self, ok, result):
+        if ok and result and result != getattr(self, "_weather", None):
+            self._weather = result
+            self._refresh_home_pages()

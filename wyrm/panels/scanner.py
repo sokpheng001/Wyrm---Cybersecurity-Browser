@@ -122,6 +122,7 @@ class ScannerTab(QWidget):
         self.busy = BusyOverlay(self.tree)
         self.detail = QTextBrowser()
         self.detail.setOpenLinks(False)
+        self.detail.anchorClicked.connect(lambda u: self.win.open_url(u.toString(), new_tab=True))
         split.addWidget(self.detail)
         split.setSizes([300, 160])
         v.addWidget(split, 1)
@@ -326,9 +327,18 @@ class ScannerTab(QWidget):
                          "layer could be identified. Open the site in a tab and run Technologies with the target "
                          "empty: Wyrm then analyses the page your browser received.</i>")
             cats = r.get("cats") or {}
+            from urllib.parse import quote_plus
             for name, ver in r["tech"]:
+                q = quote_plus(f"{name} {ver}".strip())
+                cve = (f"<br><br><b>Known vulnerabilities</b><br>"
+                       f"<a href='wyrm://sec?q={q}'>Search Wyrm (CVE / KEV / EPSS)</a> · "
+                       f"<a href='https://nvd.nist.gov/vuln/search/results?query={q}'>NVD</a> · "
+                       f"<a href='https://www.cvedetails.com/google-search-results.php?q={q}'>CVE Details</a>"
+                       + ("" if ver else "<br><i>No version detected — results will be broad.</i>"))
                 self._add(name + (f"  {ver}" if ver else "") + (f"   · {cats[name]}" if cats.get(name) else ""), "",
-                          f"<b>{escape(name)}</b>{' version ' + escape(ver) if ver else ''}<br><br>{info}",
+                          f"<b>{escape(name)}</b>{' version ' + escape(ver) if ver else ''}"
+                          + (f"<br><span style='color:#8d8d8d'>{escape(cats[name])}</span>" if cats.get(name) else "")
+                          + f"<br><br>{info}{cve}",
                           {"url": r["final_url"]})
             if not r["tech"]:
                 self._add("No technologies identified", "", info, {"url": r["final_url"]})

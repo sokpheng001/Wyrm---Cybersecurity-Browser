@@ -8,8 +8,8 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit,
-    QSpinBox, QVBoxLayout, QWidget,
+    QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
+    QPlainTextEdit, QPushButton, QSpinBox, QVBoxLayout, QWidget,
 )
 
 from .security.store import SEVERITIES, Engagement
@@ -147,9 +147,28 @@ class SettingsDialog(QDialog):
         self.autoanalyze = QCheckBox("Auto-analyze in-scope pages (security grade)")
         self.autoanalyze.setChecked(self.settings.value("sec/auto", True, type=bool))
         f.addRow("", self.autoanalyze)
-        note = QLabel("Downloads are saved to your system Downloads folder.")
-        note.setObjectName("Muted")
-        f.addRow("", note)
+        # Downloads
+        f.addRow(QLabel("<b>Downloads</b>"))
+        from PySide6.QtCore import QStandardPaths
+        self.dl_ask = QCheckBox("Ask where to save each file")
+        self.dl_ask.setChecked(self.settings.value("downloads/ask", True, type=bool))
+        f.addRow("", self.dl_ask)
+        dl_row = QWidget()
+        dl_h = QHBoxLayout(dl_row)
+        dl_h.setContentsMargins(0, 0, 0, 0)
+        default_dir = self.settings.value("downloads/folder", "", type=str) \
+            or QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DownloadLocation)
+        self.dl_folder = QLineEdit(default_dir)
+        self.dl_folder.setReadOnly(True)
+        browse = QPushButton("Change…")
+        browse.clicked.connect(self._pick_download_folder)
+        dl_h.addWidget(self.dl_folder, 1)
+        dl_h.addWidget(browse)
+        f.addRow("Save files to", dl_row)
+        dl_note = QLabel("When “Ask where to save” is off, files go straight to this folder.")
+        dl_note.setObjectName("Muted")
+        dl_note.setWordWrap(True)
+        f.addRow("", dl_note)
         # AI Triage (optional) — user's own LLM API key, used only for the scope-gated triage assistant
         f.addRow(QLabel("<b>AI Triage</b>"))
         self.ai_key = QLineEdit(self.settings.value("ai/api_key", "", type=str))
@@ -190,7 +209,40 @@ class SettingsDialog(QDialog):
             cb.setChecked(self.settings.value(f"shields/{key}", True, type=bool))
             setattr(self, f"sh_{key}", cb)
             f.addRow("Shields" if key == "ads" else "", cb)
+        # Location — report a chosen position to websites (navigator.geolocation), to match your VPN/Tor exit
+        f.addRow(QLabel("<b>Location</b>"))
+        self.geo_spoof = QCheckBox("Spoof my location (report the position below to websites)")
+        self.geo_spoof.setChecked(self.settings.value("privacy/geo_spoof", False, type=bool))
+        f.addRow("", self.geo_spoof)
+        geo_row = QWidget()
+        gh = QHBoxLayout(geo_row)
+        gh.setContentsMargins(0, 0, 0, 0)
+        self.geo_lat = QLineEdit(str(self.settings.value("privacy/geo_lat", "", type=str)))
+        self.geo_lat.setPlaceholderText("Latitude e.g. 37.5665")
+        self.geo_lon = QLineEdit(str(self.settings.value("privacy/geo_lon", "", type=str)))
+        self.geo_lon.setPlaceholderText("Longitude e.g. 126.9780")
+        use_ip = QPushButton("Use my IP location")
+        use_ip.clicked.connect(self._fill_ip_location)
+        gh.addWidget(self.geo_lat)
+        gh.addWidget(self.geo_lon)
+        gh.addWidget(use_ip)
+        f.addRow("Coordinates", geo_row)
+        geo_note = QLabel("A VPN or Tor only changes your IP; this also makes sites that ask for your location see "
+                          "the place you choose. Takes effect on new page loads.")
+        geo_note.setObjectName("Muted")
+        geo_note.setWordWrap(True)
+        f.addRow("", geo_note)
         return w
+
+    def _fill_ip_location(self):
+        from . import homeinfo
+        info = homeinfo.fetch(self.win.proxies(), self.win.verify_tls())
+        if info and info.get("lat") is not None:
+            self.geo_lat.setText(str(info["lat"]))
+            self.geo_lon.setText(str(info["lon"]))
+            self.geo_spoof.setChecked(True)
+        else:
+            self.geo_lat.setPlaceholderText("Couldn't fetch — enter manually")
 
     # ----------------------------------------------------- Network (proxy)
     def _network(self):
@@ -215,14 +267,25 @@ class SettingsDialog(QDialog):
         f.addRow("", self.proxy_insecure)
         return w
 
+    def _pick_download_folder(self):
+        from PySide6.QtWidgets import QFileDialog
+        d = QFileDialog.getExistingDirectory(self, "Choose download folder", self.dl_folder.text())
+        if d:
+            self.dl_folder.setText(d)
+
     def _save(self):
         s = self.settings
         s.setValue("search/engine", self.engine.currentData())
+        s.setValue("downloads/ask", self.dl_ask.isChecked())
+        s.setValue("downloads/folder", self.dl_folder.text())
         s.setValue("general/restore_tabs", self.restore_tabs.isChecked())
         s.setValue("sec/auto", self.autoanalyze.isChecked())
         s.setValue("ai/api_key", self.ai_key.text().strip())
         s.setValue("ai/model", self.ai_model.text().strip() or "kim-modeling-sp-001")
         s.setValue("privacy/https_only", self.https_only.isChecked())
+        s.setValue("privacy/geo_spoof", self.geo_spoof.isChecked())
+        s.setValue("privacy/geo_lat", self.geo_lat.text().strip())
+        s.setValue("privacy/geo_lon", self.geo_lon.text().strip())
         s.setValue("privacy/doh_mode", self.doh_mode.currentData())
         s.setValue("privacy/doh_provider", self.doh_prov.currentData())
         for key in ("ads", "trackers", "malware", "linkguard", "antifp", "popups", "params", "youtube"):

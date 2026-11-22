@@ -112,9 +112,20 @@ main.home{max-width:760px;padding-top:7vh;text-align:center}
 .wordmark{font-size:26px;font-weight:300;letter-spacing:.3px;margin:0}
 .wordmark b{font-weight:600}
 .tagline{font-size:14px;color:var(--muted);margin:6px 0 30px}
-.modeline{font-size:13px;color:var(--muted);margin:6px 0 28px}
+.modeline{font-size:13px;color:var(--muted);margin:6px 0 20px}
 .modeline b{color:var(--btn);font-weight:600;letter-spacing:.3px}
 .modeline.red b{color:#da1e28}
+.infobar{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 22px;margin:0 0 26px}
+.infobar .blk{display:flex;align-items:baseline;gap:8px;color:var(--fg)}
+.infobar .clock{font-size:26px;font-weight:300;font-variant-numeric:tabular-nums;letter-spacing:.5px}
+.infobar .date{font-size:13px;color:var(--muted)}
+.infobar .sep{width:1px;height:26px;background:var(--line)}
+.infobar .wx{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--fg)}
+.infobar .wx .emoji{font-size:22px;line-height:1}
+.infobar .wx .temp{font-weight:600}
+.infobar .wx .loc{color:var(--muted);font-size:13px}
+body.hasbg .infobar .clock,body.hasbg .infobar .wx{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+body.hasbg .infobar .date,body.hasbg .infobar .wx .loc{color:rgba(255,255,255,.85);text-shadow:0 1px 3px rgba(0,0,0,.5)}
 form.big{max-width:620px;margin:0 auto;position:relative;display:block}
 .big input{width:100%;height:54px;font-size:16px;padding:0 112px 0 48px;text-align:left;
   border:1px solid var(--border);border-radius:0;background:var(--field);color:var(--fg);transition:border-color .15s}
@@ -365,6 +376,27 @@ def render_home(ctx: dict) -> str:
             f"<span class='dt'>{escape(ago(n['date']))}</span></a>" for n in news)
         news_html = ("<section class='feed news'><h2><span class='live blue'></span>LATEST CYBERSECURITY NEWS</h2>"
                      + rows + "</section>")
+    # info bar: live clock (date + time, drawn here) and, when available, location + weather
+    wx = ctx.get("weather") or {}
+    wx_html = ""
+    if wx:
+        loc = ", ".join(p for p in (wx.get("city"), wx.get("country")) if p)
+        temp = f"{round(wx['temp_c'])}°C" if wx.get("temp_c") is not None else ""
+        wx_html = ("<div class='wx'>"
+                   + (f"<span class='emoji'>{escape(wx.get('emoji', ''))}</span>" if wx.get("emoji") else "")
+                   + (f"<span class='temp'>{escape(temp)}</span>" if temp else "")
+                   + (f"<span>{escape(wx.get('desc', ''))}</span>" if wx.get("desc") else "")
+                   + (f"<span class='loc'>· {escape(loc)}</span>" if loc else "")
+                   + "</div>")
+    infobar = ("<div class='infobar'><div class='blk'><span class='clock' id='wyrm-clock'>--:--</span>"
+               "<span class='date' id='wyrm-date'></span></div>"
+               + ("<div class='sep'></div>" + wx_html if wx_html else "")
+               + "</div>"
+               "<script>(function(){function p(n){return(n<10?'0':'')+n;}function t(){var d=new Date();"
+               "var c=document.getElementById('wyrm-clock');if(!c)return;"
+               "c.textContent=p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());"
+               "document.getElementById('wyrm-date').textContent=d.toLocaleDateString(undefined,"
+               "{weekday:'long',year:'numeric',month:'long',day:'numeric'});}t();setInterval(t,1000);})();</script>")
     mode = ctx.get("mode", "blue")
     mode_line = (f"<p class='modeline {mode}'>"
                  + ("<b>Red team</b> · offensive — recon, test and report. Authorized targets only."
@@ -375,6 +407,7 @@ def render_home(ctx: dict) -> str:
         f"{logo}"
         "<p class='wordmark'><b>Wyrm</b> Browser</p>"
         + mode_line
+        + infobar
         + "<form class='big' action='wyrm://go' method='get'>"
         f"<span class='mag'>{SEARCH_ICON}</span>"
         "<input type='text' name='q' autofocus autocomplete='off' "

@@ -19,6 +19,21 @@ from ..browser.scripts import FINGERPRINT_JS, YOUTUBE_JS
 from ..ui.common import HOME
 
 
+def _geo_spoof_js(lat: float, lon: float) -> str:
+    """Override navigator.geolocation to report a fixed position (matches your VPN/Tor exit, not your real GPS)."""
+    return ("""(function(){
+  var lat=%r, lon=%r;
+  var pos={coords:{latitude:lat,longitude:lon,accuracy:50,altitude:null,altitudeAccuracy:null,heading:null,speed:null},
+           timestamp:Date.now()};
+  function ok(cb){ try{ cb(Object.assign({},pos,{coords:Object.assign({},pos.coords)})); }catch(e){} }
+  if (navigator.geolocation){
+    navigator.geolocation.getCurrentPosition=function(s){ if(s) setTimeout(function(){ok(s);},0); };
+    navigator.geolocation.watchPosition=function(s){ if(s) setTimeout(function(){ok(s);},0); return 0; };
+    navigator.geolocation.clearWatch=function(){};
+  }
+})();""" % (lat, lon))
+
+
 def _persistent_profile(name: str, storage: str, cache: str, parent) -> QWebEngineProfile:
     """A disk-backed profile with its storage and cache folders set AT CREATION (QWebEngineProfileBuilder).
 
@@ -64,6 +79,14 @@ class EngagementMixin:
             inject("wyrm-youtube", YOUTUBE_JS)
         if self.shields.enabled("antifp"):  # anti-fingerprinting (PriVaricator-style), runs in all frames
             inject("wyrm-antifp", FINGERPRINT_JS, subframes=True)
+        if self.settings.value("privacy/geo_spoof", False, type=bool):
+            # report a chosen location to navigator.geolocation (so it matches your VPN/Tor exit, not your GPS)
+            try:
+                lat = float(self.settings.value("privacy/geo_lat", 0.0))
+                lon = float(self.settings.value("privacy/geo_lon", 0.0))
+            except (TypeError, ValueError):
+                lat = lon = 0.0
+            inject("wyrm-geo", _geo_spoof_js(lat, lon), subframes=True)
         s = prof.settings()
         for attr in (QWebEngineSettings.WebAttribute.PluginsEnabled, QWebEngineSettings.WebAttribute.PdfViewerEnabled,
                      QWebEngineSettings.WebAttribute.FullScreenSupportEnabled,
