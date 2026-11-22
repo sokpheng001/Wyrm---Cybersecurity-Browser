@@ -8,6 +8,7 @@
 """Proxy tab: full HTTPS request/response history (with bodies) and response interception (hold → edit → forward)."""
 from __future__ import annotations
 
+import collections
 import threading
 from html import escape
 
@@ -24,6 +25,7 @@ class ProxyTab(QWidget):
 
     _flow = Signal(object)
     _hold = Signal(int, object)
+    _hold_req = Signal()
 
     def __init__(self, win):
         super().__init__()
@@ -31,8 +33,14 @@ class ProxyTab(QWidget):
         self._held: dict = {}      # id -> {"event", "result"}
         self._held_seq = 0
         self._held_current = None  # id of the flow shown for editing
+        # request interception queue (hold → edit → forward/drop every request, Burp/Caido-style)
+        self._req_holds: dict = {}
+        self._req_order = collections.deque()
+        self._req_lock = threading.Lock()
+        self._req_showing = None
         self._flow.connect(self._on_flow)
         self._hold.connect(self._on_hold)
+        self._hold_req.connect(self._show_next_req)
         v = QVBoxLayout(self)
 
         active = mitm.ACTIVE is not None
@@ -40,8 +48,9 @@ class ProxyTab(QWidget):
         intro.setWordWrap(True)
         if active:
             intro.setText("<b>Proxy</b> — every request and response flows through Wyrm's intercepting proxy; full "
-                          "messages (with bodies) are captured below. Turn on <b>Intercept responses</b> to pause "
-                          "and edit a response before the page sees it.")
+                          "messages (with bodies) are captured below. Turn on <b>Intercept requests</b> to pause, "
+                          "edit or drop every request (XHR and API calls too) before it is sent, or <b>Intercept "
+                          "responses</b> to edit a response before the page sees it.")
         else:
             intro.setText("<b>Proxy</b> — the intercepting HTTPS proxy is <b>off</b>. Turn it on to capture full "
                           "request/response bodies and edit responses (Burp/Caido-style). It installs a local "
@@ -53,13 +62,19 @@ class ProxyTab(QWidget):
         self.toggle.setObjectName("Primary")
         self.toggle.clicked.connect(lambda: self.win.set_mitm_enabled(not active))
         row.addWidget(self.toggle)
+        self.intercept_req = QCheckBox("Intercept requests")
+        self.intercept_req.setEnabled(active)
+        self.intercept_req.setToolTip("Hold every request (including XHR / API calls) so you can edit or drop it "
+                                      "before it is sent — the core Burp/Caido loop.")
+        self.intercept_req.toggled.connect(lambda on: setattr(self, "_intercept_req_on", on))
+        row.addWidget(self.intercept_req)
         self.intercept = QCheckBox("Intercept responses")
         self.intercept.setEnabled(active)
         self.intercept.toggled.connect(self._set_intercept)
         row.addWidget(self.intercept)
         row.addStretch(1)
         self.filter = QLineEdit()
-        self.filter.setPlaceholderText("Filter URL…")
+        self.filter.setPlaceholderText("Search URL, method, status, headers, body…")
         self.filter.textChanged.connect(self._apply_filter)
         row.addWidget(self.filter, 1)
         clear = QPushButton("Clear")
@@ -105,9 +120,29 @@ class ProxyTab(QWidget):
         v.addWidget(self.hold_bar)
         self.hold_bar.hide()
 
+        self.req_hold_bar = QWidget()
+        rb = QHBoxLayout(self.req_hold_bar)
+        rb.setContentsMargins(0, 0, 0, 0)
+        self.req_hold_lbl = QLabel("")
+        self.req_hold_lbl.setObjectName("Muted")
+        rb.addWidget(self.req_hold_lbl, 1)
+        self.rb_drop = QPushButton("Drop")
+        self.rb_drop.clicked.connect(lambda: self._forward_req(drop=True))
+        self.rb_repeater = QPushButton("Send to Repeater")
+        self.rb_repeater.clicked.connect(self._held_to_repeater)
+        self.rb_forward = QPushButton("Forward")
+        self.rb_forward.setObjectName("Primary")
+        self.rb_forward.clicked.connect(lambda: self._forward_req())
+        rb.addWidget(self.rb_drop)
+        rb.addWidget(self.rb_repeater)
+        rb.addWidget(self.rb_forward)
+        v.addWidget(self.req_hold_bar)
+        self.req_hold_bar.hide()
+
         if active:
             mitm.ACTIVE.on_flow = lambda fl: self._flow.emit(fl)
             mitm.ACTIVE.edit_response = self._edit_response
+            mitm.ACTIVE.intercept_request = self._edit_request
             for fl in list(mitm.ACTIVE.flows):   # history captured before the panel opened
                 self._on_flow(fl)
 
@@ -180,7 +215,90 @@ class ProxyTab(QWidget):
         self.hold_bar.hide()
         self.resp.setReadOnly(True)
 
+    # ------------------------------------------------------------ request interception (worker thread → UI queue)
+    def _edit_request(self, req):
+        """Runs on a proxy worker thread; blocks until the user forwards/drops this request (or a timeout)."""
+        if not getattr(self, "_intercept_req_on", False):
+            return True
+        self._held_seq += 1
+        hid = self._held_seq
+        ev = threading.Event()
+        with self._req_lock:
+            self._req_holds[hid] = {"event": ev, "req": req, "keep": True}
+            self._req_order.append(hid)
+        self._hold_req.emit()
+        if not ev.wait(300):   # 5 min: forward on timeout so the browser never hangs forever
+            with self._req_lock:
+                self._req_holds.pop(hid, None)
+            return True
+        with self._req_lock:
+            slot = self._req_holds.pop(hid, None)
+        return slot["keep"] if slot else True
+
+    def _show_next_req(self):
+        """Present the next held request for editing (one at a time; the rest wait in the queue)."""
+        if self._req_showing is not None:
+            return
+        with self._req_lock:
+            nxt = None
+            while self._req_order:
+                hid = self._req_order.popleft()
+                if hid in self._req_holds:
+                    nxt = hid
+                    break
+            self._req_showing = nxt
+            queued = len(self._req_order)
+        if self._req_showing is None:
+            return
+        slot = self._req_holds.get(self._req_showing)
+        if not slot:
+            self._req_showing = None
+            return
+        req = slot["req"]
+        self.req.setReadOnly(False)
+        self.req.setPlainText(_req_text(req))
+        self.resp.clear()
+        self.req_hold_lbl.setText(f"REQUEST HELD — {req['method']} {req['host']}{req['path']}"
+                                  + (f"   (+{queued} queued)" if queued else "") + " — edit and Forward, or Drop")
+        self.req_hold_bar.show()
+        self.win.security.show()
+        self.win.security.show_tab("Proxy")
+
+    def _forward_req(self, drop=False):
+        hid = self._req_showing
+        if hid is None:
+            return
+        with self._req_lock:
+            slot = self._req_holds.get(hid)
+        if slot:
+            if drop:
+                slot["keep"] = False
+            else:
+                _apply_req_edit(slot["req"], self.req.toPlainText())
+                slot["keep"] = True
+            slot["event"].set()
+        self._req_showing = None
+        self.req.setReadOnly(True)
+        self.req_hold_bar.hide()
+        self._show_next_req()
+
+    def _held_to_repeater(self):
+        """Copy the held request into Repeater (then forward it unchanged so the page keeps working)."""
+        hid = self._req_showing
+        slot = self._req_holds.get(hid) if hid is not None else None
+        if not slot:
+            return
+        req = dict(slot["req"])
+        _apply_req_edit(req, self.req.toPlainText())
+        url = f"{req['scheme']}://{req['host']}{req['path']}"
+        self.win.security.tools_tab.load_request(req["method"], url, dict(req["headers"]),
+                                                 _as_text(req.get("body", b"")))
+        self._forward_req()  # let the live request through unchanged
+        self.win.security.show_tab("Tools")
+
     def _show(self, it, _prev=None):
+        if self._req_showing is not None:   # a held request is being edited: don't clobber the editor
+            return
         fl = it.data(0, Qt.ItemDataRole.UserRole) if it else None
         if not fl:
             self.req.clear()
@@ -231,8 +349,23 @@ class ProxyTab(QWidget):
 
     def _filter_item(self, it):
         f = self.filter.text().strip().lower()
-        fl = it.data(0, Qt.ItemDataRole.UserRole) or {}
-        it.setHidden(bool(f) and f not in fl.get("url", "").lower())
+        if not f:
+            it.setHidden(False)
+            return
+        hay = it.data(0, Qt.ItemDataRole.UserRole + 1)   # full-text haystack, built once per flow and cached
+        if hay is None:
+            fl = it.data(0, Qt.ItemDataRole.UserRole) or {}
+            parts = [fl.get("url", ""), fl.get("method", ""), str(fl.get("status", "")),
+                     _as_text(fl.get("req_body", b""))]
+            parts += [f"{k}: {v}" for k, v in fl.get("req_headers", [])]
+            parts += [f"{k}: {v}" for k, v in fl.get("resp_headers", [])]
+            try:
+                parts.append(mitm.decode_body(fl.get("resp_headers", []), fl.get("resp_body", b"")))
+            except Exception:  # noqa: BLE001
+                pass
+            hay = " ".join(parts).lower()
+            it.setData(0, Qt.ItemDataRole.UserRole + 1, hay)
+        it.setHidden(f not in hay)
 
     def _clear(self):
         self.tree.clear()
@@ -246,3 +379,32 @@ def _as_text(b) -> str:
     if isinstance(b, bytes):
         return b.decode("utf-8", "replace")
     return str(b or "")
+
+
+def _req_text(req) -> str:
+    lines = [f"{req['method']} {req['path']}"]
+    lines += [f"{k}: {v}" for k, v in req["headers"]]
+    lines.append("")
+    lines.append(_as_text(req.get("body", b"")))
+    return "\n".join(lines)
+
+
+def _apply_req_edit(req, text):
+    """Parse an edited raw request (first line + headers + blank line + body) back into the req dict."""
+    lines = text.split("\n")
+    first = lines[0].strip() if lines else ""
+    parts = first.split(" ", 1)
+    if parts and parts[0]:
+        req["method"] = parts[0].strip()
+    if len(parts) > 1 and parts[1].strip():
+        req["path"] = parts[1].strip()
+    headers, i = [], 1
+    while i < len(lines) and lines[i].strip() != "":
+        if ":" in lines[i]:
+            k, _, val = lines[i].partition(":")
+            if k.strip() and k.strip().lower() != "content-length":   # let the client set Content-Length
+                headers.append((k.strip(), val.strip()))
+        i += 1
+    req["headers"] = headers
+    body = "\n".join(lines[i + 1:]) if i + 1 <= len(lines) else ""
+    req["body"] = body.encode("utf-8", "replace")

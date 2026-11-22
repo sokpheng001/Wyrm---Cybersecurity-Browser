@@ -343,6 +343,7 @@ class MitmProxy:
         self.ca = ca
         self.on_flow = on_flow          # optional UI notifier(flow); settable after construction
         self.edit_response = edit_response  # optional (flow)->(status,headers,body)|None for response interception
+        self.intercept_request = None   # optional (req)->bool: edit req in place; return False to DROP the request
         self.flows: list = []           # full history (capped), so the panel has it even for early flows
         # Extension hooks shared by Workflows and Session handling (all default to no-ops so nothing changes
         # until a feature registers one). Each is a list of callbacks run in order on the proxy worker thread.
@@ -462,6 +463,20 @@ class MitmProxy:
                 rw(req)
             except Exception:  # noqa: BLE001
                 pass
+        # request interception (Burp/Caido-style): block until the user edits + forwards, or drops the request
+        if self.intercept_request is not None:
+            try:
+                keep = self.intercept_request(req)
+            except Exception:  # noqa: BLE001
+                keep = True
+            if keep is False:
+                msg = b"Wyrm proxy: request dropped"
+                try:
+                    out_sock.sendall(b"HTTP/1.1 403 Forbidden\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s"
+                                     % (len(msg), msg))
+                except OSError:
+                    pass
+                return False
         method, path, headers, body = req["method"], req["path"], req["headers"], req["body"]
         try:
             if scheme == "https":
