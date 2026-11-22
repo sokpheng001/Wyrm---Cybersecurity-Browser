@@ -10,15 +10,22 @@ from __future__ import annotations
 from pathlib import Path
 
 
-CITESEE_JS = (Path(__file__).parent.parent / "citesee.js").read_text(encoding="utf-8")
+def _load(name: str) -> str:
+    """Read an injected script that ships beside the package. Degrade gracefully (empty = feature no-ops) rather
+    than crash the whole browser at startup if a file is missing from a build — this runs at import time."""
+    try:
+        return (Path(__file__).parent.parent / name).read_text(encoding="utf-8")
+    except OSError:
+        return ""
 
 
-YOUTUBE_JS = (Path(__file__).parent.parent / "youtube.js").read_text(encoding="utf-8")
+CITESEE_JS = _load("citesee.js")
 
+YOUTUBE_JS = _load("youtube.js")
 
-FINGERPRINT_JS = (Path(__file__).parent.parent / "fingerprint.js").read_text(encoding="utf-8")
+FINGERPRINT_JS = _load("fingerprint.js")
 
-CAPTURE_JS = (Path(__file__).parent.parent / "capture.js").read_text(encoding="utf-8")
+CAPTURE_JS = _load("capture.js")
 
 
 COLLECT_JS = """JSON.stringify((function(){const c=new Set(),i=new Set();

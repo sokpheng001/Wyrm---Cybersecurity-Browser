@@ -77,6 +77,17 @@ jobs:
       - if: runner.os != 'Windows'
         env: { GITHUB_TOKEN: "${{ github.token }}" }
         run: bash build_unix.sh
+      - name: Verify required data files are bundled (guards against a missing datas entry crashing startup)
+        shell: bash
+        run: |
+          set -e
+          for f in wyrm/capture.js wyrm/citesee.js wyrm/youtube.js wyrm/fingerprint.js \
+                   wyrm/security/pageinfo.js wyrm/assets/tech/fingerprints.json wyrm/assets/icon.png; do
+            if ! find dist -path "*/$f" | grep -q .; then
+              echo "::error::missing from the frozen build: $f"; exit 1
+            fi
+          done
+          echo "all required data files are bundled"
       # Optional Windows code signing through SignPath Foundation (free for open-source projects). Skipped until
       # the repo has the secret SIGNPATH_API_TOKEN and the variables SIGNPATH_ORGANIZATION_ID and
       # SIGNPATH_PROJECT_SLUG (and optionally SIGNPATH_SIGNING_POLICY_SLUG; default "release-signing").

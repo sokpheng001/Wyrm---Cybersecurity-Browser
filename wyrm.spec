@@ -30,6 +30,7 @@ a = Analysis(
     ["run.py"],
     pathex=["."],
     datas=[("wyrm/citesee.js", "wyrm"), ("wyrm/youtube.js", "wyrm"), ("wyrm/fingerprint.js", "wyrm"),
+           ("wyrm/capture.js", "wyrm"),
            ("wyrm/security/pageinfo.js", "wyrm/security"),
            ("wyrm/assets", "wyrm/assets")]
           # ProjectDiscovery tools (tools/fetch_pdtools.py); skipped if not fetched (e.g. a quick local build)

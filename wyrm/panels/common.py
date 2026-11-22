@@ -20,7 +20,10 @@ from .. import theme
 SEV_COLOR = theme.SEVERITY
 
 
-PAGEINFO_JS = (Path(__file__).parent.parent / "security" / "pageinfo.js").read_text(encoding="utf-8")
+try:  # degrade gracefully if a build is missing the file, rather than crash the browser at startup
+    PAGEINFO_JS = (Path(__file__).parent.parent / "security" / "pageinfo.js").read_text(encoding="utf-8")
+except OSError:
+    PAGEINFO_JS = ""
 
 
 def mono(widget):
