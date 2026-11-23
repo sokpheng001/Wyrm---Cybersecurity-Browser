@@ -24,6 +24,29 @@ from ..security.audit import engine
 from ..widgets import BusyOverlay
 
 
+class _OobBridge:
+    """Lets the SSRF / command-injection checks use the running OOB listener (callback correlation)."""
+
+    def __init__(self, panel):
+        self.p = panel
+
+    def token(self) -> str:
+        from ..security.oob import InteractionServer
+        return InteractionServer.new_token()
+
+    def url(self, token):
+        return self.p.oob_payload(token)
+
+    def wait_hit(self, token, timeout) -> bool:
+        import time
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            if self.p.oob_hit(token):
+                return True
+            time.sleep(0.5)
+        return False
+
+
 class AuditTab(QWidget):
     _finding = Signal(object)
     _done = Signal(bool, object)
@@ -150,9 +173,12 @@ class AuditTab(QWidget):
             return {"status": r.status_code, "headers": H, "text": r.text, "location": H.get("location", ""),
                     "url": url, "set_cookie": sc or []}
 
+        oob_panel = getattr(self.win.security, "oob", None)
+        oob = _OobBridge(oob_panel) if (oob_panel is not None and oob_panel.oob_active()) else None
+
         def work():
             return engine.scan(req, send, should_stop=lambda: self._stop_flag,
-                               on_finding=lambda f: self._finding.emit(f))
+                               on_finding=lambda f: self._finding.emit(f), oob=oob)
         self.win.runner.run(work, lambda ok, res: self._done.emit(bool(ok), res))
 
     def _stop(self):

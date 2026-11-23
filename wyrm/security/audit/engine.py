@@ -25,7 +25,7 @@ def _rand(n=6):
     return "".join(random.choices(string.ascii_lowercase + string.digits, k=n))
 
 
-def scan(request: dict, send, checks=None, should_stop=None, on_finding=None, passive=True) -> list[dict]:
+def scan(request: dict, send, checks=None, should_stop=None, on_finding=None, passive=True, oob=None) -> list[dict]:
     checks = checks if checks is not None else ALL_CHECKS
     should_stop = should_stop or (lambda: False)
     rand = _rand()
@@ -61,7 +61,7 @@ def scan(request: dict, send, checks=None, should_stop=None, on_finding=None, pa
             if should_stop():
                 break
             try:
-                f = chk.run(point, build, send, baseline, rand)
+                f = chk.run(point, build, send, baseline, rand, oob)
             except Exception:  # noqa: BLE001 - one check failing must not stop the scan
                 f = None
             if f:
