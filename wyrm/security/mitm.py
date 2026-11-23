@@ -359,6 +359,8 @@ class MitmProxy:
         self.edit_ws = None             # fn(frame: dict) -> bytes|None|False : new payload / unchanged / drop
         self.ws_flows: list = []        # WebSocket frame history (capped)
         self.http2 = False              # when True, offer HTTP/2 (h2) over ALPN and parse it (experimental)
+        self._pool: dict = {}           # upstream keep-alive pool: (scheme,host,port) -> [idle http.client conns]
+        self._pool_lock = threading.Lock()
         self._srv = None
         self.port = 0
         self._stop = False
@@ -466,6 +468,54 @@ class MitmProxy:
         body = _read_body(f, headers)
         self._transaction("http", host, port, method, path, headers, body, conn)
 
+    def _pool_get(self, key):
+        with self._pool_lock:
+            lst = self._pool.get(key)
+            return lst.pop() if lst else None
+
+    def _pool_put(self, key, conn):
+        with self._pool_lock:
+            lst = self._pool.setdefault(key, [])
+            lst.append(conn)
+            while len(lst) > 6:   # cap idle connections per host
+                try:
+                    lst.pop(0).close()
+                except OSError:
+                    pass
+
+    def _upstream_request(self, scheme, host, port, method, path, body, fwd):
+        """Forward one request upstream, reusing a kept-alive connection when possible (a fresh TLS handshake per
+        request is the main reason proxied browsing feels slow). Retries once if a pooled connection was stale."""
+        import http.client
+        key = (scheme, host, port)
+        last_err = None
+        for _ in range(2):
+            conn = self._pool_get(key)
+            fresh = conn is None
+            if fresh:
+                conn = (http.client.HTTPSConnection(host, port, timeout=30, context=_upstream_ctx())
+                        if scheme == "https" else http.client.HTTPConnection(host, port, timeout=30))
+            try:
+                conn.request(method, path, body=body or None, headers=dict(fwd))
+                resp = conn.getresponse()
+                rbody = resp.read()
+                rheaders = resp.getheaders()
+                status, reason, ver = resp.status, resp.reason, resp.version
+                if ver == 11 and "close" not in (resp.getheader("connection") or "").lower():
+                    self._pool_put(key, conn)   # keep-alive: reuse for the next request to this host
+                else:
+                    conn.close()
+                return status, reason, rheaders, rbody
+            except Exception as e:  # noqa: BLE001
+                last_err = e
+                try:
+                    conn.close()
+                except OSError:
+                    pass
+                if fresh:   # a brand-new connection failing is a real error, not a stale-pool miss
+                    raise
+        raise last_err
+
     def _fetch(self, req: dict) -> dict:
         """Run the full pipeline for one request dict and return the (possibly edited) response. Shared by the
         HTTP/1.1 and HTTP/2 paths so both get request rewriting, interception, workflows, session handling and
@@ -488,18 +538,9 @@ class MitmProxy:
                 return {"dropped": True}
         scheme, host, port = req["scheme"], req["host"], req["port"]
         method, path, headers, body = req["method"], req["path"], req["headers"], req["body"]
+        fwd = [(k, v) for k, v in headers if k.lower() not in ("proxy-connection", "connection")]
         try:
-            if scheme == "https":
-                conn = http.client.HTTPSConnection(host, port, timeout=30, context=_upstream_ctx())
-            else:
-                conn = http.client.HTTPConnection(host, port, timeout=30)
-            fwd = [(k, v) for k, v in headers if k.lower() not in ("proxy-connection", "connection")]
-            conn.request(method, path, body=body or None, headers=dict(fwd))
-            resp = conn.getresponse()
-            rbody = resp.read()
-            rheaders = resp.getheaders()
-            status, reason = resp.status, resp.reason
-            conn.close()
+            status, reason, rheaders, rbody = self._upstream_request(scheme, host, port, method, path, body, fwd)
         except Exception as e:  # noqa: BLE001 - upstream failure
             return {"error": str(e)}
         flow = {"time": time.strftime("%H:%M:%S"), "method": method, "scheme": scheme, "host": host,

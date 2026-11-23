@@ -37,11 +37,27 @@ def is_newer(latest: str, current: str) -> bool:
     return _ver_tuple(latest) > _ver_tuple(current)
 
 
+def _mac_arch() -> str:
+    """'arm64' on Apple Silicon (even when this process is running under Rosetta), else 'intel'. Picking the wrong
+    one makes updates install an x86_64 build on Apple Silicon — slow under Rosetta — so we detect the real CPU."""
+    import subprocess
+    try:
+        r = subprocess.run(["sysctl", "-n", "hw.optional.arm64"], capture_output=True, text=True, timeout=5)
+        if r.stdout.strip() == "1":
+            return "arm64"
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return "intel"
+
+
 def _asset_for_platform(assets: list[dict]) -> dict | None:
     if sys.platform == "win32":
         pats = [r"setup.*\.exe$", r"\.exe$"]
     elif sys.platform == "darwin":
-        pats = [r"\.dmg$", r"\.pkg$"]
+        if _mac_arch() == "arm64":
+            pats = [r"(arm64|aarch64|apple[-_]?silicon).*\.dmg$", r"\.dmg$", r"\.pkg$"]
+        else:
+            pats = [r"(intel|x86[_-]?64|x64).*\.dmg$", r"\.dmg$", r"\.pkg$"]
     else:
         pats = [r"\.appimage$", r"\.deb$", r"linux.*\.tar\.(gz|xz)$", r"\.tar\.(gz|xz)$"]
     for pat in pats:

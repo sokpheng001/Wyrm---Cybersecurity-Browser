@@ -35,14 +35,22 @@ class HomeMixin:
 
     # ---------------------------------------------------------------- start page: news + background
     def _fetch_news(self):
-        if self.tor or not self._is_online:
+        # Try even when reachability reports offline — that backend misreports on some systems (e.g. macOS),
+        # which was leaving the start page with no news. A real offline machine just fails quietly and cheaply.
+        if self.tor:
             return
         self.runner.run(lambda: news_mod.latest(8, self.proxies(), self.verify_tls()), self._news_ready)
 
     def _news_ready(self, ok, result):
-        if ok and result and result != self._news:
-            self._news = result
-            self._refresh_home_pages()
+        if ok and result:
+            if not self._is_online:   # we clearly reached the internet: correct a false "offline" state
+                self._is_online = True
+                banner = getattr(self, "offline_banner", None)
+                if banner is not None:
+                    banner.set_offline(False)
+            if result != self._news:
+                self._news = result
+                self._refresh_home_pages()
 
     BG_DIR = "backgrounds"
 
