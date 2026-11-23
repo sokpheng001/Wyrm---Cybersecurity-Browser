@@ -13,8 +13,8 @@ import sys
 from html import escape
 
 from PySide6.QtCore import QPoint, QSize, Qt
-from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QProgressBar, QPushButton, QScrollArea, QToolButton,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QFrame, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QProgressBar, QPushButton,
+                               QScrollArea, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from ..ui.common import make_icon
 from ..ui.dialogs import security_warning
@@ -191,6 +191,7 @@ class DownloadsMixin:
             rec["state"] = "failed"
             rec["error"] = dl.interruptReasonString() if hasattr(dl, "interruptReasonString") else "interrupted"
             self.toast(f"Download failed: {rec['name']}", 8000)
+        self._record_history(rec)
         self._refresh_downloads()
 
     # ---------------------------------------------------------------- downloads panel + badge
@@ -224,6 +225,50 @@ class DownloadsMixin:
         pop.raise_()
         pop.activateWindow()
         self._refresh_downloads()
+
+    # ---------------------------------------------------------------- full download history (persisted)
+    def _dl_history_file(self):
+        return self.data_dir / "downloads.json"
+
+    def _record_history(self, rec):
+        """Append a finished download to the persisted history (skipped in private/Tor windows)."""
+        if getattr(self, "ephemeral", False):
+            return
+        import json
+        import time
+        f = self._dl_history_file()
+        hist = self.download_history()
+        hist.insert(0, {"name": rec.get("name", ""), "path": rec.get("path", ""), "url": rec.get("url", ""),
+                        "state": rec.get("state", ""), "size": rec.get("received") or rec.get("total") or 0,
+                        "time": time.strftime("%Y-%m-%d %H:%M")})
+        del hist[500:]
+        try:
+            f.write_text(json.dumps(hist), encoding="utf-8")
+        except OSError:
+            pass
+
+    def download_history(self) -> list:
+        import json
+        try:
+            h = json.loads(self._dl_history_file().read_text(encoding="utf-8"))
+            return h if isinstance(h, list) else []
+        except (OSError, ValueError):
+            return []
+
+    def clear_download_history(self):
+        try:
+            self._dl_history_file().unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    def show_download_history(self):
+        if getattr(self, "_dl_history_win", None) is None:
+            self._dl_history_win = DownloadsHistoryWindow(self)
+        w = self._dl_history_win
+        w.reload()
+        w.show()
+        w.raise_()
+        w.activateWindow()
 
     def _refresh_downloads(self):
         self._init_downloads()
@@ -280,6 +325,83 @@ def _fmt_eta(seconds) -> str:
     return f"{s // 3600}h {(s % 3600) // 60}m"
 
 
+class DownloadsHistoryWindow(QWidget):
+    """A full, searchable download history (persisted across sessions) — opened from the downloads popup."""
+
+    def __init__(self, win):
+        super().__init__()
+        self.win = win
+        self.setWindowTitle("Download history — Wyrm")
+        self.resize(760, 480)
+        v = QVBoxLayout(self)
+        top = QHBoxLayout()
+        top.addWidget(QLabel("<b>Download history</b>"), 0)
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Search downloads…")
+        self.search.textChanged.connect(self._filter)
+        top.addWidget(self.search, 1)
+        clear = QPushButton("Clear history")
+        clear.clicked.connect(self._clear)
+        top.addWidget(clear)
+        v.addLayout(top)
+
+        self.tree = QTreeWidget()
+        self.tree.setHeaderLabels(["Name", "Size", "Status", "When", "Folder"])
+        self.tree.setRootIsDecorated(False)
+        self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.tree.itemDoubleClicked.connect(self._open_item)
+        v.addWidget(self.tree, 1)
+
+        row = QHBoxLayout()
+        row.addStretch(1)
+        b_open = QPushButton("Open")
+        b_open.clicked.connect(lambda: self._open_item(self.tree.currentItem()))
+        row.addWidget(b_open)
+        b_folder = QPushButton("Show in folder")
+        b_folder.clicked.connect(self._show_in_folder)
+        row.addWidget(b_folder)
+        v.addLayout(row)
+
+    def reload(self):
+        self.tree.clear()
+        for rec in self.win.download_history():
+            folder = os.path.dirname(rec.get("path", ""))
+            it = QTreeWidgetItem([rec.get("name", ""), _fmt_size(rec.get("size", 0)),
+                                  rec.get("state", ""), rec.get("time", ""), folder])
+            it.setData(0, Qt.ItemDataRole.UserRole, rec)
+            self.tree.addTopLevelItem(it)
+        if not self.tree.topLevelItemCount():
+            self.tree.addTopLevelItem(QTreeWidgetItem(["No downloads yet.", "", "", "", ""]))
+        self._filter()
+
+    def _filter(self):
+        q = self.search.text().strip().lower()
+        for i in range(self.tree.topLevelItemCount()):
+            it = self.tree.topLevelItem(i)
+            hay = " ".join(it.text(c) for c in range(5)).lower()
+            it.setHidden(bool(q) and q not in hay)
+
+    def _open_item(self, it):
+        rec = it.data(0, Qt.ItemDataRole.UserRole) if it else None
+        if not rec:
+            return
+        p = rec.get("path", "")
+        if p and os.path.isfile(p):
+            _open_path(p)
+        else:
+            self.win.toast("That file is no longer there — it may have been moved or deleted.", 6000)
+
+    def _show_in_folder(self):
+        it = self.tree.currentItem()
+        rec = it.data(0, Qt.ItemDataRole.UserRole) if it else None
+        if rec and rec.get("path"):
+            _show_in_folder(rec["path"])
+
+    def _clear(self):
+        self.win.clear_download_history()
+        self.reload()
+
+
 def _dl_status_text(rec) -> str:
     """The subtitle under an active download: size, state, speed and ETA (like other browsers)."""
     recv, total = rec.get("received") or 0, rec.get("total") or 0
@@ -310,7 +432,7 @@ class DownloadsPopup(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         head = QHBoxLayout()
         head.setContentsMargins(14, 10, 10, 6)
-        title = QLabel("<b>Downloads</b>")
+        title = QLabel("<b>Recent downloads</b>")
         head.addWidget(title, 1)
         clear = QPushButton("Clear")
         clear.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -327,6 +449,21 @@ class DownloadsPopup(QWidget):
         self.vbox.setSpacing(6)
         self.vbox.addStretch(1)
         self.scroll.setWidget(self.body)
+
+        foot = QHBoxLayout()
+        foot.setContentsMargins(14, 6, 12, 10)
+        full = QPushButton("Full download history  →")
+        full.setObjectName("Link")
+        full.setCursor(Qt.CursorShape.PointingHandCursor)
+        full.setFlat(True)
+        full.clicked.connect(self._open_full_history)
+        foot.addWidget(full)
+        foot.addStretch(1)
+        outer.addLayout(foot)
+
+    def _open_full_history(self):
+        self.hide()
+        self.win.show_download_history()
 
     def _clear(self):
         self.win.downloads = [r for r in self.win.downloads if r["state"] == "active"]
