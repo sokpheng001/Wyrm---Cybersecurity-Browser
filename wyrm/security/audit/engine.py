@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import random
 import string
+import threading
+import time
 
 from . import passive as passive_mod
 from . import points as points_mod
@@ -25,10 +27,29 @@ def _rand(n=6):
     return "".join(random.choices(string.ascii_lowercase + string.digits, k=n))
 
 
+class RateLimiter:
+    """Caps the total request rate across all scanner threads (be polite to the target)."""
+
+    def __init__(self, per_sec: float):
+        self._min = (1.0 / per_sec) if per_sec and per_sec > 0 else 0.0
+        self._lock = threading.Lock()
+        self._next = 0.0
+
+    def acquire(self):
+        if self._min <= 0:
+            return
+        with self._lock:
+            now = time.monotonic()
+            wait = self._next - now
+            if wait > 0:
+                time.sleep(wait)
+            self._next = max(now, self._next) + self._min
+
+
 def scan(request: dict, send, checks=None, should_stop=None, on_finding=None, passive=True, oob=None,
-         seen=None) -> list[dict]:
+         seen=None, lock=None) -> list[dict]:
     """Audit one request. `send(method, url, headers, body)` performs a request (scope is the caller's job).
-    Pass a shared `seen` set to de-duplicate findings across several requests (see scan_site)."""
+    Pass a shared `seen` set (and `lock`) to de-duplicate findings across several concurrent requests (scan_site)."""
     checks = checks if checks is not None else ALL_CHECKS
     should_stop = should_stop or (lambda: False)
     rand = _rand()
@@ -43,13 +64,15 @@ def scan(request: dict, send, checks=None, should_stop=None, on_finding=None, pa
     baseline = bound(url, headers, body)
     findings: list[dict] = []
     seen = seen if seen is not None else set()
+    _lock = lock if lock is not None else threading.Lock()
 
     def emit(f):
         key = (f["check"], f["loc"], f["param"], f["title"])
-        if key in seen:
-            return
-        seen.add(key)
-        findings.append(f)
+        with _lock:
+            if key in seen:
+                return
+            seen.add(key)
+            findings.append(f)
         if on_finding is not None:
             try:
                 on_finding(f)
@@ -76,20 +99,39 @@ def scan(request: dict, send, checks=None, should_stop=None, on_finding=None, pa
 
 
 def scan_site(requests_list, send, checks=None, should_stop=None, on_finding=None, oob=None,
-              on_progress=None) -> list[dict]:
-    """Audit many requests (e.g. every in-scope request seen through the proxy) with findings de-duplicated across
-    all of them. on_progress(done, total, url) reports progress."""
+              on_progress=None, workers=6, rate=12.0) -> list[dict]:
+    """Audit many requests concurrently (up to `workers` at once), capped to `rate` requests/sec in total, with
+    findings de-duplicated across all of them. on_progress(done, total, url) reports progress."""
+    from concurrent.futures import ThreadPoolExecutor
+
     should_stop = should_stop or (lambda: False)
-    seen = set()
+    seen: set = set()
+    lock = threading.Lock()
+    limiter = RateLimiter(rate)
     out: list[dict] = []
     n = len(requests_list)
-    for i, req in enumerate(requests_list):
+    done = [0]
+
+    def limited_send(method, url, headers, body):
+        limiter.acquire()
+        return send(method, url, headers, body)
+
+    def one(req):
         if should_stop():
-            break
+            return []
+        fs = scan(req, limited_send, checks=checks, should_stop=should_stop, on_finding=on_finding, oob=oob,
+                  seen=seen, lock=lock)
+        with lock:
+            done[0] += 1
+            d = done[0]
         if on_progress is not None:
             try:
-                on_progress(i + 1, n, req.get("url", ""))
+                on_progress(d, n, req.get("url", ""))
             except Exception:  # noqa: BLE001
                 pass
-        out += scan(req, send, checks=checks, should_stop=should_stop, on_finding=on_finding, oob=oob, seen=seen)
+        return fs
+
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as ex:
+        for fs in ex.map(one, requests_list):
+            out += fs
     return out
