@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------
 # Wyrm — wyrm/panels/audit.py
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: Oda, Sopi, Kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """Security panel → Audit: active vulnerability scan of a single request (from Proxy / Repeater).
 

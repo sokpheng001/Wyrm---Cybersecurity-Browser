@@ -1,9 +1,9 @@
 #------------------------------------------------------------------------------
 # Wyrm — wyrm/mainwindow/proxy.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
-# Developers: @kwan and @oda (intercepting HTTPS proxy)
+# Developers: Kwan and Oda (intercepting HTTPS proxy)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """Enable/disable the startup MITM proxy (wyrm/security/mitm.py). The flow history + response interception UI
 lives in the ProxyTab panel. (Mixed into MainWindow.)"""

@@ -1,9 +1,9 @@
 #------------------------------------------------------------------------------
 # Wyrm — wyrm/security/pdupdate.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
-# Developer: @kwan (ProjectDiscovery tool auto-update)
+# Developer: Kwan (ProjectDiscovery tool auto-update)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """Keep the bundled ProjectDiscovery tools (and nuclei templates) current.
 

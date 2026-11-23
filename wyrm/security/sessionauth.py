@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------
 # Wyrm — wyrm/security/sessionauth.py
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """Session / auth macros (Burp "session handling", Caido "authentication").
 

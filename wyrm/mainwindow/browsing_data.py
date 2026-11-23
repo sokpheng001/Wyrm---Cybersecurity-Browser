@@ -2,8 +2,8 @@
 # Wyrm — wyrm/mainwindow/browsing_data.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Developer: @kwan (history page and Clear browsing data)
-# Authors: @oda, @sopi, @kwan
+# Developer: Kwan (history page and Clear browsing data)
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """History page and "Clear browsing data" (history, cookies, cached files)."""
 from __future__ import annotations

@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------
 # Wyrm — wyrm/panels/addons.py
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: Oda, Sopi, Kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """Security panel → Add-ons: install, enable/disable and inspect Wyrm add-ons (Python plugins).
 

@@ -1,8 +1,8 @@
 #------------------------------------------------------------------------------
 # Wyrm — wyrm/security/wsframe.py
-# Developers: @kwan and @oda (intercepting HTTPS proxy — WebSocket frames)
+# Developers: Kwan and Oda (intercepting HTTPS proxy — WebSocket frames)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """Minimal RFC 6455 WebSocket frame codec, used by the intercepting proxy to view and edit frames.
 

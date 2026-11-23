@@ -3,7 +3,7 @@
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
 # Developer: @kwan (ProjectDiscovery tool integration)
-# Authors: @oda, @sopi, @kwan
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """Download the ProjectDiscovery tools into wyrm/bin/ (run at build time) so they ship inside Wyrm.
 

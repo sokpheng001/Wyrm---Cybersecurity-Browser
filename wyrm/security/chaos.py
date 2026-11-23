@@ -2,8 +2,8 @@
 # Wyrm — wyrm/security/chaos.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Developer: @oda (ProjectDiscovery Chaos recon integration)
-# Authors: @oda, @sopi, @kwan
+# Developer: Oda (ProjectDiscovery Chaos recon integration)
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """ProjectDiscovery Chaos: public bug-bounty recon data (https://chaos.projectdiscovery.io).
 

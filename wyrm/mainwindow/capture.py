@@ -1,9 +1,9 @@
 #------------------------------------------------------------------------------
 # Wyrm — wyrm/mainwindow/capture.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
-# Developer: @kwan (in-page API & WebSocket capture)
+# Developer: Kwan (in-page API & WebSocket capture)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """In-page capture of fetch/XHR request+response bodies and WebSocket frames (opt-in, read-only).
 

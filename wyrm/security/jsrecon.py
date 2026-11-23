@@ -2,7 +2,7 @@
 # Wyrm — wyrm/security/jsrecon.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """JavaScript recon for the open page: pull endpoints / API paths and leaked secrets out of its scripts.
 

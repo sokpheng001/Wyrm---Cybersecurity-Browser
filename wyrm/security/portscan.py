@@ -2,8 +2,8 @@
 # Wyrm — wyrm/security/portscan.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Developer: @kwan (port scanner: nmap or built-in)
-# Authors: @oda, @sopi, @kwan
+# Developer: Kwan (port scanner: nmap or built-in)
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """Port scanning for AUTHORIZED targets: uses nmap when installed, otherwise a built-in TCP connect scan.
 

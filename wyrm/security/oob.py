@@ -1,9 +1,9 @@
 #------------------------------------------------------------------------------
 # Wyrm — wyrm/security/oob.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
-# Developer: @kwan (out-of-band interaction listener)
+# Developer: Kwan (out-of-band interaction listener)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """Out-of-band (OOB) interaction listener — a Collaborator-style HTTP callback catcher.
 

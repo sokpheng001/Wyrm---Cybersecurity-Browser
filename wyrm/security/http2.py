@@ -2,7 +2,7 @@
 # Wyrm — wyrm/security/http2.py
 # Developers: Kwan and Oda (intercepting HTTPS proxy — HTTP/2)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: Oda, Sopi, Kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """HTTP/2 (h2) support for the intercepting proxy.
 

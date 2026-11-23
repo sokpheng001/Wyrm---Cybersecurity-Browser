@@ -1,9 +1,9 @@
 #------------------------------------------------------------------------------
 # Wyrm — wyrm/panels/capture.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
-# Developer: @kwan (in-page API & WebSocket capture)
+# Developer: Kwan (in-page API & WebSocket capture)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """API & WebSocket tab: live fetch/XHR calls (with bodies) and WebSocket frames captured from pages."""
 from __future__ import annotations

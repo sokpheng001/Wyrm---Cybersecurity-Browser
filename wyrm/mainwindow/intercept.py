@@ -2,7 +2,7 @@
 # Wyrm — wyrm/mainwindow/intercept.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """Intercept on/off and the hand-off from the request interceptor to the Intercept window. (Mixed into MainWindow.)"""
 from __future__ import annotations

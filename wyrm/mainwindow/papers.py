@@ -2,7 +2,7 @@
 # Wyrm — wyrm/mainwindow/papers.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """Research papers: metadata, link scanning and the Papers panel."""
 from __future__ import annotations

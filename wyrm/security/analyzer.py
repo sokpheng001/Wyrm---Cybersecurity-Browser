@@ -2,7 +2,7 @@
 # Wyrm — wyrm/security/analyzer.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """Passive security analysis of a page: headers, CSP, cookies, TLS, page content, technologies, JS.
 

@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------
 # Wyrm — wyrm/security/audit/points.py
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: Oda, Sopi, Kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """Insertion points: parse a request into the places a payload can go, each with a builder that rebuilds the
 request with a given value. Covers URL query params, form and JSON body fields, cookies, and a safe set of

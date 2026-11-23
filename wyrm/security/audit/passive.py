@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------
 # Wyrm — wyrm/security/audit/passive.py
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: Oda, Sopi, Kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """Passive checks on a single response (no extra requests): missing security headers, weak cookie flags,
 version/technology disclosure and verbose errors. Safe to run on any response the proxy already captured."""

@@ -2,8 +2,8 @@
 # Wyrm — wyrm/security/webchecks.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Developer: @kwan (CORS and clickjacking testers)
-# Authors: @oda, @sopi, @kwan
+# Developer: Kwan (CORS and clickjacking testers)
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """Web security checks based on published research (for AUTHORIZED, in-scope targets).
 

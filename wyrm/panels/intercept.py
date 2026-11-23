@@ -2,7 +2,7 @@
 # Wyrm — wyrm/panels/intercept.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """Intercept (Burp-style): hold page requests, edit them, then forward, drop or send to Repeater.
 

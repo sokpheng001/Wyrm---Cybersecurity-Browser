@@ -2,7 +2,7 @@
 # Wyrm — wyrm/panels/panel.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """The Security panel dock: grouped navigation over all tabs."""
 from __future__ import annotations

@@ -11,3 +11,11 @@ wyrm/assets/filters/
 wyrm/bin/
 wyrm/assets/tech/
 wyrm/assets/video/
+
+# Theme UI icons are generated at runtime into the profile's ui/ cache (see theme.py _write_svg);
+# never commit the stray copies a dev run can leave in the repo root.
+/check-*.svg
+/chevron-*.svg
+/close.svg
+/dclose-*.svg
+/dfloat-*.svg

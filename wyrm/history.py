@@ -2,8 +2,8 @@
 # Wyrm — wyrm/history.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Developer: @kwan (browsing history)
-# Authors: @oda, @sopi, @kwan
+# Developer: Kwan (browsing history)
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """Browsing history (visited pages with title and time), stored locally in SQLite.
 

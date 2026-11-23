@@ -1,9 +1,9 @@
 #------------------------------------------------------------------------------
 # Wyrm — wyrm/panels/proxy.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
-# Developers: @kwan and @oda (intercepting HTTPS proxy)
+# Developers: Kwan and Oda (intercepting HTTPS proxy)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """Proxy tab: full HTTPS request/response history (with bodies) and response interception (hold → edit → forward)."""
 from __future__ import annotations

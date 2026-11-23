@@ -1,9 +1,9 @@
 #------------------------------------------------------------------------------
 # Wyrm — wyrm/security/mitm.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
-# Developers: @kwan and @oda (intercepting HTTPS proxy)
+# Developers: Kwan and Oda (intercepting HTTPS proxy)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """A local intercepting HTTPS proxy (Burp/Caido-style) for Wyrm's own traffic.
 

@@ -2,7 +2,7 @@
 # Wyrm — wyrm/panels/dom.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """Security panel → DOM Analysis: passive DOM-XSS source/sink scan."""
 from __future__ import annotations

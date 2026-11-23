@@ -2,8 +2,8 @@
 # Wyrm — wyrm/security/pdtools.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Developer: @kwan (ProjectDiscovery tool integration)
-# Authors: @oda, @sopi, @kwan
+# Developer: Kwan (ProjectDiscovery tool integration)
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """Run ProjectDiscovery's open-source recon/scanning tools (https://github.com/projectdiscovery) when they are
 installed on the machine, and stream their results into the Scanner panel.

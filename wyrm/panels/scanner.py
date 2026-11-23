@@ -2,8 +2,8 @@
 # Wyrm — wyrm/panels/scanner.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Developer: @kwan (Scanner: port scan, CORS and clickjacking tests)
-# Authors: @oda, @sopi, @kwan
+# Developer: Kwan (Scanner: port scan, CORS and clickjacking tests)
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """Security panel → Scanner: port scan (nmap or built-in), CORS misconfiguration test, clickjacking test, and
 the ProjectDiscovery tools installed on this machine (subfinder, httpx, katana, nuclei, naabu, dnsx, …).

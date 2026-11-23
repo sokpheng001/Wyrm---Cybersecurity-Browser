@@ -1,8 +1,8 @@
 #------------------------------------------------------------------------------
 # Wyrm — wyrm/panels/wsintercept.py
-# Developers: @kwan and @oda (intercepting HTTPS proxy — WebSocket frames)
+# Developers: Kwan and Oda (intercepting HTTPS proxy — WebSocket frames)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """WebSocket tab: live view of every WebSocket frame, with frame editing (hold → edit → forward / drop).
 
