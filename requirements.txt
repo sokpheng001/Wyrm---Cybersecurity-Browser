@@ -6,3 +6,4 @@ PySocks>=1.7
 pillow>=10
 cryptography>=42   # intercepting proxy: local CA + per-host certs
 certifi>=2023    # upstream TLS verification for the proxy
+h2>=4.1    # intercepting proxy: HTTP/2 (h2) support

@@ -74,10 +74,12 @@ class CertAuthority:
                                      serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
         return cert, key
 
-    def context_for(self, host: str) -> ssl.SSLContext:
-        """A server-side SSLContext presenting a cert for `host`, signed by our CA (cached per host)."""
-        if host in self._leaf_cache:
-            return self._leaf_cache[host]
+    def context_for(self, host: str, alpn_h2: bool = False) -> ssl.SSLContext:
+        """A server-side SSLContext presenting a cert for `host`, signed by our CA (cached per host).
+        When alpn_h2 is set, HTTP/2 is offered over ALPN (h2) ahead of HTTP/1.1."""
+        cache_key = (host, alpn_h2)
+        if cache_key in self._leaf_cache:
+            return self._leaf_cache[cache_key]
         key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         try:
             san = x509.IPAddress(__import__("ipaddress").ip_address(host))
@@ -108,8 +110,8 @@ class CertAuthority:
             Path(fd.name).unlink()
         except OSError:
             pass
-        ctx.set_alpn_protocols(["http/1.1"])  # no HTTP/2: keep the proxy simple and robust
-        self._leaf_cache[host] = ctx
+        ctx.set_alpn_protocols(["h2", "http/1.1"] if alpn_h2 else ["http/1.1"])
+        self._leaf_cache[cache_key] = ctx
         return ctx
 
 
@@ -142,6 +144,7 @@ def start_if_enabled(data_dir: Path):
     try:
         ca = CertAuthority(data_dir / "mitm")
         proxy = MitmProxy(ca)
+        proxy.http2 = QSettings().value("mitm/http2", False, type=bool)   # experimental; off by default
         port = proxy.start(0)
         ACTIVE = proxy
         return [f"--proxy-server=127.0.0.1:{port}", "--proxy-bypass-list=<-loopback>"]
@@ -355,6 +358,7 @@ class MitmProxy:
         self.on_ws = None               # fn(frame: dict) for each WebSocket frame seen (live + history)
         self.edit_ws = None             # fn(frame: dict) -> bytes|None|False : new payload / unchanged / drop
         self.ws_flows: list = []        # WebSocket frame history (capped)
+        self.http2 = False              # when True, offer HTTP/2 (h2) over ALPN and parse it (experimental)
         self._srv = None
         self.port = 0
         self._stop = False
@@ -400,10 +404,13 @@ class MitmProxy:
                 host = hostport.rsplit(":", 1)[0]
                 conn.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
                 try:
-                    tls = self.ca.context_for(host).wrap_socket(conn, server_side=True)
+                    tls = self.ca.context_for(host, self.http2).wrap_socket(conn, server_side=True)
                 except (ssl.SSLError, OSError):
                     return
-                self._serve_tls(tls, host)
+                if self.http2 and tls.selected_alpn_protocol() == "h2":
+                    self._serve_h2(tls, host)
+                else:
+                    self._serve_tls(tls, host)
             else:
                 self._serve_plain(conn, first, header_lines, leftover)
         except Exception:  # noqa: BLE001 - never let one connection crash the proxy
@@ -439,6 +446,14 @@ class MitmProxy:
             if not self._transaction("https", host, 443, method, path, headers, body, tls):
                 break
 
+    def _serve_h2(self, tls, host):
+        """Serve an HTTP/2 (h2) connection: parse each stream, run it through the shared pipeline, respond in h2."""
+        from . import http2
+        try:
+            http2.Http2Handler(tls, host, self._fetch, lambda: self._stop).run()
+        except Exception:  # noqa: BLE001 - never let one connection crash the proxy
+            pass
+
     def _serve_plain(self, conn, first, header_lines, leftover):
         parts = first.split(b" ")
         method, url = parts[0].decode("latin-1"), parts[1].decode("latin-1")
@@ -451,13 +466,13 @@ class MitmProxy:
         body = _read_body(f, headers)
         self._transaction("http", host, port, method, path, headers, body, conn)
 
-    def _transaction(self, scheme, host, port, method, path, headers, body, out_sock) -> bool:
-        """Forward one request upstream, relay the response to out_sock, capture the flow. Returns keep-alive."""
+    def _fetch(self, req: dict) -> dict:
+        """Run the full pipeline for one request dict and return the (possibly edited) response. Shared by the
+        HTTP/1.1 and HTTP/2 paths so both get request rewriting, interception, workflows, session handling and
+        history. Returns {"dropped": True}, {"error": msg}, or {"flow", "status", "reason", "headers", "body"}."""
         import http.client
         started = time.time()
         # request rewriting (Workflows match/replace on requests, Session cookie/token injection)
-        req = {"scheme": scheme, "host": host, "port": port, "method": method, "path": path,
-               "headers": list(headers), "body": body}
         for rw in self.request_rewriters:
             try:
                 rw(req)
@@ -470,13 +485,8 @@ class MitmProxy:
             except Exception:  # noqa: BLE001
                 keep = True
             if keep is False:
-                msg = b"Wyrm proxy: request dropped"
-                try:
-                    out_sock.sendall(b"HTTP/1.1 403 Forbidden\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s"
-                                     % (len(msg), msg))
-                except OSError:
-                    pass
-                return False
+                return {"dropped": True}
+        scheme, host, port = req["scheme"], req["host"], req["port"]
         method, path, headers, body = req["method"], req["path"], req["headers"], req["body"]
         try:
             if scheme == "https":
@@ -490,14 +500,8 @@ class MitmProxy:
             rheaders = resp.getheaders()
             status, reason = resp.status, resp.reason
             conn.close()
-        except Exception as e:  # noqa: BLE001 - upstream failure: tell the browser
-            msg = f"Wyrm proxy: upstream error: {e}".encode()
-            try:
-                out_sock.sendall(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s"
-                                 % (len(msg), msg))
-            except OSError:
-                pass
-            return False
+        except Exception as e:  # noqa: BLE001 - upstream failure
+            return {"error": str(e)}
         flow = {"time": time.strftime("%H:%M:%S"), "method": method, "scheme": scheme, "host": host,
                 "path": path, "url": f"{scheme}://{host}{path}", "status": status, "reason": reason,
                 "req_headers": headers, "req_body": body, "resp_headers": rheaders, "resp_body": rbody,
@@ -530,6 +534,30 @@ class MitmProxy:
                 self.on_flow(flow)
             except Exception:  # noqa: BLE001
                 pass
+        return {"flow": flow, "status": status, "reason": reason, "headers": rheaders, "body": rbody}
+
+    def _transaction(self, scheme, host, port, method, path, headers, body, out_sock) -> bool:
+        """Forward one HTTP/1.1 request upstream, relay the response to out_sock, capture the flow. Keep-alive?"""
+        req = {"scheme": scheme, "host": host, "port": port, "method": method, "path": path,
+               "headers": list(headers), "body": body}
+        res = self._fetch(req)
+        if res.get("dropped"):
+            msg = b"Wyrm proxy: request dropped"
+            try:
+                out_sock.sendall(b"HTTP/1.1 403 Forbidden\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s"
+                                 % (len(msg), msg))
+            except OSError:
+                pass
+            return False
+        if res.get("error"):
+            msg = f"Wyrm proxy: upstream error: {res['error']}".encode()
+            try:
+                out_sock.sendall(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s"
+                                 % (len(msg), msg))
+            except OSError:
+                pass
+            return False
+        status, reason, rheaders, rbody = res["status"], res["reason"], res["headers"], res["body"]
         # relay to the browser with clean framing (buffered body -> Content-Length, drop chunked)
         out = [f"HTTP/1.1 {status} {reason}\r\n".encode("latin-1")]
         for k, v in rheaders:

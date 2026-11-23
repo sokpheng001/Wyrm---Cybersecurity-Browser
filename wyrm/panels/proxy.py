@@ -72,6 +72,14 @@ class ProxyTab(QWidget):
         self.intercept.setEnabled(active)
         self.intercept.toggled.connect(self._set_intercept)
         row.addWidget(self.intercept)
+        from PySide6.QtCore import QSettings
+        self.http2_cb = QCheckBox("HTTP/2 (experimental)")
+        self.http2_cb.setToolTip("Negotiate and intercept HTTP/2 (h2) as well as HTTP/1.1. Experimental — applies "
+                                 "after you restart Wyrm.")
+        self.http2_cb.setChecked(QSettings().value("mitm/http2", False, type=bool))
+        self.http2_cb.setEnabled(active)
+        self.http2_cb.toggled.connect(self._set_http2)
+        row.addWidget(self.http2_cb)
         row.addStretch(1)
         self.filter = QLineEdit()
         self.filter.setPlaceholderText("Search URL, method, status, headers, body…")
@@ -149,6 +157,11 @@ class ProxyTab(QWidget):
     # ------------------------------------------------------------ interception plumbing (worker thread)
     def _set_intercept(self, on):
         self._intercept_on = on
+
+    def _set_http2(self, on):
+        from PySide6.QtCore import QSettings
+        QSettings().setValue("mitm/http2", on)
+        self.win.toast(f"HTTP/2 interception {'enabled' if on else 'disabled'} — restart Wyrm to apply.", 6000)
 
     def _edit_response(self, flow):
         """Runs on a proxy worker thread; blocks until the user forwards (or a timeout)."""
