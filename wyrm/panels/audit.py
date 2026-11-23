@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QHeaderView, QLabel, QMes
 
 from .common import SEV_COLOR, sev_badge
 from ..security.audit import engine
+from ..security.audit.advice import advice as _advice
 from ..widgets import BusyOverlay
 
 
@@ -364,15 +365,25 @@ class AuditTab(QWidget):
                 f"<br><b>Confidence:</b> {escape(f.get('confidence', ''))} · HTTP {escape(str(f.get('status', '')))}")
         if f.get("payload"):
             html += f"<br><br><b>Payload:</b><br><code>{escape(f['payload'])}</code>"
+        remediation, refs = _advice(f.get("check", ""))
+        if remediation:
+            html += f"<br><br><b>Remediation:</b> {escape(remediation)}"
+        if refs:
+            html += "<br><b>References:</b><br>" + "<br>".join(f"<a href='{escape(u)}'>{escape(u)}</a>" for u in refs)
         if f.get("url"):
-            html += f"<br><br><a href='{escape(f['url'])}'>{escape(f['url'])}</a>"
+            html += f"<br><br><b>URL:</b> <a href='{escape(f['url'])}'>{escape(f['url'])}</a>"
         self.detail.setHtml(html)
 
     # ------------------------------------------------------------ findings
     def _finding_to_dialog(self, f):
         sev = f.get("severity") if f.get("severity") in ("critical", "high", "medium", "low", "info") else "info"
+        remediation, refs = _advice(f.get("check", ""))
         desc = (f"{f.get('evidence', '')}\n\nWhere: {f.get('loc', '')} parameter {f.get('param', '') or '-'}\n"
                 f"Confidence: {f.get('confidence', '')}\nPayload: {f.get('payload', '')}")
+        if remediation:
+            desc += f"\n\nRemediation: {remediation}"
+        if refs:
+            desc += "\nReferences:\n" + "\n".join(f"- {u}" for u in refs)
         self.win.add_finding_dialog(title=f.get("title", "Issue"), severity=sev, url=f.get("url", ""), description=desc)
 
     def _add_finding(self):
