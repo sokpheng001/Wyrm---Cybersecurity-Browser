@@ -633,6 +633,8 @@ def _customize_panel(bgc: dict) -> str:
                  "</span><span><b>Your image</b><small>The picture you uploaded</small></span></a>")
     opts += opt("wyrm://do?a=bg-upload", "up", "Upload from device…" if not has_img else "Upload another image…",
                 "JPG, PNG, WebP or GIF, up to 25 MB", False)
+    if has_img:
+        opts += opt("wyrm://do?a=bg-remove-image", "plain", "Remove your image", "Delete the picture you uploaded", False)
     # Live weather wallpaper — matches the sky right now (rain, snow, sun, clouds…)
     opts += opt("wyrm://do?a=bg&amp;mode=weather", "video", "Live weather",
                 "Matches the sky now — rain, snow, sun, clouds", m == "weather")
@@ -647,6 +649,8 @@ def _customize_panel(bgc: dict) -> str:
                     m == "video_local")
     opts += opt("wyrm://do?a=bg-upload-video", "up", "Upload a video…" if not bgc.get("video_ver")
                 else "Upload another video…", "MP4 or WebM, up to 60 MB", False)
+    if bgc.get("video_ver"):
+        opts += opt("wyrm://do?a=bg-remove-video", "plain", "Remove your video", "Delete the video you uploaded", False)
     opts += opt("wyrm://do?a=bg&amp;mode=none", "plain", "No background", "Plain light / dark theme", m == "none")
     ivs = "".join(f"<a class='iv{' on' if mins == every else ''}' href='wyrm://do?a=bg-interval&amp;min={mins}'>{lbl}</a>"
                   for mins, lbl in BG_INTERVALS)

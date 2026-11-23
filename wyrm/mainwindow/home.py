@@ -173,6 +173,28 @@ class HomeMixin:
         (d / f"customvid{ext}").write_bytes(src.read_bytes())
         self._set_background({"mode": "video_local"})
 
+    def _remove_background_image(self):
+        d = self.data_dir / self.BG_DIR
+        if d.is_dir():
+            for f in d.glob("custom.*"):
+                f.unlink(missing_ok=True)
+        if self.settings.value("home/bg_mode", "", type=str) == "image":  # was active → back to Wyrm wallpapers
+            self._set_background({"mode": "random"})
+        else:
+            QTimer.singleShot(0, self._refresh_home_pages)
+        self.toast("Removed your uploaded image")
+
+    def _remove_background_video(self):
+        d = self.data_dir / self.BG_DIR
+        if d.is_dir():
+            for f in d.glob("customvid.*"):
+                f.unlink(missing_ok=True)
+        if self.settings.value("home/bg_mode", "", type=str) == "video_local":
+            self._set_background({"mode": "random"})
+        else:
+            QTimer.singleShot(0, self._refresh_home_pages)
+        self.toast("Removed your uploaded video")
+
     def scheme_action(self, action: str, params: dict) -> str | None:
         """Called by wyrm://allow and wyrm://do links. Returns a URL to continue to (or None)."""
         if action.startswith("do:"):
@@ -208,6 +230,10 @@ class HomeMixin:
                 QTimer.singleShot(0, self._pick_background_image)  # don't block the scheme request on a dialog
             elif do == "bg-upload-video" and not self.tor:
                 QTimer.singleShot(0, self._pick_background_video)
+            elif do == "bg-remove-image" and not self.tor:
+                self._remove_background_image()
+            elif do == "bg-remove-video" and not self.tor:
+                self._remove_background_video()
             return None
         host, url = params.get("host", ""), params.get("url", "")
         if action == "allow-threat" and host:
