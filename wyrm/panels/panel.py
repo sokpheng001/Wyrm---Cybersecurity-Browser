@@ -58,13 +58,15 @@ class SecurityPanel(QDockWidget):
         self.sessionauth = SessionAuthTab(win)
         from .addons import AddonsTab
         self.addons_tab = AddonsTab(win)
+        from .audit import AuditTab
+        self.audit = AuditTab(win)
         groups = [
             ("PROTECTION", [("Shields", self.shields)]),
             ("INTELLIGENCE", [("Overview", self.overview), ("Site map", self.sitemap), ("Recon", self.recon)]),
             ("TRAFFIC", [("Traffic", self.traffic)]),
-            ("TESTING", [("Scanner", self.scanner), ("Intruder", self.intruder), ("DOM Analysis", self.dom),
-                         ("Tools", self.tools_tab), ("Proxy", self.proxy), ("WebSocket", self.ws),
-                         ("Workflows", self.workflows), ("Session / auth", self.sessionauth),
+            ("TESTING", [("Scanner", self.scanner), ("Audit", self.audit), ("Intruder", self.intruder),
+                         ("DOM Analysis", self.dom), ("Tools", self.tools_tab), ("Proxy", self.proxy),
+                         ("WebSocket", self.ws), ("Workflows", self.workflows), ("Session / auth", self.sessionauth),
                          ("API & WebSocket", self.capture), ("OOB Interactions", self.oob)]),
             ("FINDINGS", [("Findings", self.findings)]),
             ("ADD-ONS", [("Add-ons", self.addons_tab)]),   # add-on-provided tabs are appended under this group

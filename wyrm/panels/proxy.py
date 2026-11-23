@@ -338,6 +338,7 @@ class ProxyTab(QWidget):
         m = QMenu(self)
         m.addAction("Send to Repeater", lambda: self._to_repeater(fl))
         m.addAction("Send to Intruder", lambda: self._to_intruder(fl))
+        m.addAction("Scan this request", lambda: self._to_audit(fl))
         m.addAction("Send to Session macro", lambda: self._to_session(fl))
         m.exec(self.tree.viewport().mapToGlobal(pos))
 
@@ -355,6 +356,10 @@ class ProxyTab(QWidget):
         self.win.security.sessionauth.load_macro(fl.get("method", "POST"), fl.get("url", ""),
                                                  dict(fl.get("req_headers", [])), _as_text(fl.get("req_body", b"")))
         self.win.security.show_tab("Session / auth")
+
+    def _to_audit(self, fl):
+        self.win.security.audit.scan_request(fl.get("method", "GET"), fl.get("url", ""),
+                                             dict(fl.get("req_headers", [])), _as_text(fl.get("req_body", b"")))
 
     def _apply_filter(self):
         for i in range(self.tree.topLevelItemCount()):

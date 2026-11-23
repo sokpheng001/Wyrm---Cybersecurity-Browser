@@ -336,6 +336,12 @@ class ToolsTab(QWidget):
         self.r_follow = QCheckBox("Follow redirects")
         row2.addWidget(self.r_follow)
         row2.addStretch(1)
+        scan = QPushButton("Active scan")
+        scan.setToolTip("Audit this request for XSS / SQLi / SSTI / traversal / open redirect / CRLF (in-scope only)")
+        scan.clicked.connect(lambda: self.win.security.audit.scan_request(
+            self.r_method.currentText(), self.r_url.text(), tools.parse_headers(self.r_headers.toPlainText()),
+            self.r_body.toPlainText()))
+        row2.addWidget(scan)
         curl = QPushButton("Copy as cURL")
         curl.clicked.connect(lambda: QGuiApplication.clipboard().setText(tools.to_curl(
             self.r_method.currentText(), self.r_url.text(), tools.parse_headers(self.r_headers.toPlainText()),
