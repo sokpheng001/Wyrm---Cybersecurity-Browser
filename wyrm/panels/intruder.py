@@ -302,10 +302,42 @@ class IntruderTab(QWidget):
                 self.summary.setText(f"Done — sent {res.get('sent', 0)} request(s)"
                                      + (" · budget reached" if res.get("capped") else "")
                                      + (" · stopped" if self._stop else ""))
+                self._highlight_outliers()
             else:
                 self.summary.setText(f"Failed: {res}")
                 QMessageBox.warning(self, "Intruder", f"Attack failed:\n{res}")
         self.win.runner.run(worker, finished)
+
+    def _highlight_outliers(self):
+        """After an attack, bold the rows whose response length or status differs from the common value —
+        that's usually where the interesting payload landed (a different page, an error, a successful login)."""
+        from collections import Counter
+        from PySide6.QtGui import QFont
+        rows = [self.table.topLevelItem(i) for i in range(self.table.topLevelItemCount())]
+        if len(rows) < 4:
+            return
+        lengths, statuses = Counter(), Counter()
+        for it in rows:
+            r = it.data(0, Qt.ItemDataRole.UserRole) or {}
+            lengths[r.get("length")] += 1
+            statuses[r.get("status")] += 1
+        modal_len = lengths.most_common(1)[0][0]
+        modal_status = statuses.most_common(1)[0][0]
+        n_out = 0
+        for it in rows:
+            r = it.data(0, Qt.ItemDataRole.UserRole) or {}
+            len_out = r.get("length") != modal_len
+            stat_out = r.get("status") != modal_status
+            if len_out or stat_out:
+                n_out += 1
+                f = it.font(0)
+                f.setBold(True)
+                for c in range(it.columnCount()):
+                    it.setFont(c, f)
+                if len_out:
+                    it.setForeground(3, QBrush(QColor("#f0883e")))
+        if n_out:
+            self.summary.setText(self.summary.text() + f" · {n_out} stand out (length/status differs)")
 
     def _stop_now(self):
         self._stop = True
