@@ -18,8 +18,8 @@ import requests
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush, QColor
-from PySide6.QtWidgets import (QHBoxLayout, QHeaderView, QLabel, QMessageBox, QPushButton, QSplitter, QTextBrowser,
-                               QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QHeaderView, QLabel, QMessageBox, QPushButton, QSplitter,
+                               QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from .common import SEV_COLOR, sev_badge
 from ..security.audit import engine
@@ -77,6 +77,11 @@ class AuditTab(QWidget):
         self.target = QLabel("No request loaded. Send one here from Proxy or Repeater.")
         self.target.setWordWrap(True)
         row.addWidget(self.target, 1)
+        self.intensity = QComboBox()
+        self.intensity.addItems(["Thorough", "Fast", "Passive only"])
+        self.intensity.setToolTip("Thorough: all checks incl. the slow time-based probe. Fast: skip the slow "
+                                  "time-based command-injection probe. Passive only: no payloads sent.")
+        row.addWidget(self.intensity)
         self.b_run = QPushButton("Run scan")
         self.b_run.setObjectName("Primary")
         self.b_run.setEnabled(False)
@@ -163,11 +168,21 @@ class AuditTab(QWidget):
         req = self._req
         send = self._make_send()
         oob = self._oob_bridge()
+        checks = self._selected_checks()
 
         def work():
             return engine.scan(req, send, should_stop=lambda: self._stop_flag,
-                               on_finding=lambda f: self._finding.emit(f), oob=oob)
+                               on_finding=lambda f: self._finding.emit(f), oob=oob, checks=checks)
         self.win.runner.run(work, lambda ok, res: self._done.emit(bool(ok), res))
+
+    def _selected_checks(self):
+        from ..security.audit import checks as chk
+        mode = self.intensity.currentText()
+        if mode.startswith("Passive"):
+            return []
+        if mode.startswith("Fast"):
+            return chk.standard(time_based=False)
+        return None   # Thorough: engine default (all checks)
 
     def _make_send(self):
         px, verify = self.win.proxies(), self.win.verify_tls()
@@ -239,10 +254,11 @@ class AuditTab(QWidget):
         self.status.setText(f"Auditing {len(reqs)} in-scope request(s)…")
         send = self._make_send()
         oob = self._oob_bridge()
+        checks = self._selected_checks()
 
         def work():
             return engine.scan_site(reqs, send, should_stop=lambda: self._stop_flag,
-                                    on_finding=lambda f: self._finding.emit(f), oob=oob,
+                                    on_finding=lambda f: self._finding.emit(f), oob=oob, checks=checks,
                                     on_progress=lambda d, n, u: self._progress.emit(d, n, u))
         self.win.runner.run(work, lambda ok, res: self._done.emit(bool(ok), res))
 

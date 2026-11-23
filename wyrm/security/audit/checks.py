@@ -160,6 +160,9 @@ class Ssrf:
 class CommandInjection:
     key, title, severity = "cmdi", "OS command injection", "high"
 
+    def __init__(self, time_based: bool = True):
+        self.time_based = time_based   # the sleep-based probe is reliable but slow; can be turned off
+
     def run(self, point, build, send, baseline, rand, oob=None):
         import time
         base = point.get("value", "")
@@ -177,6 +180,8 @@ class CommandInjection:
                                     "An injected shell command called our out-of-band URL — OS command injection.",
                                     "firm", r or {})
         # 2) time-based fallback (no OOB needed): a sleep payload delays the response; confirm with a longer sleep
+        if not self.time_based:
+            return None
         if point.get("loc") not in ("query", "body-form", "json"):   # bound the cost
             return None
         for mk in (lambda n: f"{base}; sleep {n}", lambda n: f"{base}$(sleep {n})"):
@@ -192,5 +197,10 @@ class CommandInjection:
         return None
 
 
-ALL_CHECKS = [ReflectedXSS(), SqlError(), Ssti(), PathTraversal(), OpenRedirect(), CrlfInjection(),
-              Ssrf(), CommandInjection()]
+def standard(time_based: bool = True) -> list:
+    """The full active check set. time_based=False drops the slow sleep-based command-injection probe."""
+    return [ReflectedXSS(), SqlError(), Ssti(), PathTraversal(), OpenRedirect(), CrlfInjection(),
+            Ssrf(), CommandInjection(time_based=time_based)]
+
+
+ALL_CHECKS = standard(True)
