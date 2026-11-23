@@ -42,17 +42,20 @@ def fetch(proxies=None, verify=True) -> dict | None:
             return None
         info = {"city": loc.get("city") or "", "region": loc.get("region") or "",
                 "country": loc.get("country_name") or loc.get("country") or "", "lat": lat, "lon": lon,
-                "temp_c": None, "emoji": "", "desc": ""}
+                "temp_c": None, "code": None, "is_day": True, "emoji": "", "desc": ""}
     except (requests.RequestException, ValueError):
         return None
     try:
         w = requests.get("https://api.open-meteo.com/v1/forecast", headers=UA, timeout=12,
                          proxies=proxies, verify=verify,
-                         params={"latitude": lat, "longitude": lon, "current": "temperature_2m,weather_code"})
+                         params={"latitude": lat, "longitude": lon,
+                                 "current": "temperature_2m,weather_code,is_day"})
         w.raise_for_status()
         cur = (w.json() or {}).get("current") or {}
         code = int(cur.get("weather_code", -1))
         info["temp_c"] = cur.get("temperature_2m")
+        info["code"] = code
+        info["is_day"] = bool(cur.get("is_day", 1))
         info["emoji"], info["desc"] = _WMO.get(code, ("🌡️", ""))
     except (requests.RequestException, ValueError, TypeError):
         pass

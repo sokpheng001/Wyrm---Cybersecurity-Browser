@@ -86,7 +86,7 @@ class HomeMixin:
     def _bg_settings(self) -> dict:
         s = self.settings
         mode = s.value("home/bg_mode", "", type=str)
-        if mode not in ("random", "color", "image", "animated", "video_local", "none"):
+        if mode not in ("random", "color", "image", "animated", "video_local", "weather", "none"):
             mode = "random" if s.value("home/background", True, type=bool) else "none"
         f = self._custom_bg_path()
         ver = str(int(f.stat().st_mtime)) if f else ""
@@ -114,7 +114,7 @@ class HomeMixin:
 
     def _set_background(self, params: dict):
         mode = params.get("mode", "")
-        if mode not in ("random", "color", "image", "animated", "video_local", "none"):
+        if mode not in ("random", "color", "image", "animated", "video_local", "weather", "none"):
             return
         if mode == "color":
             color = params.get("color", "")

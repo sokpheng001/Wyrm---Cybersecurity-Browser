@@ -61,8 +61,53 @@ function frame(){if(!run)return;x.fillStyle='#04060a';x.fillRect(0,0,W,H);x.save
 for(var i=0;i<n;i++){var o=s[i];o.z-=2.2*DPR;if(o.z<1){o.z=W;o.x=(Math.random()-0.5)*W;o.y=(Math.random()-0.5)*H;}
 var k=W/o.z,sx=o.x*k,sy=o.y*k,r=(1-o.z/W)*2.2*DPR;x.fillStyle='rgba(200,225,255,'+(1-o.z/W)+')';
 x.beginPath();x.arc(sx,sy,r,0,7);x.fill();}x.restore();requestAnimationFrame(frame);}frame();""",
+        # ---- live weather scenes (auto-picked from the current conditions) ----
+        "clear-day": """function cloud(cx,cy,s,a){x.fillStyle='rgba(255,255,255,'+a+')';for(var k=0;k<5;k++){x.beginPath();x.arc(cx+k*34*s*DPR,cy+(k%2)*10*DPR,27*s*DPR,0,7);x.fill();}}
+var t=0;function frame(){if(!run)return;t+=0.003;var g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#2b6cb0');g.addColorStop(1,'#a7cce8');x.fillStyle=g;x.fillRect(0,0,W,H);
+var sx=W*0.78,sy=H*0.22,r=60*DPR;var gg=x.createRadialGradient(sx,sy,0,sx,sy,r*3.2);gg.addColorStop(0,'rgba(255,246,190,0.95)');gg.addColorStop(0.3,'rgba(255,224,130,0.55)');gg.addColorStop(1,'rgba(255,224,130,0)');x.fillStyle=gg;x.beginPath();x.arc(sx,sy,r*3.2,0,7);x.fill();
+x.fillStyle='#fff7cc';x.beginPath();x.arc(sx,sy,r,0,7);x.fill();
+for(var i=0;i<4;i++){var cx=((t*22*DPR+i*W/3)%(W+320*DPR))-160*DPR;cloud(cx,H*(0.18+0.13*i),0.9+i*0.2,0.85);}requestAnimationFrame(frame);}frame();""",
+        "clear-night": """var st=[];for(var i=0;i<170;i++)st.push({x:Math.random()*W,y:Math.random()*H*0.85,r:Math.random()*1.5*DPR,p:Math.random()*6});
+var t=0;function frame(){if(!run)return;t+=0.02;var g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#020617');g.addColorStop(1,'#0b1b3a');x.fillStyle=g;x.fillRect(0,0,W,H);
+var mx=W*0.8,my=H*0.2,r=46*DPR;var gg=x.createRadialGradient(mx,my,0,mx,my,r*2.6);gg.addColorStop(0,'rgba(232,240,255,0.5)');gg.addColorStop(1,'rgba(232,240,255,0)');x.fillStyle=gg;x.beginPath();x.arc(mx,my,r*2.6,0,7);x.fill();
+x.fillStyle='#eef3ff';x.beginPath();x.arc(mx,my,r,0,7);x.fill();
+for(var i=0;i<st.length;i++){var s=st[i];x.fillStyle='rgba(255,255,255,'+(0.35+0.6*Math.abs(Math.sin(t+s.p)))+')';x.beginPath();x.arc(s.x,s.y,s.r,0,7);x.fill();}requestAnimationFrame(frame);}frame();""",
+        "clouds": """function cloud(cx,cy,s,a){x.fillStyle='rgba(236,239,243,'+a+')';for(var k=0;k<6;k++){x.beginPath();x.arc(cx+k*36*s*DPR,cy+(k%2)*12*DPR,30*s*DPR,0,7);x.fill();}}
+var t=0;function frame(){if(!run)return;t+=0.004;var g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#5b6775');g.addColorStop(1,'#9aa5b1');x.fillStyle=g;x.fillRect(0,0,W,H);
+for(var i=0;i<6;i++){var cx=((t*(13+i*4)*DPR+i*W/4)%(W+440*DPR))-220*DPR;cloud(cx,H*(0.1+0.14*i),1+0.25*i,0.78);}requestAnimationFrame(frame);}frame();""",
+        "rain": """var drops=[];function rinit(){drops=[];var n=Math.floor(W*H/14000);for(var i=0;i<n;i++)drops.push({x:Math.random()*W,y:Math.random()*H,l:(8+Math.random()*14)*DPR,s:(7+Math.random()*7)*DPR});}rinit();addEventListener('resize',rinit);
+function frame(){if(!run)return;var g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#2b3440');g.addColorStop(1,'#4b5765');x.fillStyle=g;x.fillRect(0,0,W,H);
+x.strokeStyle='rgba(180,198,218,0.5)';x.lineWidth=1.2*DPR;x.beginPath();for(var i=0;i<drops.length;i++){var d=drops[i];x.moveTo(d.x,d.y);x.lineTo(d.x-1.6*DPR,d.y+d.l);d.y+=d.s;d.x-=0.7*DPR;if(d.y>H){d.y=-d.l;d.x=Math.random()*W;}}x.stroke();requestAnimationFrame(frame);}frame();""",
+        "storm": """var drops=[];function sinit(){drops=[];var n=Math.floor(W*H/11000);for(var i=0;i<n;i++)drops.push({x:Math.random()*W,y:Math.random()*H,l:(10+Math.random()*16)*DPR,s:(10+Math.random()*8)*DPR});}sinit();addEventListener('resize',sinit);var flash=0;
+function frame(){if(!run)return;var g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#1a2029');g.addColorStop(1,'#333b47');x.fillStyle=g;x.fillRect(0,0,W,H);
+if(flash>0){x.fillStyle='rgba(255,255,255,'+(flash*0.5)+')';x.fillRect(0,0,W,H);flash-=0.05;}else if(Math.random()>0.991){flash=1;}
+x.strokeStyle='rgba(195,210,230,0.55)';x.lineWidth=1.4*DPR;x.beginPath();for(var i=0;i<drops.length;i++){var d=drops[i];x.moveTo(d.x,d.y);x.lineTo(d.x-2.4*DPR,d.y+d.l);d.y+=d.s;d.x-=1.4*DPR;if(d.y>H){d.y=-d.l;d.x=Math.random()*W;}}x.stroke();requestAnimationFrame(frame);}frame();""",
+        "snow": """var fl=[];function finit(){fl=[];var n=Math.floor(W*H/16000);for(var i=0;i<n;i++)fl.push({x:Math.random()*W,y:Math.random()*H,r:(1+Math.random()*3)*DPR,s:(0.6+Math.random()*1.4)*DPR,p:Math.random()*6});}finit();addEventListener('resize',finit);var t=0;
+function frame(){if(!run)return;t+=0.01;var g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#5a6472');g.addColorStop(1,'#9aa6b4');x.fillStyle=g;x.fillRect(0,0,W,H);
+x.fillStyle='rgba(255,255,255,0.92)';for(var i=0;i<fl.length;i++){var f=fl[i];x.beginPath();x.arc(f.x+Math.sin(t+f.p)*6*DPR,f.y,f.r,0,7);x.fill();f.y+=f.s;if(f.y>H){f.y=-f.r;f.x=Math.random()*W;}}requestAnimationFrame(frame);}frame();""",
+        "fog": """var t=0;function frame(){if(!run)return;t+=0.002;var g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#6b7280');g.addColorStop(1,'#aeb4bd');x.fillStyle=g;x.fillRect(0,0,W,H);
+for(var i=0;i<5;i++){var y=H*(0.15+0.18*i),off=((t*(30+i*10)*DPR)%(W*2))-W*0.5;var gg=x.createLinearGradient(off,0,off+W,0);gg.addColorStop(0,'rgba(222,226,232,0)');gg.addColorStop(0.5,'rgba(222,226,232,0.35)');gg.addColorStop(1,'rgba(222,226,232,0)');x.fillStyle=gg;x.fillRect(0,y-40*DPR,W,80*DPR);}requestAnimationFrame(frame);}frame();""",
     }
     return common + scenes.get(scene, scenes["aurora"]) + "})();"
+
+
+def weather_scene(code, is_day: bool = True) -> str:
+    """Map a WMO weather code (Open-Meteo) to a live background scene name."""
+    if code is None or code < 0:
+        return "clear-day" if is_day else "clear-night"
+    if code in (0, 1):
+        return "clear-day" if is_day else "clear-night"
+    if code in (2, 3):
+        return "clouds"
+    if code in (45, 48):
+        return "fog"
+    if code in (95, 96, 99):
+        return "storm"
+    if code in (71, 73, 75, 77, 85, 86):
+        return "snow"
+    if 51 <= code <= 67 or 80 <= code <= 82:
+        return "rain"
+    return "clouds"
 
 
 BG_ROTATE_MS = 30 * 60 * 1000  # how often the wallpaper changes; set by the window from the user's choice
@@ -517,6 +562,12 @@ def render_home(ctx: dict) -> str:
                  "setTimeout(function(){n.remove();},120);},1700);};im.src=u;}"
                  f"setTimeout(function(){{swap();setInterval(swap,{BG_ROTATE_MS});}},{left});}})();</script>")
         return page(HOME_CSS + f"\n:root{{--wyrm-bg:url('{url}')}}", "hasbg")
+    if bmode == "weather":   # live wallpaper that matches the current weather (rain, snow, sun, clouds…)
+        wx = ctx.get("weather") or {}
+        scene = weather_scene(wx.get("code"), wx.get("is_day", True))
+        canvas = (f"<canvas class='bgvideo on' id='bgcanvas'></canvas><script>{_anim_js(scene)}</script>")
+        html = _page("New tab", body, HOME_CSS, "home").replace("</main>", "</main>" + canvas + panel, 1)
+        return html.replace("<body>", "<body class='hasbg'>", 1)
     if bmode == "animated":   # a live wallpaper drawn by Wyrm itself (Canvas) — our own code, no video files
         scene = bgc.get("anim") if bgc.get("anim") in ANIM_SCENES else "aurora"
         canvas = (f"<canvas class='bgvideo on' id='bgcanvas'></canvas><script>{_anim_js(scene)}</script>")
@@ -568,6 +619,9 @@ def _customize_panel(bgc: dict) -> str:
                  "</span><span><b>Your image</b><small>The picture you uploaded</small></span></a>")
     opts += opt("wyrm://do?a=bg-upload", "up", "Upload from device…" if not has_img else "Upload another image…",
                 "JPG, PNG, WebP or GIF, up to 25 MB", False)
+    # Live weather wallpaper — matches the sky right now (rain, snow, sun, clouds…)
+    opts += opt("wyrm://do?a=bg&amp;mode=weather", "video", "Live weather",
+                "Matches the sky now — rain, snow, sun, clouds", m == "weather")
     # Animated live wallpapers (drawn by Wyrm, no video files) + your own uploaded video
     cur_anim = bgc.get("anim", "aurora")
     for key, label in ANIM_SCENES.items():
@@ -1021,6 +1075,9 @@ real-world risk: exploited in the wild (CISA KEV) first, then exploit probabilit
 <ul>
 <li><b>Wyrm wallpapers</b> — cybersecurity &amp; technology photos. Under <b>Change wallpaper every</b>, pick 5 min,
 15 min, 30 min, 1 hour, 6 hours or Daily. Reloading the page keeps the same photo until that time has passed.</li>
+<li><b>Live weather</b> — the background matches the sky where you are right now: rain, snow, sun, drifting
+clouds, fog or a thunderstorm (it follows the weather on the start page).</li>
+<li><b>Animated wallpapers</b> — Aurora, Matrix rain, Particle network or Starfield, drawn by Wyrm and running offline.</li>
 <li><b>Upload from device</b> — your own JPG, PNG, WebP or GIF (up to 25 MB, kept only on this computer).</li>
 <li><b>Colors</b> — eight color themes, or <b>No background</b> for the plain light/dark look.</li>
 </ul>"""),
