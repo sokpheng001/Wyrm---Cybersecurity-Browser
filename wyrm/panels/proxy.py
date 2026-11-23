@@ -344,7 +344,23 @@ class ProxyTab(QWidget):
         m.addAction("Send to Intruder", lambda: self._to_intruder(fl))
         m.addAction("Scan this request", lambda: self._to_audit(fl))
         m.addAction("Send to Session macro", lambda: self._to_session(fl))
+        m.addSeparator()
+        m.addAction("Copy as cURL", lambda: self._copy_curl(fl))
+        m.addAction("Copy URL", lambda: self._copy_url(fl))
         m.exec(self.tree.viewport().mapToGlobal(pos))
+
+    def _copy_curl(self, fl):
+        from PySide6.QtGui import QGuiApplication
+        from ..security import tools
+        curl = tools.to_curl(fl.get("method", "GET"), fl.get("url", ""), dict(fl.get("req_headers", [])),
+                             _as_text(fl.get("req_body", b"")))
+        QGuiApplication.clipboard().setText(curl)
+        self.win.toast("Copied request as cURL", 3000)
+
+    def _copy_url(self, fl):
+        from PySide6.QtGui import QGuiApplication
+        QGuiApplication.clipboard().setText(fl.get("url", ""))
+        self.win.toast("Copied URL", 2500)
 
     def _to_repeater(self, fl):
         self.win.security.tools_tab.load_request(fl.get("method", "GET"), fl.get("url", ""),
