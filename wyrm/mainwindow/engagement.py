@@ -105,9 +105,11 @@ class EngagementMixin:
             inject("wyrm-geo", _geo_js(geo_mode, lat, lon), subframes=True)
         s = prof.settings()
         for attr in (QWebEngineSettings.WebAttribute.PluginsEnabled, QWebEngineSettings.WebAttribute.PdfViewerEnabled,
-                     QWebEngineSettings.WebAttribute.FullScreenSupportEnabled,
-                     QWebEngineSettings.WebAttribute.ScrollAnimatorEnabled):
+                     QWebEngineSettings.WebAttribute.FullScreenSupportEnabled):
             s.setAttribute(attr, True)
+        # Keep the scroll animator OFF: its eased animation makes wheel scrolling feel laggy/floaty; native
+        # scrolling is immediate and snappy.
+        s.setAttribute(QWebEngineSettings.WebAttribute.ScrollAnimatorEnabled, False)
         prof.installUrlSchemeHandler(SCHEME, self.scheme_handler)
         prof.downloadRequested.connect(self._on_download)
         self.profiles[key] = prof

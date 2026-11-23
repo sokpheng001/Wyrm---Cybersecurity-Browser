@@ -74,6 +74,17 @@ class IntruderTab(QWidget):
             b.setFixedHeight(24)
             b.clicked.connect(self._load_payloads)
             head.addWidget(b)
+            add = QPushButton("Add ▾")
+            add.setObjectName("Segment")
+            add.setFixedHeight(24)
+            from ..security import payloads as _pl
+            menu = QMenu(add)
+            menu.addAction("Numbers…", self._add_numbers)
+            menu.addSeparator()
+            for name in _pl.LISTS:
+                menu.addAction(name, lambda _c=False, n=name: self._add_list(n))
+            add.setMenu(menu)
+            head.addWidget(add)
         split.addWidget(_pane("Payloads (one per line)", self.payloads, payload_tools))
         split.setSizes([110, 90, 150])
         v.addWidget(split, 1)
@@ -175,6 +186,33 @@ class IntruderTab(QWidget):
 
     def _payload_lines(self):
         return [ln for ln in self.payloads.toPlainText().splitlines() if ln.strip() != ""]
+
+    def _append_payloads(self, lines):
+        if not lines:
+            return
+        cur = self.payloads.toPlainText()
+        prefix = cur + ("\n" if cur and not cur.endswith("\n") else "")
+        self.payloads.setPlainText(prefix + "\n".join(lines))
+
+    def _add_list(self, name):
+        from ..security import payloads as _pl
+        self._append_payloads(_pl.LISTS.get(name, []))
+
+    def _add_numbers(self):
+        from PySide6.QtWidgets import QInputDialog
+        from ..security import payloads as _pl
+        txt, ok = QInputDialog.getText(self, "Number payloads",
+                                       "Range as from,to[,step] (e.g. 1,100 or 0,1000,10):")
+        if not ok or not txt.strip():
+            return
+        parts = [p.strip() for p in txt.replace("-", ",").split(",") if p.strip() != ""]
+        try:
+            a, b = int(parts[0]), int(parts[1])
+            step = int(parts[2]) if len(parts) > 2 else 1
+        except (ValueError, IndexError):
+            QMessageBox.information(self, "Number payloads", "Enter a range like 1,100 or 0,1000,10.")
+            return
+        self._append_payloads(_pl.numbers(a, b, step)[:5000])   # cap to keep the list manageable
 
     def _update_budget(self):
         self._update_status()
