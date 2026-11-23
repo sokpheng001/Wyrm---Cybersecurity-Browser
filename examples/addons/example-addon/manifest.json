@@ -1,0 +1,8 @@
+{
+  "name": "Example Add-on",
+  "version": "1.0.0",
+  "entry": "main.py",
+  "author": "ByKh R&D Group",
+  "description": "Sample add-on: tags every request, flags pages with no Content-Security-Policy, and adds a tab.",
+  "permissions": ["proxy", "ui"]
+}

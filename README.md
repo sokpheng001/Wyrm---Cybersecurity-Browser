@@ -171,6 +171,8 @@ rm -rf ~/.local/opt/wyrm ~/.local/bin/Wyrm ~/.local/share/applications/wyrm.desk
   bodies, force a status — scoped to URLs you choose; each workflow shows how often it fired
 - **Session / auth**: a login macro that re-runs when a response looks logged-out (401/403 or a body pattern),
   grabs fresh session cookies and injects them into later in-scope requests — so long Scanner/Intruder runs don't die
+- **Add-ons** (Security panel → Add-ons): extend Wyrm with Python plugins — rewrite traffic, add tabs, file
+  findings — like Burp BApps / Caido plugins. See [ADDONS.md](ADDONS.md) and `examples/addons/`
 - **AI Triage**: a scope-gated, human-in-the-loop, non-destructive assistant that analyzes a request/response
   or code and proposes findings, safe verification steps, and remediation (bring your own API key, Settings → AI)
 - **Findings → report**: export HTML or Markdown

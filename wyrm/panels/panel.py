@@ -56,6 +56,8 @@ class SecurityPanel(QDockWidget):
         self.workflows = WorkflowsTab(win)
         from .sessionauth import SessionAuthTab
         self.sessionauth = SessionAuthTab(win)
+        from .addons import AddonsTab
+        self.addons_tab = AddonsTab(win)
         groups = [
             ("PROTECTION", [("Shields", self.shields)]),
             ("INTELLIGENCE", [("Overview", self.overview), ("Site map", self.sitemap), ("Recon", self.recon)]),
@@ -65,6 +67,7 @@ class SecurityPanel(QDockWidget):
                          ("Workflows", self.workflows), ("Session / auth", self.sessionauth),
                          ("API & WebSocket", self.capture), ("OOB Interactions", self.oob)]),
             ("FINDINGS", [("Findings", self.findings)]),
+            ("ADD-ONS", [("Add-ons", self.addons_tab)]),   # add-on-provided tabs are appended under this group
         ]
         root = QWidget()
         h = QHBoxLayout(root)
@@ -81,6 +84,7 @@ class SecurityPanel(QDockWidget):
         nb = QVBoxLayout(navbody)
         nb.setContentsMargins(0, 18, 0, 12)  # breathing room between the fixed header and the first caption
         nb.setSpacing(2)
+        self._nb = nb   # kept so add-on tabs can be appended at runtime
         self.stack = QStackedWidget()
         self._nav_buttons: dict[str, tuple] = {}   # name -> (button, stack index)
         for gi, (title, items) in enumerate(groups):
@@ -132,6 +136,28 @@ class SecurityPanel(QDockWidget):
         self.show()
         if name in self._nav_buttons:
             self._select(name)
+
+    def add_addon_tab(self, name, widget):
+        """Append an add-on-provided tab under the ADD-ONS group (called by the add-on loader at startup)."""
+        if name in self._nav_buttons:   # avoid a duplicate label clobbering the nav mapping
+            name = f"{name} ({len(self._nav_buttons)})"
+        page = QScrollArea()
+        page.setWidgetResizable(True)
+        page.setFrameShape(QScrollArea.Shape.NoFrame)
+        page.setWidget(widget)
+        idx = self.stack.addWidget(page)
+        lay = widget.layout()
+        if lay is not None:
+            lay.setContentsMargins(16, 14, 16, 12)
+            lay.setSpacing(10)
+        btn = QPushButton(name, objectName="NavItem")
+        btn.setCheckable(True)
+        btn.setAutoExclusive(True)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.clicked.connect(lambda _c=False, n=name: self._select(n))
+        self._nav_buttons[name] = (btn, idx)
+        self._nb.insertWidget(self._nb.count() - 1, btn)   # before the trailing stretch (ADD-ONS is the last group)
+        return name
 
     def _fade(self, w):
         # Deliberately a no-op. A QGraphicsOpacityEffect fade used to run here, but it disabled native rendering

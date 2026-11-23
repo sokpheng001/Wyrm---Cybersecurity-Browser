@@ -211,6 +211,13 @@ class MainWindow(
             self._session_timer = QTimer(self)
             self._session_timer.timeout.connect(self._save_session)
             self._session_timer.start(20_000)
+        if not self.ephemeral:  # load enabled Wyrm add-ons (never let a broken one block startup)
+            try:
+                from ..addons import loader as _addon_loader
+                _addon_loader.load_all(self)
+                self.security.addons_tab._refresh()
+            except Exception:  # noqa: BLE001
+                pass
 
     def toast(self, msg: str, ms: int = 5000):
         self.statusBar().showMessage(msg, ms)
