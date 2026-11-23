@@ -13,8 +13,8 @@ import threading
 from html import escape
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QCheckBox, QHBoxLayout, QLabel, QLineEdit, QMenu, QPlainTextEdit, QPushButton,
-                               QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QCheckBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QMenu, QPlainTextEdit,
+                               QPushButton, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from ..security import mitm
 from .common import mono
@@ -85,6 +85,10 @@ class ProxyTab(QWidget):
         self.filter.setPlaceholderText("Search URL, method, status, headers, body…")
         self.filter.textChanged.connect(self._apply_filter)
         row.addWidget(self.filter, 1)
+        self.b_export = QPushButton("Export HAR")
+        self.b_export.setToolTip("Save the captured request/response history as a HAR file (importable by other tools).")
+        self.b_export.clicked.connect(self._export_har)
+        row.addWidget(self.b_export)
         clear = QPushButton("Clear")
         clear.clicked.connect(self._clear)
         row.addWidget(clear)
@@ -384,6 +388,25 @@ class ProxyTab(QWidget):
             hay = " ".join(parts).lower()
             it.setData(0, Qt.ItemDataRole.UserRole + 1, hay)
         it.setHidden(f not in hay)
+
+    def _export_har(self):
+        flows = [self.tree.topLevelItem(i).data(0, Qt.ItemDataRole.UserRole)
+                 for i in range(self.tree.topLevelItemCount())]
+        flows = [fl for fl in flows if fl and "resp_headers" in fl]   # real flows (not held placeholders)
+        if not flows:
+            self.win.toast("No captured traffic to export yet.", 4000)
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Export HTTP history (HAR)", "wyrm-history.har",
+                                              "HAR files (*.har);;All files (*)")
+        if not path:
+            return
+        from ..security import har
+        try:
+            n = har.save_har(flows, path)
+        except OSError as e:
+            self.win.toast(f"Could not save: {e}", 6000)
+            return
+        self.win.toast(f"Exported {n} request(s) to HAR.", 5000)
 
     def _clear(self):
         self.tree.clear()

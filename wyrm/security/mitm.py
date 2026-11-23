@@ -543,7 +543,7 @@ class MitmProxy:
             status, reason, rheaders, rbody = self._upstream_request(scheme, host, port, method, path, body, fwd)
         except Exception as e:  # noqa: BLE001 - upstream failure
             return {"error": str(e)}
-        flow = {"time": time.strftime("%H:%M:%S"), "method": method, "scheme": scheme, "host": host,
+        flow = {"time": time.strftime("%H:%M:%S"), "ts": started, "method": method, "scheme": scheme, "host": host,
                 "path": path, "url": f"{scheme}://{host}{path}", "status": status, "reason": reason,
                 "req_headers": headers, "req_body": body, "resp_headers": rheaders, "resp_body": rbody,
                 "ms": int((time.time() - started) * 1000)}
