@@ -87,6 +87,20 @@ function frame(){if(!run)return;t+=0.01;var g=x.createLinearGradient(0,0,0,H);g.
 x.fillStyle='rgba(255,255,255,0.92)';for(var i=0;i<fl.length;i++){var f=fl[i];x.beginPath();x.arc(f.x+Math.sin(t+f.p)*6*DPR,f.y,f.r,0,7);x.fill();f.y+=f.s;if(f.y>H){f.y=-f.r;f.x=Math.random()*W;}}requestAnimationFrame(frame);}frame();""",
         "fog": """var t=0;function frame(){if(!run)return;t+=0.002;var g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#6b7280');g.addColorStop(1,'#aeb4bd');x.fillStyle=g;x.fillRect(0,0,W,H);
 for(var i=0;i<5;i++){var y=H*(0.15+0.18*i),off=((t*(30+i*10)*DPR)%(W*2))-W*0.5;var gg=x.createLinearGradient(off,0,off+W,0);gg.addColorStop(0,'rgba(222,226,232,0)');gg.addColorStop(0.5,'rgba(222,226,232,0.35)');gg.addColorStop(1,'rgba(222,226,232,0)');x.fillStyle=gg;x.fillRect(0,y-40*DPR,W,80*DPR);}requestAnimationFrame(frame);}frame();""",
+        # dynamic clear sky: colours + sun/moon shift with the local time of day (dawn -> day -> sunset -> night)
+        "sky": """function lerp(a,b,f){return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f];}
+function rgb(c){return 'rgb('+(c[0]|0)+','+(c[1]|0)+','+(c[2]|0)+')';}
+var K=[[0,[6,10,30],[12,20,50]],[5,[26,28,66],[70,56,96]],[6.5,[250,170,120],[130,130,185]],[9,[60,130,200],[165,205,236]],[13,[42,112,192],[150,196,230]],[17,[72,122,190],[200,202,212]],[18.5,[240,140,90],[110,92,150]],[20,[32,32,74],[64,44,86]],[22,[9,13,36],[18,26,58]],[24,[6,10,30],[12,20,50]]];
+function sky(h){for(var i=0;i<K.length-1;i++){if(h>=K[i][0]&&h<=K[i+1][0]){var a=K[i],b=K[i+1],f=(h-a[0])/(b[0]-a[0]);return {top:lerp(a[1],b[1],f),bot:lerp(a[2],b[2],f)};}}return {top:K[0][1],bot:K[0][2]};}
+function cloudSky(cx,cy,s,a){x.fillStyle='rgba(255,255,255,'+a+')';for(var k=0;k<5;k++){x.beginPath();x.arc(cx+k*34*s*DPR,cy+(k%2)*10*DPR,26*s*DPR,0,7);x.fill();}}
+var stars=[];for(var i=0;i<170;i++)stars.push({x:Math.random()*W,y:Math.random()*H*0.8,r:Math.random()*1.4*DPR,p:Math.random()*6});var tt=0;
+function frame(){if(!run)return;tt+=0.02;var d=new Date();var h=d.getHours()+d.getMinutes()/60;
+var sc=sky(h);var g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,rgb(sc.top));g.addColorStop(1,rgb(sc.bot));x.fillStyle=g;x.fillRect(0,0,W,H);
+var dayF=(h>6&&h<18.5)?Math.sin((h-6)/12.5*Math.PI):0;
+if(dayF>0.02){var sx=W*(0.12+0.76*(h-6)/12.5),sy=H*(0.78-0.6*dayF),r=56*DPR;var gg=x.createRadialGradient(sx,sy,0,sx,sy,r*3.4);gg.addColorStop(0,'rgba(255,247,196,'+(0.55+0.4*dayF)+')');gg.addColorStop(0.3,'rgba(255,222,128,'+(0.45*dayF)+')');gg.addColorStop(1,'rgba(255,222,128,0)');x.fillStyle=gg;x.beginPath();x.arc(sx,sy,r*3.4,0,7);x.fill();x.fillStyle='rgba(255,248,210,'+(0.6+0.4*dayF)+')';x.beginPath();x.arc(sx,sy,r*(0.7+0.3*dayF),0,7);x.fill();}
+else{var al=h<6?(6-h)/6:(h-18.5)/5.5;al=Math.max(0,Math.min(1,al));for(var i=0;i<stars.length;i++){var s=stars[i];x.fillStyle='rgba(255,255,255,'+(al*(0.3+0.6*Math.abs(Math.sin(tt+s.p))))+')';x.beginPath();x.arc(s.x,s.y,s.r,0,7);x.fill();}var mx=W*0.8,my=H*0.2,r=44*DPR;var mg=x.createRadialGradient(mx,my,0,mx,my,r*2.6);mg.addColorStop(0,'rgba(232,240,255,'+(0.5*al)+')');mg.addColorStop(1,'rgba(232,240,255,0)');x.fillStyle=mg;x.beginPath();x.arc(mx,my,r*2.6,0,7);x.fill();x.fillStyle='rgba(238,243,255,'+al+')';x.beginPath();x.arc(mx,my,r,0,7);x.fill();}
+for(var i=0;i<3;i++){var cx=((tt*8*DPR+i*W/2.5)%(W+320*DPR))-160*DPR;cloudSky(cx,H*(0.2+0.12*i),0.9+i*0.2,0.2+0.5*dayF);}
+requestAnimationFrame(frame);}frame();""",
     }
     return common + scenes.get(scene, scenes["aurora"]) + "})();"
 
@@ -94,9 +108,9 @@ for(var i=0;i<5;i++){var y=H*(0.15+0.18*i),off=((t*(30+i*10)*DPR)%(W*2))-W*0.5;v
 def weather_scene(code, is_day: bool = True) -> str:
     """Map a WMO weather code (Open-Meteo) to a live background scene name."""
     if code is None or code < 0:
-        return "clear-day" if is_day else "clear-night"
+        return "sky"
     if code in (0, 1):
-        return "clear-day" if is_day else "clear-night"
+        return "sky"   # one dynamic sky that shifts with the local time (dawn → day → sunset → night)
     if code in (2, 3):
         return "clouds"
     if code in (45, 48):
