@@ -1055,11 +1055,21 @@ network. Nothing from it is saved to disk. The first time, Wyrm downloads Tor fr
 <tr><td><b>Recon</b></td><td>Subdomains (certificate logs), archived URLs (Wayback Machine), robots.txt, sitemap and security.txt, and <b>ProjectDiscovery Chaos</b>: search ~800 public bug-bounty programs by name or domain, then double-click a program to load its published subdomains.</td></tr>
 <tr><td><b>Traffic</b></td><td>Every request the page makes, filterable. Can route through Burp Suite or ZAP (Settings → Network).</td></tr>
 <tr><td><b>Scanner</b></td><td>Port scan (top 100 TCP ports; uses nmap if installed), CORS misconfiguration test (Chen et al., USENIX Security 2018) and clickjacking test with a framing proof-of-concept (Huang et al., USENIX Security 2012). Also runs the <b>ProjectDiscovery</b> tools you have installed (subfinder, dnsx, naabu, httpx, katana, nuclei, tlsx, asnmap, cdncheck, uncover, mapcidr, alterx). Active checks only run on hosts in your engagement scope.</td></tr>
+<tr><td><b>Audit</b></td><td>Active vulnerability scan of a single request (sent here from <b>Proxy</b> or <b>Repeater</b> → <i>Scan this request</i> / <i>Active scan</i>): reflected XSS, SQL injection, SSTI, path traversal, open redirect and CRLF, plus passive response checks. Results stream in and add to Findings. In-scope hosts only.</td></tr>
 <tr><td><b>Intruder</b></td><td>Mark positions with <code>§…§</code> and try one payload per line — in-scope targets only, with a rate limit and a request budget.</td></tr>
 <tr><td><b>DOM Analysis</b></td><td>Passive scan of the page's scripts for DOM-XSS sources and sinks. Read-only — never runs payloads.</td></tr>
 <tr><td><b>Tools</b></td><td>Decoder, JWT, Hash, Repeater, Match &amp; Replace, Comparer, Sequencer and AI Triage.</td></tr>
+<tr><td><b>Proxy</b></td><td>Wyrm's intercepting HTTPS proxy. Full request/response history (with bodies) and full-text search; turn on <b>Intercept requests</b> to pause, edit or drop any request (XHR and API calls too), and <b>Intercept responses</b> to edit a response before the page sees it. Right-click a flow → Send to Repeater / Intruder / Session macro / Scan this request. HTTP/2 interception is available as an experimental toggle.</td></tr>
+<tr><td><b>WebSocket</b></td><td>Live WebSocket frames over <code>wss://</code>; turn on <b>Intercept frames</b> to edit a frame's payload before it is sent, forward it unchanged, or drop it.</td></tr>
+<tr><td><b>Workflows</b></td><td>Automation pipelines over live traffic — set/remove headers, regex find/replace in bodies, force a status — scoped to the URLs you choose.</td></tr>
+<tr><td><b>Session / auth</b></td><td>A login macro that re-runs when a response looks logged-out (a 401/403 or a body pattern) and injects fresh session cookies, so long Scanner/Intruder runs don't die.</td></tr>
+<tr><td><b>API &amp; WebSocket</b></td><td>Opt-in capture of fetch/XHR calls and WebSocket messages from the pages you browse — no proxy needed (read-only).</td></tr>
+<tr><td><b>OOB Interactions</b></td><td>A Collaborator-style callback listener to confirm blind vulnerabilities (SSRF, blind XSS).</td></tr>
+<tr><td><b>Add-ons</b></td><td>Install Python plugins that extend Wyrm — rewrite traffic, add their own tab, file findings (see ADDONS.md).</td></tr>
 <tr><td><b>Findings</b></td><td>Your notes and issues; export a report as HTML or Markdown.</td></tr>
 </table>
+<p><b>Proxy</b>, <b>WebSocket</b>, <b>Workflows</b> and <b>Session / auth</b> need the intercepting proxy turned on:
+open <b>Proxy</b> and click <i>Turn on intercepting proxy</i> (it installs a local certificate and restarts Wyrm).</p>
 <p>Drag the panel's edge to resize it, or drag its title to move it to the other side or float it.</p>"""),
         ("engage", "Engagements &amp; findings", f"""
 <p>An <b>engagement</b> is a security test of a target you are authorized to test. Choose <b>New engagement…</b>
@@ -1083,6 +1093,8 @@ emphasis and accent color. ⋮ → <b>Theme</b> chooses Light, Dark or Follow sy
 <tr><td>{k(mod, "+")} {k(mod, "-")} {k(mod, "0")}</td><td>Zoom in / out / reset</td></tr>
 <tr><td>{k(mod, "P")}</td><td>Print</td></tr>
 <tr><td>{k(mod, sh, "S")}</td><td>Security panel</td></tr>
+<tr><td>{k(mod, "J")}</td><td>Downloads</td></tr>
+<tr><td>{k(mod, alt, "I")}</td><td>Intercept requests (hold &amp; edit)</td></tr>
 <tr><td>{k(mod, sh, "F")}</td><td>Add finding</td></tr>
 <tr><td>{k(mod, alt, "N")}</td><td>New Tor window</td></tr>
 <tr><td>{k(mod, ",")}</td><td>Settings</td></tr>
