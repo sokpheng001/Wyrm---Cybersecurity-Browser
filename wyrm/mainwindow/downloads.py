@@ -12,10 +12,11 @@ import subprocess
 import sys
 from html import escape
 
-from PySide6.QtCore import QPoint, Qt
-from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QProgressBar, QPushButton, QScrollArea, QVBoxLayout,
-                               QWidget)
+from PySide6.QtCore import QPoint, QSize, Qt
+from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QProgressBar, QPushButton, QScrollArea, QToolButton,
+                               QVBoxLayout, QWidget)
 
+from ..ui.common import make_icon
 from ..ui.dialogs import security_warning
 
 
@@ -115,12 +116,16 @@ class DownloadsMixin:
         dl.accept()
         rec = {"name": dl.downloadFileName() or name, "path": os.path.join(dl.downloadDirectory() or folder,
                dl.downloadFileName() or name), "url": url, "state": "active", "received": 0, "total": 0,
-               "risky": risky, "digest": ""}
+               "risky": risky, "digest": "", "dl": dl, "paused": False, "speed": 0.0}
         self.downloads.insert(0, rec)
         del self.downloads[40:]  # keep the list manageable
         try:
             dl.receivedBytesChanged.connect(lambda d=dl, r=rec: self._dl_progress(d, r))
             dl.totalBytesChanged.connect(lambda d=dl, r=rec: self._dl_progress(d, r))
+        except AttributeError:
+            pass
+        try:
+            dl.isPausedChanged.connect(lambda d=dl, r=rec: self._dl_progress(d, r))
         except AttributeError:
             pass
         dl.isFinishedChanged.connect(lambda d=dl, r=rec: self._download_finished(d, r))
@@ -129,10 +134,43 @@ class DownloadsMixin:
         self._refresh_downloads()
 
     def _dl_progress(self, dl, rec):
+        import time
         try:
-            rec["received"], rec["total"] = dl.receivedBytes(), dl.totalBytes()
+            recv, total = dl.receivedBytes(), dl.totalBytes()
+        except (AttributeError, RuntimeError):
+            recv, total = rec.get("received", 0), rec.get("total", 0)
+        now = time.monotonic()
+        last_t, last_b = rec.get("_t"), rec.get("_b", 0)
+        if last_t and now > last_t and recv >= last_b:   # smoothed download speed (bytes/sec)
+            inst = (recv - last_b) / (now - last_t)
+            rec["speed"] = 0.7 * rec["speed"] + 0.3 * inst if rec.get("speed") else inst
+        rec["_t"], rec["_b"] = now, recv
+        rec["received"], rec["total"] = recv, total
+        try:
+            rec["paused"] = dl.isPaused()
         except (AttributeError, RuntimeError):
             pass
+        self._refresh_downloads()
+
+    def _dl_pause_toggle(self, rec):
+        dl = rec.get("dl")
+        if dl is None:
+            return
+        try:
+            dl.resume() if dl.isPaused() else dl.pause()
+            rec["paused"] = dl.isPaused()
+        except (AttributeError, RuntimeError):
+            return
+        self._refresh_downloads()
+
+    def _dl_cancel(self, rec):
+        dl = rec.get("dl")
+        try:
+            if dl is not None:
+                dl.cancel()
+        except (AttributeError, RuntimeError):
+            pass
+        rec["state"] = "canceled"
         self._refresh_downloads()
 
     def _download_finished(self, dl, rec):
@@ -198,7 +236,7 @@ class DownloadsMixin:
             badge.setGeometry(40 - bw - 1, 2, bw, 16)
             badge.setVisible(active > 0)
         if self._downloads_popup is not None and self._downloads_popup.isVisible():
-            self._downloads_popup.rebuild()
+            self._downloads_popup.sync()
 
     # kept for callers / tests
     @staticmethod
@@ -233,12 +271,38 @@ def _fmt_size(n) -> str:
     return f"{n:.1f} GB"
 
 
+def _fmt_eta(seconds) -> str:
+    s = int(seconds)
+    if s < 60:
+        return f"{s}s"
+    if s < 3600:
+        return f"{s // 60}m {s % 60}s"
+    return f"{s // 3600}h {(s % 3600) // 60}m"
+
+
+def _dl_status_text(rec) -> str:
+    """The subtitle under an active download: size, state, speed and ETA (like other browsers)."""
+    recv, total = rec.get("received") or 0, rec.get("total") or 0
+    size = f"{_fmt_size(recv)} of {_fmt_size(total)}" if total > 0 else _fmt_size(recv)
+    if rec.get("paused"):
+        return f"{size} · Paused"
+    speed = rec.get("speed") or 0
+    parts = [size, "Downloading…"]
+    if speed > 0:
+        parts.append(f"{_fmt_size(speed)}/s")
+        if total > recv:
+            parts.append(f"{_fmt_eta((total - recv) / speed)} left")
+    return " · ".join(parts)
+
+
 class DownloadsPopup(QWidget):
     """A frameless panel under the Downloads button listing recent downloads with Open / Show in folder."""
 
     def __init__(self, win):
         super().__init__(win, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
         self.win = win
+        self._rows: dict = {}     # id(rec) -> {bar, sub, pause} for live in-place updates (no flicker)
+        self._sig = None          # membership/state signature: rebuild only when it changes
         self.setObjectName("DownloadsPopup")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.resize(400, 420)
@@ -269,12 +333,47 @@ class DownloadsPopup(QWidget):
         self.rebuild()
         self.win._refresh_downloads()
 
+    def sync(self):
+        """Rebuild only when the set of downloads (or their states) changes; otherwise update progress in place
+        so the bars/speed animate smoothly without flicker or losing button hover."""
+        sig = tuple((id(r), r["state"]) for r in self.win.downloads)
+        if sig != self._sig:
+            self._sig = sig
+            self.rebuild()
+        else:
+            self.update_progress()
+
+    def update_progress(self):
+        for rec in self.win.downloads:
+            if rec["state"] != "active":
+                continue
+            refs = self._rows.get(id(rec))
+            if not refs:
+                continue
+            self._apply_progress(rec, refs)
+
+    def _apply_progress(self, rec, refs):
+        bar = refs["bar"]
+        total, recv = rec.get("total") or 0, rec.get("received") or 0
+        if total > 0:
+            if bar.maximum() == 0:
+                bar.setRange(0, 100)
+            bar.setValue(int(recv * 100 / total))
+        else:
+            bar.setRange(0, 0)   # unknown size: busy indicator
+        refs["sub"].setText(_dl_status_text(rec))
+        if refs.get("pause") is not None:
+            refs["pause"].setIcon(make_icon("play" if rec.get("paused") else "pause", self._icon_col, 32))
+            refs["pause"].setToolTip("Resume" if rec.get("paused") else "Pause")
+
     def rebuild(self):
         while self.vbox.count() > 1:
             it = self.vbox.takeAt(0)
             w = it.widget()
             if w:
                 w.deleteLater()
+        self._rows = {}
+        self._icon_col = self.palette().text().color().name()   # theme-adaptive icon color
         if not self.win.downloads:
             empty = QLabel("No downloads yet.")
             empty.setObjectName("Muted")
@@ -295,16 +394,36 @@ class DownloadsPopup(QWidget):
         name.setWordWrap(True)
         v.addWidget(name)
         if rec["state"] == "active":
+            sub = QLabel()
+            sub.setObjectName("Muted")
+            v.addWidget(sub)
+            prow = QHBoxLayout()
+            prow.setSpacing(6)
             bar = QProgressBar()
-            total, recv = rec.get("total") or 0, rec.get("received") or 0
-            if total > 0:
-                bar.setMaximum(100)
-                bar.setValue(int(recv * 100 / total))
-                bar.setFormat(f"{_fmt_size(recv)} / {_fmt_size(total)}")
-            else:
-                bar.setRange(0, 0)  # unknown size: busy indicator
-                bar.setFormat(_fmt_size(recv))
-            v.addWidget(bar)
+            bar.setTextVisible(False)
+            bar.setFixedHeight(8)
+            prow.addWidget(bar, 1)
+            refs = {"bar": bar, "sub": sub, "pause": None}
+            if hasattr(rec.get("dl"), "pause"):   # pause/resume (Qt 6.5+)
+                pbtn = QToolButton()
+                pbtn.setAutoRaise(True)
+                pbtn.setIconSize(QSize(16, 16))
+                pbtn.setCursor(Qt.CursorShape.PointingHandCursor)
+                pbtn.setToolTip("Pause")
+                pbtn.clicked.connect(lambda _c=False, r=rec: self.win._dl_pause_toggle(r))
+                prow.addWidget(pbtn)
+                refs["pause"] = pbtn
+            cbtn = QToolButton()
+            cbtn.setAutoRaise(True)
+            cbtn.setIconSize(QSize(16, 16))
+            cbtn.setIcon(make_icon("win_close", self._icon_col, 32))
+            cbtn.setCursor(Qt.CursorShape.PointingHandCursor)
+            cbtn.setToolTip("Cancel")
+            cbtn.clicked.connect(lambda _c=False, r=rec: self.win._dl_cancel(r))
+            prow.addWidget(cbtn)
+            v.addLayout(prow)
+            self._rows[id(rec)] = refs
+            self._apply_progress(rec, refs)
         else:
             row = QHBoxLayout()
             row.setSpacing(6)
