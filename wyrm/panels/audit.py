@@ -12,7 +12,9 @@ to Findings. Active scanning only runs on hosts inside the current engagement sc
 from __future__ import annotations
 
 from html import escape
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse, urlsplit
+
+import requests
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush, QColor
@@ -50,6 +52,7 @@ class _OobBridge:
 class AuditTab(QWidget):
     _finding = Signal(object)
     _done = Signal(bool, object)
+    _progress = Signal(int, int, str)
 
     def __init__(self, win):
         super().__init__()
@@ -59,6 +62,7 @@ class AuditTab(QWidget):
         self._stop_flag = False
         self._finding.connect(self._on_finding)
         self._done.connect(self._on_done)
+        self._progress.connect(self._on_progress)
 
         v = QVBoxLayout(self)
         intro = QLabel("<b>Audit</b> — active vulnerability scan of one request. From the <b>Proxy</b> history or "
@@ -78,6 +82,10 @@ class AuditTab(QWidget):
         self.b_run.setEnabled(False)
         self.b_run.clicked.connect(self._run)
         row.addWidget(self.b_run)
+        self.b_site = QPushButton("Scan in-scope traffic")
+        self.b_site.setToolTip("Audit every in-scope request Wyrm has seen through the proxy (browse the app first).")
+        self.b_site.clicked.connect(self._run_site)
+        row.addWidget(self.b_site)
         self.b_stop = QPushButton("Stop")
         self.b_stop.setEnabled(False)
         self.b_stop.clicked.connect(self._stop)
@@ -153,10 +161,18 @@ class AuditTab(QWidget):
         self.busy.start("Auditing…")
         self.status.setText("Auditing… payloads are only sent to the in-scope target.")
         req = self._req
-        px, verify = self.win.proxies(), self.win.verify_tls()
-        method = req["method"]
+        send = self._make_send()
+        oob = self._oob_bridge()
 
-        def send(url, headers, body):
+        def work():
+            return engine.scan(req, send, should_stop=lambda: self._stop_flag,
+                               on_finding=lambda f: self._finding.emit(f), oob=oob)
+        self.win.runner.run(work, lambda ok, res: self._done.emit(bool(ok), res))
+
+    def _make_send(self):
+        px, verify = self.win.proxies(), self.win.verify_tls()
+
+        def send(method, url, headers, body):
             try:
                 r = requests.request(method, url, headers=headers, data=(body or None), proxies=px, verify=verify,
                                      allow_redirects=False, timeout=15)
@@ -172,14 +188,66 @@ class AuditTab(QWidget):
                 sc = [H["set-cookie"]]
             return {"status": r.status_code, "headers": H, "text": r.text, "location": H.get("location", ""),
                     "url": url, "set_cookie": sc or []}
+        return send
 
+    def _oob_bridge(self):
         oob_panel = getattr(self.win.security, "oob", None)
-        oob = _OobBridge(oob_panel) if (oob_panel is not None and oob_panel.oob_active()) else None
+        return _OobBridge(oob_panel) if (oob_panel is not None and oob_panel.oob_active()) else None
+
+    # ------------------------------------------------------------ scan the whole in-scope attack surface
+    def _collect_targets(self):
+        """Unique in-scope requests seen through the proxy (requests with parameters first). Bounded."""
+        from ..security import mitm
+        eng = self.win.engagement
+        flows = list(mitm.ACTIVE.flows) if mitm.ACTIVE is not None else []
+        seen, with_params, without = set(), [], []
+        for fl in flows:
+            host = fl.get("host", "")
+            if not (eng and eng.scope and eng.in_scope(host) is True):
+                continue
+            url = fl.get("url", "")
+            parts = urlsplit(url)
+            qnames = tuple(sorted(k for k, _ in parse_qsl(parts.query, keep_blank_values=True)))
+            body = _as_text(fl.get("req_body", b""))
+            key = (fl.get("method", "GET"), host, parts.path, qnames, bool(body))
+            if key in seen:
+                continue
+            seen.add(key)
+            req = {"method": fl.get("method", "GET"), "url": url,
+                   "headers": dict(fl.get("req_headers", [])), "body": body}
+            (with_params if (qnames or body) else without).append(req)
+        return (with_params + without)[:150]
+
+    def _run_site(self):
+        if self._running:
+            return
+        reqs = self._collect_targets()
+        if not reqs:
+            QMessageBox.information(self, "Scan in-scope traffic",
+                                   "No in-scope requests captured yet.\n\nTurn on the intercepting proxy (Proxy tab), "
+                                   "set an engagement scope, browse the target, then run this.")
+            return
+        self.tree.clear()
+        self.detail.clear()
+        self._running = True
+        self._stop_flag = False
+        self._count = 0
+        self.b_run.setEnabled(False)
+        self.b_site.setEnabled(False)
+        self.b_stop.setEnabled(True)
+        self.busy.start("Auditing site…")
+        self.status.setText(f"Auditing {len(reqs)} in-scope request(s)…")
+        send = self._make_send()
+        oob = self._oob_bridge()
 
         def work():
-            return engine.scan(req, send, should_stop=lambda: self._stop_flag,
-                               on_finding=lambda f: self._finding.emit(f), oob=oob)
+            return engine.scan_site(reqs, send, should_stop=lambda: self._stop_flag,
+                                    on_finding=lambda f: self._finding.emit(f), oob=oob,
+                                    on_progress=lambda d, n, u: self._progress.emit(d, n, u))
         self.win.runner.run(work, lambda ok, res: self._done.emit(bool(ok), res))
+
+    def _on_progress(self, done, total, url):
+        self.status.setText(f"Auditing {done}/{total} · {url[:70]} · {getattr(self, '_count', 0)} issue(s) so far")
 
     def _stop(self):
         self._stop_flag = True
@@ -205,6 +273,7 @@ class AuditTab(QWidget):
         self._running = False
         self.busy.stop()
         self.b_run.setEnabled(True)
+        self.b_site.setEnabled(True)
         self.b_stop.setEnabled(False)
         n = getattr(self, "_count", 0)
         if not ok:
@@ -247,3 +316,9 @@ class AuditTab(QWidget):
             f = self.tree.topLevelItem(i).data(0, Qt.ItemDataRole.UserRole)
             if f:
                 self._finding_to_dialog(f)
+
+
+def _as_text(b) -> str:
+    if isinstance(b, (bytes, bytearray)):
+        return bytes(b).decode("utf-8", "replace")
+    return str(b or "")

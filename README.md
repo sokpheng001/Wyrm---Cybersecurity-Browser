@@ -173,9 +173,10 @@ rm -rf ~/.local/opt/wyrm ~/.local/bin/Wyrm ~/.local/share/applications/wyrm.desk
   grabs fresh session cookies and injects them into later in-scope requests — so long Scanner/Intruder runs don't die
 - **Add-ons** (Security panel → Add-ons): extend Wyrm with Python plugins — rewrite traffic, add tabs, file
   findings — like Burp BApps / Caido plugins. See [ADDONS.md](ADDONS.md) and `examples/addons/`
-- **Audit** (Security panel → Audit): active vulnerability scan of a request — right-click a Proxy flow or use
-  Repeater's **Active scan** to fuzz each parameter for reflected XSS, SQLi, SSTI, path traversal, open redirect
-  and CRLF (plus passive checks); results stream in and add to Findings. In-scope hosts only.
+- **Audit** (Security panel → Audit): active vulnerability scan — right-click a Proxy flow or use Repeater's
+  **Active scan** for one request, or **Scan in-scope traffic** to audit everything you've browsed. Fuzzes each
+  parameter for reflected XSS, SQLi, SSTI, path traversal, open redirect, CRLF, **SSRF (via OOB)** and **OS command
+  injection**, plus passive checks; results stream in and add to Findings. In-scope hosts only.
 - **AI Triage**: a scope-gated, human-in-the-loop, non-destructive assistant that analyzes a request/response
   or code and proposes findings, safe verification steps, and remediation (bring your own API key, Settings → AI)
 - **Findings → report**: export HTML or Markdown
