@@ -549,7 +549,7 @@ def render_home(ctx: dict) -> str:
         + "<p class='foot'>Only test systems you own or are explicitly authorized to test.</p>"
         + "<p class='credit'>Built by <a href='https://bykh.org' title='bykh.org'><b>ByKh R&amp;D Group</b></a>"
           " · <b>HackPi</b> — Ethical Hackers Group · <a href='https://bykh.org'>bykh.org</a></p>"
-        + f"<p class='copy'><a href='wyrm://help'>How to use Wyrm</a> · © {_years()} ByKh R&amp;D Group · MIT License</p>"
+        + f"<p class='copy'><a href='wyrm://help'>How to use Wyrm</a> · © {_years()} ByKh R&amp;D Group</p>"
     )
     if ctx.get("tor"):   # Tor window: purple + onion watermark background instead of a web photo
         html = _page("New tab", body, HOME_CSS + TOR_BG_CSS, "home")
