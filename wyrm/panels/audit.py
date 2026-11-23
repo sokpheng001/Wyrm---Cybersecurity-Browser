@@ -91,6 +91,10 @@ class AuditTab(QWidget):
         self.b_site.setToolTip("Audit every in-scope request Wyrm has seen through the proxy (browse the app first).")
         self.b_site.clicked.connect(self._run_site)
         row.addWidget(self.b_site)
+        self.b_crawl = QPushButton("Crawl + scan")
+        self.b_crawl.setToolTip("Spider the current in-scope site (follow links & forms), then audit what it finds.")
+        self.b_crawl.clicked.connect(self._run_crawl)
+        row.addWidget(self.b_crawl)
         self.b_stop = QPushButton("Stop")
         self.b_stop.setEnabled(False)
         self.b_stop.clicked.connect(self._stop)
@@ -262,8 +266,59 @@ class AuditTab(QWidget):
                                     on_progress=lambda d, n, u: self._progress.emit(d, n, u))
         self.win.runner.run(work, lambda ok, res: self._done.emit(bool(ok), res))
 
+    def _run_crawl(self):
+        if self._running:
+            return
+        view = self.win.current_view()
+        cur = view.url().toString() if view else ""
+        host = urlparse(cur).hostname or ""
+        eng = self.win.engagement
+        if not cur.startswith(("http://", "https://")) or not (eng and eng.scope and eng.in_scope(host) is True):
+            QMessageBox.information(self, "Crawl + scan",
+                                   "Open an in-scope page in a tab first (and set an engagement scope), then "
+                                   "Crawl + scan — the spider only follows links on in-scope hosts.")
+            return
+        self.tree.clear()
+        self.detail.clear()
+        self._running = True
+        self._stop_flag = False
+        self._count = 0
+        self.b_run.setEnabled(False)
+        self.b_site.setEnabled(False)
+        self.b_crawl.setEnabled(False)
+        self.b_stop.setEnabled(True)
+        self.busy.start("Crawling…")
+        self.status.setText("Crawling the in-scope site…")
+        send = self._make_send()
+        oob = self._oob_bridge()
+        checks = self._selected_checks()
+        px, verify = self.win.proxies(), self.win.verify_tls()
+        in_scope = lambda h: bool(h and eng.in_scope(h) is True)   # noqa: E731
+
+        def fetch(url):
+            try:
+                r = requests.get(url, proxies=px, verify=verify, timeout=15, allow_redirects=True,
+                                 headers={"User-Agent": "Mozilla/5.0 Wyrm spider"})
+            except requests.RequestException:
+                return None
+            return {"content_type": r.headers.get("Content-Type", ""), "text": r.text, "final_url": r.url}
+
+        def work():
+            from ..security.audit import spider
+            reqs = spider.crawl([cur], fetch, in_scope, should_stop=lambda: self._stop_flag)
+            self._progress.emit(0, len(reqs), f"crawled {len(reqs)} request(s) — auditing…")
+            if not reqs or self._stop_flag:
+                return []
+            return engine.scan_site(reqs, send, should_stop=lambda: self._stop_flag,
+                                    on_finding=lambda f: self._finding.emit(f), oob=oob, checks=checks,
+                                    on_progress=lambda d, n, u: self._progress.emit(d, n, u))
+        self.win.runner.run(work, lambda ok, res: self._done.emit(bool(ok), res))
+
     def _on_progress(self, done, total, url):
-        self.status.setText(f"Auditing {done}/{total} · {url[:70]} · {getattr(self, '_count', 0)} issue(s) so far")
+        if total == 0:
+            self.status.setText(url or "Working…")
+        else:
+            self.status.setText(f"Auditing {done}/{total} · {url[:70]} · {getattr(self, '_count', 0)} issue(s) so far")
 
     def _stop(self):
         self._stop_flag = True
@@ -290,6 +345,7 @@ class AuditTab(QWidget):
         self.busy.stop()
         self.b_run.setEnabled(True)
         self.b_site.setEnabled(True)
+        self.b_crawl.setEnabled(True)
         self.b_stop.setEnabled(False)
         n = getattr(self, "_count", 0)
         if not ok:

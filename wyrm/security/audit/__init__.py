@@ -10,4 +10,4 @@
     passive.py  — passive checks on a response (missing security headers, cookie flags, verbose errors…)
     engine.py   — drive the checks over the insertion points, de-duplicate, score confidence
 """
-from . import checks, engine, passive, points  # noqa: F401
+from . import checks, engine, passive, points, spider  # noqa: F401
