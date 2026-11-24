@@ -375,7 +375,13 @@ details.cust[open]::before{content:"";position:fixed;inset:0;background:rgba(0,0
 .cpanel .opt{display:flex;align-items:center;gap:12px;padding:8px;color:var(--fg);border:2px solid transparent}
 .cpanel .opt:hover{background:var(--hover);text-decoration:none}
 .cpanel .opt.on{border-color:var(--btn)}
-.cpanel .opt .pv{width:56px;height:36px;flex:none;background-size:cover;background-position:center;border:1px solid var(--line)}
+.cpanel .opt{border-radius:10px}
+.cpanel .opt .pv{width:56px;height:36px;flex:none;background-size:cover;background-position:center;border:1px solid var(--line);border-radius:8px}
+.cpanel .optwrap{position:relative}
+.cpanel .optwrap:hover .opt{background:var(--hover)}
+.cpanel .optdel{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:32px;height:32px;display:none;align-items:center;justify-content:center;border-radius:8px;color:var(--muted)}
+.cpanel .optwrap:hover .optdel{display:flex}
+.cpanel .optdel:hover{background:var(--error);color:#fff;text-decoration:none}
 .cpanel .opt .pv.photo{background:linear-gradient(135deg,#0f62fe,#8a3ffc 50%,#da1e28)}
 .cpanel .opt .pv.plain{background:var(--bg)}
 .cpanel .opt .pv.video{background:linear-gradient(135deg,#001141,#0f62fe 60%,#08bdba);position:relative}
@@ -753,36 +759,42 @@ def _customize_panel(bgc: dict, weather_on: bool = True) -> str:
     every_lbl = BG_INTERVAL_LABEL.get(every, f"{every} min")
     every_txt = "once a day" if every == 1440 else f"every {every_lbl}"
 
+    TRASH = ("<svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.7' "
+             "stroke-linecap='round' stroke-linejoin='round'><path d='M3 6h18M8 6V4h8v2M18 6l-1 14H7L6 6'/>"
+             "<path d='M10 10v7M14 10v7'/></svg>")
+
     def opt(href, pv, title, sub, on):
         return (f"<a class='opt{' on' if on else ''}' href='{href}'><span class='pv {pv}'>{'+' if pv == 'up' else ''}</span>"
                 f"<span><b>{title}</b><small>{sub}</small></span></a>")
+
+    def opt_del(href, pv_html, title, sub, on, del_href, del_tip):
+        """An option row with a trash button on the right (shown on hover) to delete the uploaded media."""
+        return (f"<div class='optwrap'><a class='opt{' on' if on else ''}' href='{href}'>{pv_html}"
+                f"<span><b>{title}</b><small>{sub}</small></span></a>"
+                f"<a class='optdel' href='{del_href}' title='{del_tip}'>{TRASH}</a></div>")
+
     opts = opt("wyrm://do?a=bg&amp;mode=random", "photo", "Wyrm wallpapers",
                f"Cybersecurity &amp; tech photos, new one {every_txt}", m == "random")
     if has_img:
-        opts += (f"<a class='opt{' on' if m == 'image' else ''}' href='wyrm://do?a=bg&amp;mode=image'>"
-                 f"<span class='pv' style=\"background-image:url('wyrm://bgimg?v={escape(str(bgc['image_ver']))}')\">"
-                 "</span><span><b>Your image</b><small>The picture you uploaded</small></span></a>")
+        pv = f"<span class='pv' style=\"background-image:url('wyrm://bgimg?v={escape(str(bgc['image_ver']))}')\"></span>"
+        opts += opt_del("wyrm://do?a=bg&amp;mode=image", pv, "Your image", "The picture you uploaded",
+                        m == "image", "wyrm://do?a=bg-remove-image", "Delete your image")
     opts += opt("wyrm://do?a=bg-upload", "up", "Upload from device…" if not has_img else "Upload another image…",
                 "JPG, PNG, WebP or GIF, up to 25 MB", False)
-    if has_img:
-        opts += opt("wyrm://do?a=bg-remove-image", "plain", "Remove your image", "Delete the picture you uploaded", False)
-    # Live weather wallpaper — matches the sky right now (rain, snow, sun, clouds…)
-    opts += opt("wyrm://do?a=bg&amp;mode=weather", "video", "Live weather",
-                "Matches the sky now — rain, snow, sun, clouds", m == "weather")
-    # Animated live wallpapers (drawn by Wyrm, no video files) + your own uploaded video
+    # Live wallpapers: weather, Wyrm's own animated scenes (no files, offline), and your own uploaded video
+    live = opt("wyrm://do?a=bg&amp;mode=weather", "video", "Live weather",
+               "Matches the sky now — rain, snow, sun, clouds", m == "weather")
     cur_anim = bgc.get("anim", "aurora")
     for key, label in ANIM_SCENES.items():
-        on = (m == "animated" and cur_anim == key)
-        opts += opt(f"wyrm://do?a=bg&amp;mode=animated&amp;anim={key}", "video", f"Animated · {label}",
-                    "Live wallpaper, runs offline", on)
+        live += opt(f"wyrm://do?a=bg&amp;mode=animated&amp;anim={key}", "video", f"Animated · {label}",
+                    "Live wallpaper, runs offline", m == "animated" and cur_anim == key)
     if bgc.get("video_ver"):
-        opts += opt("wyrm://do?a=bg&amp;mode=video_local", "video", "Your video", "The video you uploaded",
-                    m == "video_local")
-    opts += opt("wyrm://do?a=bg-upload-video", "up", "Upload a video…" if not bgc.get("video_ver")
+        live += opt_del("wyrm://do?a=bg&amp;mode=video_local", "<span class='pv video'></span>", "Your video",
+                        "The video you uploaded", m == "video_local",
+                        "wyrm://do?a=bg-remove-video", "Delete your video")
+    live += opt("wyrm://do?a=bg-upload-video", "up", "Upload a video…" if not bgc.get("video_ver")
                 else "Upload another video…", "MP4 or WebM, up to 60 MB", False)
-    if bgc.get("video_ver"):
-        opts += opt("wyrm://do?a=bg-remove-video", "plain", "Remove your video", "Delete the video you uploaded", False)
-    opts += opt("wyrm://do?a=bg&amp;mode=none", "plain", "No background", "Plain light / dark theme", m == "none")
+    none_opt = opt("wyrm://do?a=bg&amp;mode=none", "plain", "No background", "Plain light / dark theme", m == "none")
     ivs = "".join(f"<a class='iv{' on' if mins == every else ''}' href='wyrm://do?a=bg-interval&amp;min={mins}'>{lbl}</a>"
                   for mins, lbl in BG_INTERVALS)
     sws = "".join(f"<a class='sw{' on' if m == 'color' and bgc.get('color') == k else ''}' title='{escape(label)}' "
@@ -804,6 +816,7 @@ def _customize_panel(bgc: dict, weather_on: bool = True) -> str:
                       "Show today's weather and your city on the start page", weather_on)
     return (f"<details class='cust'><summary>{pencil}Customize</summary><div class='cpanel'>"
             f"<div class='hd'><h3>Background</h3>{close}</div>{opts}"
+            f"<h4>LIVE WALLPAPERS</h4>{live}{none_opt}"
             f"<h4>CHANGE WALLPAPER EVERY</h4><div class='ivs'>{ivs}</div>"
             + ("" if m == "random" else "<p class='note'>Applies when Wyrm wallpapers is selected.</p>")
             + f"<h4>COLORS</h4><div class='sws'>{sws}</div>"
