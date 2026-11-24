@@ -339,6 +339,16 @@ class HomeMixin:
                 QTimer.singleShot(0, self._set_weather_place)  # don't block the scheme request on a dialog
             elif do == "weather-auto" and not self.ephemeral:
                 self._clear_weather_place()
+            elif do == "weather-toggle" and not self.tor:
+                on = not self.settings.value("home/weather", True, type=bool)
+                self.settings.setValue("home/weather", on)
+                self.settings.sync()
+                if on:
+                    self._start_weather()       # turned on → detect + fetch now
+                else:
+                    self._weather = None         # turned off → hide it
+                self.toast("Weather & location shown" if on else "Weather & location hidden", 3000)
+                QTimer.singleShot(0, self._refresh_home_pages)
             elif do == "sc-add" and not self.tor:
                 QTimer.singleShot(0, self._add_shortcut)  # don't block the scheme request on a dialog
             elif do == "sc-del" and not self.tor:
@@ -363,6 +373,7 @@ class HomeMixin:
                 "saved": self.library.saved(), "kev": self._kev_recent, "mode": self.mode,
                 "background": (not self.tor) and self._bg_settings()["mode"] != "none",
                 "bg": self._bg_settings(), "news": self._news,
+                "weather_on": self.settings.value("home/weather", True, type=bool),
                 "shortcuts": None if self.tor else self._shortcuts_with_icons(),
                 "weather": getattr(self, "_weather", None),
                 "vid_url": self._bg_video_url(),

@@ -640,7 +640,7 @@ def render_home(ctx: dict) -> str:
     bgc = ctx.get("bg") or {"mode": "random" if ctx.get("background") else "none"}
     bmode = bgc.get("mode", "random")
     # Customize lives outside <main>: main's entry animation would otherwise trap position:fixed inside it
-    panel = _customize_panel(bgc)
+    panel = _customize_panel(bgc, ctx.get("weather_on", True))
 
     def page(css: str, cls: str = "") -> str:
         html = _page("New tab", body, css, "home").replace("</main>", "</main>" + panel + BG_FADE_JS, 1)
@@ -696,7 +696,7 @@ BG_FADE_JS = ("<script>(function(){var b=document.body;if(!b.classList.contains(
               "var im=new Image();im.onload=im.onerror=ready;im.src=m[1];})();</script>")  # cached image: no fade
 
 
-def _customize_panel(bgc: dict) -> str:
+def _customize_panel(bgc: dict, weather_on: bool = True) -> str:
     """Bottom-right "Customize" button: a centered panel to pick the start-page background and how often the
     wallpaper changes (applied instantly, remembered). Stays open after a choice (wyrm://home#customize)."""
     m = bgc.get("mode", "random")
@@ -752,11 +752,14 @@ def _customize_panel(bgc: dict) -> str:
           "document.addEventListener('keydown',function(e){if(e.key==='Escape')d.open=false;});"
           "document.addEventListener('click',function(e){if(d.open&&!e.target.closest('.cpanel')"
           "&&!e.target.closest('summary'))d.open=false;});})();</script>")
+    weather_opt = opt("wyrm://do?a=weather-toggle", "plain", "Weather &amp; location",
+                      "Show today's weather and your city on the start page", weather_on)
     return (f"<details class='cust'><summary>{pencil}Customize</summary><div class='cpanel'>"
             f"<div class='hd'><h3>Background</h3>{close}</div>{opts}"
             f"<h4>CHANGE WALLPAPER EVERY</h4><div class='ivs'>{ivs}</div>"
             + ("" if m == "random" else "<p class='note'>Applies when Wyrm wallpapers is selected.</p>")
-            + f"<h4>COLORS</h4><div class='sws'>{sws}</div></div></details>{js}")
+            + f"<h4>COLORS</h4><div class='sws'>{sws}</div>"
+            + f"<h4>START PAGE</h4>{weather_opt}</div></details>{js}")
 
 
 # ====================================================================== paper search results
