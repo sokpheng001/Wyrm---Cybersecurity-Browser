@@ -4,7 +4,7 @@ What's new in each version of Wyrm Browser. The release workflow publishes the s
 version (from `wyrm/__init__.py`) as the release description and the in-app **Update** tooltip, so keep the
 most important points first. Each build of a version adds an "Also in this build" list automatically.
 
-## v0.6.0
+## v0.0.2
 
 - Bookmarks bar at the top, like other browsers: your shortcuts and folders (folders open a drop-down menu),
   each showing the site's own logo. Right-click it to add a bookmark or folder; toggle it from the Layout menu
