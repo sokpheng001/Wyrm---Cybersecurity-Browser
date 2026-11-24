@@ -88,7 +88,10 @@ class UpdatesMixin:
         if getattr(self, "_pending_update", None):  # already downloaded ("Later" was chosen): ask again
             self._ask_restart()
             return
-        if not self._update_info or getattr(self, "_updater", None):
+        if getattr(self, "_updater", None):
+            return  # a download is already in progress
+        if not self._update_info:
+            self._check_updates(manual=True)   # nothing cached yet → check now (so the button always does something)
             return
         self._updater = Updater(self, self._update_info)
         if not self._updater.start():

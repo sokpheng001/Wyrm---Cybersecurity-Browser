@@ -241,6 +241,9 @@ class ChromeMixin:
         self.b_menu.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.b_menu.setMenu(self._build_menu())
         self.b_menu.setStyleSheet("QToolButton::menu-indicator{image:none;width:0}")
+        # always-available "check for updates" button (neutral toolbar icon) so the user can trigger a check anytime
+        self.b_checkupd = self._tool("sync", "Check for updates", lambda: self._check_updates(True))
+        n.addWidget(self.b_checkupd)
         # "Update" pill (like Brave): hidden until a newer release is found on our GitHub Releases
         self._update_info = None
         self.b_update = QPushButton("  Update", objectName="UpdateButton")
