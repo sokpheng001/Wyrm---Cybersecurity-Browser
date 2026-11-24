@@ -81,15 +81,28 @@ class SessionMixin:
         if not self._confirm_close():
             e.ignore()
             return
+        # Flush everything that must persist, up front, so we can exit without a slow graceful teardown.
         self._save_session()
-        self._install_pending_on_close()  # "Later" update: installs now that the browser is closing
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("sec/visible", self.security.isVisible())
+        self.settings.sync()
         self.runner.shutdown()
         if getattr(self, "bg_video_server", None) is not None:
             self.bg_video_server.stop()
         if getattr(self.security, "oob", None) is not None:
             self.security.oob.shutdown()  # stop the OOB interaction listener
+        pending = getattr(self, "_pending_update", None)
+        from PySide6.QtWidgets import QApplication
+        others = [w for w in QApplication.topLevelWidgets()
+                  if w is not self and isinstance(w, type(self)) and not w.isHidden()]
+        # Fast path — the common case: a single normal window with nothing to install. Exit the process
+        # immediately instead of waiting on Qt / Qt WebEngine / background-thread teardown (that wait is what made
+        # closing feel slow compared with other browsers). All state is already flushed to disk above.
+        if not others and not pending and not self.tor and not self.ephemeral:
+            import os
+            os._exit(0)
+        if pending:
+            self._install_pending_on_close()  # "Later" update: installs now that the browser is closing
         self._ext_shutdown()  # switch extensions off first: Qt crashes tearing down profiles with them on
         self.tabbar.blockSignals(True)
         while self.tabbar.count():

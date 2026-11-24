@@ -37,3 +37,11 @@ class Runner(QObject):
 
     def shutdown(self):
         self._pool.shutdown(wait=False, cancel_futures=True)
+        # Don't let interpreter exit block on workers still mid-request (weather/news/recon can be on a 10–15s
+        # timeout): concurrent.futures joins its worker threads at exit, which makes closing the browser feel slow.
+        # Clearing this registry lets the process exit immediately; in-flight sockets are torn down by the OS.
+        try:
+            import concurrent.futures.thread as _cft
+            _cft._threads_queues.clear()
+        except Exception:  # noqa: BLE001
+            pass
