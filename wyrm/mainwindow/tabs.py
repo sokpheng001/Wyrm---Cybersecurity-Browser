@@ -219,7 +219,8 @@ class TabsMixin:
         p = theme.PALETTES[self.theme_name]
         icon = {"https": "lock", "http": "unlock"}.get(url.scheme(), "search")
         self.url_icon.setPixmap(make_icon(icon, p["error"] if icon == "unlock" else p["muted"]).pixmap(18, 18))
-        self.url_icon.setToolTip({"lock": "Secure connection (HTTPS)", "unlock": "Not secure (plain HTTP)"}.get(icon, ""))
+        self.url_icon.setToolTip({"lock": "Secure connection (HTTPS) — click to view the certificate",
+                                  "unlock": "Not secure (plain HTTP)"}.get(icon, ""))
         h = v.history()
         self.b_back.setEnabled(h.canGoBack())
         self.b_fwd.setEnabled(h.canGoForward())

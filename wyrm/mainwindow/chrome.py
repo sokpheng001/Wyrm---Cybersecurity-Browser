@@ -173,6 +173,8 @@ class ChromeMixin:
         self.url_icon = QLabel(self.urlbar, objectName="UrlIcon")
         self.url_icon.setFixedSize(20, 20)
         self.url_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.url_icon.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.url_icon.installEventFilter(self)   # click the lock to view the HTTPS certificate
         self.urlbar.installEventFilter(self)
         n.addWidget(self.urlbar, 1, Qt.AlignmentFlag.AlignVCenter)
         self.scope_badge = QLabel(objectName="ScopeBadge")
@@ -372,6 +374,116 @@ class ChromeMixin:
                 menu.insertAction(acts[0] if acts else None, go)
         menu.exec(self.urlbar.mapToGlobal(pos))
 
+    # ---------------------------------------------------------------- HTTPS certificate viewer (click the lock)
+    def _show_certificate(self):
+        v = self.current_view()
+        if not v:
+            return
+        url = v.url()
+        if url.scheme() != "https":
+            self.toast("This page isn't served over HTTPS — there's no certificate to show.", 4000)
+            return
+        if self.tor:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Certificate",
+                                    "Certificate inspection is turned off in Tor windows: it needs a direct "
+                                    "connection to the site, which would reveal your real IP and break Tor.")
+            return
+        host, port = url.host(), url.port(443)
+        if not host:
+            return
+        self.toast(f"Fetching certificate for {host}…", 2500)
+        self.runner.run(lambda: self._fetch_cert(host, port),
+                        lambda ok, res: self._show_cert_dialog(host, ok, res))
+
+    @staticmethod
+    def _fetch_cert(host: str, port: int) -> dict:
+        """Open a direct TLS connection and return the server certificate's details for display. We don't verify
+        (CERT_NONE) on purpose — a pentester wants to SEE an invalid/expired/self-signed cert, not be blocked."""
+        import socket
+        import ssl
+        from datetime import datetime, timezone
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        with socket.create_connection((host, port), timeout=8) as s:
+            with ctx.wrap_socket(s, server_hostname=host) as ss:
+                der = ss.getpeercert(binary_form=True)
+                tlsver, cipher = ss.version(), ss.cipher()
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec, rsa
+        c = x509.load_der_x509_certificate(der)
+
+        def attr(name, oid):
+            try:
+                return name.get_attributes_for_oid(oid)[0].value
+            except Exception:  # noqa: BLE001
+                return ""
+        nvb = getattr(c, "not_valid_before_utc", None) or c.not_valid_before
+        nva = getattr(c, "not_valid_after_utc", None) or c.not_valid_after
+        if nvb.tzinfo is None:
+            nvb = nvb.replace(tzinfo=timezone.utc)
+        if nva.tzinfo is None:
+            nva = nva.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        status = ("Not yet valid" if now < nvb else "EXPIRED" if now > nva
+                  else f"Valid — {(nva - now).days} day(s) left")
+        try:
+            sans = c.extensions.get_extension_for_class(x509.SubjectAlternativeName).value \
+                .get_values_for_type(x509.DNSName)
+        except Exception:  # noqa: BLE001
+            sans = []
+        pk = c.public_key()
+        key = (f"RSA {pk.key_size}-bit" if isinstance(pk, rsa.RSAPublicKey)
+               else f"EC {pk.curve.name}" if isinstance(pk, ec.EllipticCurvePublicKey)
+               else type(pk).__name__.replace("PublicKey", ""))
+        fp = c.fingerprint(hashes.SHA256()).hex().upper()
+        fp = ":".join(fp[i:i + 2] for i in range(0, len(fp), 2))
+        try:
+            sig = c.signature_algorithm_oid._name
+        except Exception:  # noqa: BLE001
+            sig = ""
+        return {"subject_cn": attr(c.subject, x509.NameOID.COMMON_NAME) or c.subject.rfc4514_string(),
+                "issuer_cn": attr(c.issuer, x509.NameOID.COMMON_NAME),
+                "issuer_org": attr(c.issuer, x509.NameOID.ORGANIZATION_NAME),
+                "not_before": nvb.strftime("%Y-%m-%d %H:%M UTC"), "not_after": nva.strftime("%Y-%m-%d %H:%M UTC"),
+                "status": status, "sans": sans, "serial": format(c.serial_number, "x"), "sig": sig, "key": key,
+                "fp": fp, "tls": tlsver or "", "cipher": (cipher[0] if cipher else ""),
+                "pem": c.public_bytes(serialization.Encoding.PEM).decode()}
+
+    def _show_cert_dialog(self, host, ok, res):
+        from html import escape
+        from PySide6.QtWidgets import QMessageBox
+        if not ok or not isinstance(res, dict):
+            QMessageBox.warning(self, "Certificate", f"Couldn't fetch the certificate for {host}:\n{res}")
+            return
+        r = res
+        bad = r["status"].startswith(("EXPIRED", "Not yet"))
+        status = f"<span style='color:{'#da1e28' if bad else '#0e6027'}'><b>{escape(r['status'])}</b></span>"
+        issuer = " · ".join(x for x in (r["issuer_org"], r["issuer_cn"]) if x) or "—"
+        sans = ", ".join(r["sans"][:15]) + (" …" if len(r["sans"]) > 15 else "")
+        rows = (("Issued by", issuer), ("Status", status), ("Valid", f"{r['not_before']} → {r['not_after']}"),
+                ("Alt names", sans or "—"), ("Key", r["key"]), ("Signature", r["sig"]), ("Serial", r["serial"]),
+                ("Connection", f"{r['tls']} · {r['cipher']}"))
+        body = "<table cellpadding=3>" + "".join(
+            f"<tr><td valign=top><b>{escape(k)}</b></td><td>{v if k == 'Status' else escape(str(v))}</td></tr>"
+            for k, v in rows)
+        body += (f"<tr><td valign=top><b>SHA-256</b></td>"
+                 f"<td style='font-family:monospace;font-size:11px'>{escape(r['fp'])}</td></tr></table>")
+        box = QMessageBox(self)
+        box.setWindowTitle(f"Certificate — {host}")
+        box.setTextFormat(Qt.TextFormat.RichText)
+        box.setText(f"<b>{escape(r['subject_cn'])}</b>")
+        box.setInformativeText(body)
+        copy = box.addButton("Copy PEM", QMessageBox.ButtonRole.ActionRole)
+        box.addButton(QMessageBox.StandardButton.Close)
+        box.exec()
+        if box.clickedButton() is copy:
+            from PySide6.QtGui import QGuiApplication
+            QGuiApplication.clipboard().setText(r["pem"])
+            self.toast("Certificate PEM copied to clipboard", 3000)
+
     # ---------------------------------------------------------------- left sidebars (tool rail + vertical tabs)
     def _toggle_toolrail(self):
         vis = self.toolrail.isHidden()   # isHidden() is reliable regardless of whether the window is shown yet
@@ -510,6 +622,10 @@ class ChromeMixin:
     def eventFilter(self, obj, ev):
         if obj is getattr(self, "urlbar", None) and ev.type() == QEvent.Type.Resize:
             self.url_icon.move(11, (self.urlbar.height() - self.url_icon.height()) // 2)
+        elif obj is getattr(self, "url_icon", None) and ev.type() == QEvent.Type.MouseButtonPress \
+                and ev.button() == Qt.MouseButton.LeftButton:
+            self._show_certificate()
+            return True
         elif obj is getattr(self, "security", None) and ev.type() == QEvent.Type.Resize:
             if not getattr(self, "_window_resizing", False):
                 self._panel_ratio_timer.start()
