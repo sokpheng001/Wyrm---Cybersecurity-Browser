@@ -265,7 +265,8 @@ class SettingsDialog(QDialog):
         self.ai_key.setEchoMode(QLineEdit.EchoMode.Password)
         self.ai_key.setPlaceholderText("API key (kept only on this device)")
         self._row(lay, "API key", self.ai_key, "ai triage llm key")
-        self.ai_model = QLineEdit(self.settings.value("ai/model", "kim-modeling-sp-001", type=str))
+        self.ai_model = QLineEdit(self.settings.value("ai/model", "", type=str))
+        self.ai_model.setPlaceholderText("Model name (e.g. your provider's model id)")
         self._row(lay, "Model", self.ai_model, "ai triage llm model")
         self._note(lay, "Powers the human-in-the-loop AI Triage tool (Tools → AI Triage). Non-destructive, "
                         "scope-gated. Leave blank to disable.")
@@ -290,7 +291,7 @@ class SettingsDialog(QDialog):
         self._row(lay, "DNS provider", self.doh_prov, "dns provider cloudflare")
         self._section(lay, "Shields")
         for key, label in (("ads", "Block ads"), ("trackers", "Block trackers"),
-                           ("malware", "Block malware & phishing sites"), ("linkguard", "Smart Link Check"),
+                           ("malware", "Block malware && phishing sites"), ("linkguard", "Smart Link Check"),
                            ("antifp", "Resist fingerprinting"), ("popups", "Block ad pop-ups"),
                            ("params", "Strip tracking parameters"), ("youtube", "Remove YouTube ads")):
             cb = QCheckBox(label)
@@ -299,7 +300,7 @@ class SettingsDialog(QDialog):
             self._row(lay, "", cb, "shields block privacy")
         self._section(lay, "Intercepting proxy")
         self._note(lay, "Capture full HTTPS requests and responses (with bodies) and edit responses, in Security "
-                        "panel → Proxy. It installs a local certificate and restarts Wyrm. Developers: Kwan, Oda.")
+                        "panel → Proxy. It installs a local certificate and restarts Wyrm.")
         self._section(lay, "Location")
         self.geo_mode = QComboBox()
         for key, label in (("off", "Normal — let sites ask for my real location"),
@@ -373,7 +374,7 @@ class SettingsDialog(QDialog):
         s.setValue("general/restore_tabs", self.restore_tabs.isChecked())
         s.setValue("sec/auto", self.autoanalyze.isChecked())
         s.setValue("ai/api_key", self.ai_key.text().strip())
-        s.setValue("ai/model", self.ai_model.text().strip() or "kim-modeling-sp-001")
+        s.setValue("ai/model", self.ai_model.text().strip())
         s.setValue("privacy/https_only", self.https_only.isChecked())
         s.setValue("privacy/geo_mode", self.geo_mode.currentData())
         s.setValue("privacy/geo_lat", self.geo_lat.text().strip())
