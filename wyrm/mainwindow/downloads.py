@@ -12,7 +12,7 @@ import subprocess
 import sys
 from html import escape
 
-from PySide6.QtCore import QPoint, QSize, Qt
+from PySide6.QtCore import QPoint, QSize, Qt, QUrl
 from PySide6.QtWidgets import (QFrame, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QProgressBar, QPushButton,
                                QScrollArea, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
@@ -43,6 +43,22 @@ def _show_in_folder(path):
             subprocess.Popen(["xdg-open", os.path.dirname(path)])
     except OSError:
         pass
+
+
+# files Wyrm can preview in a tab (Chromium's built-in PDF viewer / native image rendering)
+PREVIEWABLE_EXTS = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".avif"}
+
+
+def _is_previewable(path: str) -> bool:
+    return os.path.splitext(path or "")[1].lower() in PREVIEWABLE_EXTS
+
+
+def _preview_in_tab(win, path: str):
+    """Open a downloaded PDF or image in a new Wyrm tab (built-in viewer), no external app needed."""
+    if not (path and os.path.isfile(path)):
+        win.toast("That file is no longer there — it may have been moved or deleted.", 6000)
+        return
+    win.open_url(QUrl.fromLocalFile(path).toString(), new_tab=True)
 
 
 class DownloadsMixin:
@@ -354,6 +370,10 @@ class DownloadsHistoryWindow(QWidget):
 
         row = QHBoxLayout()
         row.addStretch(1)
+        b_prev = QPushButton("Preview")
+        b_prev.setToolTip("Open a PDF or image in a Wyrm tab")
+        b_prev.clicked.connect(self._preview)
+        row.addWidget(b_prev)
         b_open = QPushButton("Open")
         b_open.clicked.connect(lambda: self._open_item(self.tree.currentItem()))
         row.addWidget(b_open)
@@ -361,6 +381,16 @@ class DownloadsHistoryWindow(QWidget):
         b_folder.clicked.connect(self._show_in_folder)
         row.addWidget(b_folder)
         v.addLayout(row)
+
+    def _preview(self):
+        it = self.tree.currentItem()
+        rec = it.data(0, Qt.ItemDataRole.UserRole) if it else None
+        if not rec:
+            return
+        if _is_previewable(rec.get("path", "")):
+            _preview_in_tab(self.win, rec["path"])
+        else:
+            self.win.toast("Preview supports PDFs and images. Use Open for other files.", 5000)
 
     def reload(self):
         self.tree.clear()
@@ -574,8 +604,12 @@ class DownloadsPopup(QWidget):
             status.setWordWrap(True)
             v.addWidget(status)
             if rec["state"] == "done":
-                for label, fn in (("Open", lambda _c=False, p=rec["path"]: self._open(p)),
-                                  ("Show in folder", lambda _c=False, p=rec["path"]: _show_in_folder(p))):
+                actions = []
+                if _is_previewable(rec["path"]):
+                    actions.append(("Preview", lambda _c=False, p=rec["path"]: _preview_in_tab(self.win, p)))
+                actions += [("Open", lambda _c=False, p=rec["path"]: self._open(p)),
+                            ("Show in folder", lambda _c=False, p=rec["path"]: _show_in_folder(p))]
+                for label, fn in actions:
                     b = QPushButton(label)
                     b.setCursor(Qt.CursorShape.PointingHandCursor)
                     b.clicked.connect(fn)
