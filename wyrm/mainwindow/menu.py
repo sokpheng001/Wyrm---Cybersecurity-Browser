@@ -23,6 +23,7 @@ class MenuMixin:
     def _build_menu(self) -> QMenu:
         m = QMenu(self)
         m.addAction("New tab", self._new_tab_focus, QKeySequence("Ctrl+T"))
+        m.addAction("New window", self.open_new_window, QKeySequence("Ctrl+N"))
         a = m.addAction("New Tor window", self.open_tor_window, QKeySequence("Ctrl+Alt+N"))
         a.setEnabled(not self.tor)
         # shortcut lives on the window (works with the menu closed); label shows it the OS's way (⇧⌘N / Ctrl+Shift+N)
@@ -71,6 +72,21 @@ class MenuMixin:
         a.setEnabled(not self.tor)
         em = m.addMenu("Extensions")
         em.aboutToShow.connect(lambda menu=em: self._ext_fill_menu(menu))
+        m.addAction("Downloads   Ctrl+J", self.show_downloads)
+        # Tools (shortcuts shown in the labels; the keys themselves are bound on the window, so not re-bound here)
+        tools = m.addMenu("More tools")
+        tools.addAction("Find in page   Ctrl+F", self._show_find)
+        tools.addAction("Zoom in", lambda: self._zoom(0.1))
+        tools.addAction("Zoom out", lambda: self._zoom(-0.1))
+        tools.addAction("Reset zoom", lambda: self._zoom(0))
+        tools.addAction("Full screen   F11", self._toggle_fullscreen)
+        tools.addSeparator()
+        tools.addAction("Print…   Ctrl+P", self._print_page)
+        tools.addAction("Save page as…", self._save_page)
+        tools.addAction("View page source   Ctrl+U",
+                        lambda: self.current_view() and self.open_url("view-source:"
+                        + self.current_view().url().toString(), new_tab=True))
+        tools.addAction("Developer tools   F12", lambda: self.inspect(element=False))
         m.addSeparator()
         m.addAction("Help — how to use Wyrm (F1)", self.open_help)
         # Update item shows a count when an update is available/downloaded, and refreshes each time the menu opens.
