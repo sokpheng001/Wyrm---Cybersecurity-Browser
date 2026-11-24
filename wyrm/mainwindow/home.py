@@ -234,6 +234,10 @@ class HomeMixin:
                 self._remove_background_image()
             elif do == "bg-remove-video" and not self.tor:
                 self._remove_background_video()
+            elif do == "weather-place" and not self.ephemeral:
+                QTimer.singleShot(0, self._set_weather_place)  # don't block the scheme request on a dialog
+            elif do == "weather-auto" and not self.ephemeral:
+                self._clear_weather_place()
             return None
         host, url = params.get("host", ""), params.get("url", "")
         if action == "allow-threat" and host:
@@ -285,13 +289,62 @@ class HomeMixin:
                 self.toast(f"Updated {res[0]} security tool(s) to the latest ProjectDiscovery release", 6000)
         self.runner.run(work, done)
 
+    def _weather_place(self) -> dict | None:
+        """The city the user set manually (overrides IP geolocation), or None to auto-detect from the IP."""
+        import json
+        raw = self.settings.value("home/weather_place", "", type=str)
+        if not raw:
+            return None
+        try:
+            p = json.loads(raw)
+            if p.get("lat") is not None and p.get("lon") is not None:
+                return p
+        except (ValueError, TypeError):
+            pass
+        return None
+
     def _fetch_weather(self):
         # location + weather for the start page; off in private/Tor and when the user disables it. We try even if
         # reachability reports "offline" (it misreports on some systems) — a real offline machine just fails quietly.
         if self.ephemeral or not self.settings.value("home/weather", True, type=bool):
             return
         from .. import homeinfo
-        self.runner.run(lambda: homeinfo.fetch(self.proxies(), self.verify_tls()), self._weather_ready)
+        place = self._weather_place()
+        self.runner.run(lambda: homeinfo.fetch(self.proxies(), self.verify_tls(), place), self._weather_ready)
+
+    def _set_weather_place(self):
+        """Ask the user for a city and pin the start-page weather there (IP geolocation points at the ISP, not you)."""
+        from PySide6.QtWidgets import QInputDialog
+        import json
+        cur = self._weather_place() or {}
+        text, ok = QInputDialog.getText(self, "Set your location",
+                                        "City (e.g. Busan, Seoul, New York) — leave empty to detect from your IP:",
+                                        text=cur.get("city", ""))
+        if not ok:
+            return
+        text = text.strip()
+        if not text:
+            self._clear_weather_place()
+            return
+
+        def done(ok2, g):
+            if not ok2 or not g:
+                self.toast(f"Couldn't find “{text}”. Try a nearby bigger city.", 5000)
+                return
+            self.settings.setValue("home/weather_place", json.dumps(g))
+            self.settings.sync()
+            label = ", ".join(x for x in (g.get("city"), g.get("country")) if x) or text
+            self.toast(f"Weather set to {label}", 4000)
+            self._fetch_weather()
+        from .. import homeinfo
+        self.runner.run(lambda: homeinfo.geocode(text, self.proxies(), self.verify_tls()), done)
+
+    def _clear_weather_place(self):
+        self.settings.remove("home/weather_place")
+        self.settings.sync()
+        self._weather = None
+        self.toast("Weather will follow your IP location", 4000)
+        self._fetch_weather()
 
     def _weather_ready(self, ok, result):
         if ok and result:

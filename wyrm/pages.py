@@ -229,7 +229,8 @@ main.home{max-width:760px;padding-top:7vh;text-align:center}
 .infobar .wx{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--fg)}
 .infobar .wx .emoji{font-size:22px;line-height:1}
 .infobar .wx .temp{font-weight:600}
-.infobar .wx .loc{color:var(--muted);font-size:13px}
+.infobar .wx .loc{color:var(--muted);font-size:13px;text-decoration:none;cursor:pointer}
+.infobar .wx .loc:hover{text-decoration:underline}
 body.hasbg .infobar .clock,body.hasbg .infobar .wx{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
 body.hasbg .infobar .date,body.hasbg .infobar .wx .loc{color:rgba(255,255,255,.85);text-shadow:0 1px 3px rgba(0,0,0,.5)}
 form.big{max-width:620px;margin:0 auto;position:relative;display:block}
@@ -514,17 +515,29 @@ def render_home(ctx: dict) -> str:
                    + (f"<span class='emoji'>{escape(wx.get('emoji', ''))}</span>" if wx.get("emoji") else "")
                    + (f"<span class='temp'>{escape(temp)}</span>" if temp else "")
                    + (f"<span>{escape(wx.get('desc', ''))}</span>" if wx.get("desc") else "")
-                   + (f"<span class='loc'>· {escape(loc)}</span>" if loc else "")
+                   + (f"<a class='loc' href='wyrm://do?a=weather-place' "
+                      f"title='Wrong place? Click to set your city (weather is detected from your IP)'>"
+                      f"· {escape(loc)} ✎</a>" if loc else
+                      "<a class='loc' href='wyrm://do?a=weather-place' title='Set your city'>· Set location</a>")
                    + "</div>")
     infobar = ("<div class='infobar'><div class='blk'><span class='clock' id='wyrm-clock'>--:--</span>"
                "<span class='date' id='wyrm-date'></span></div>"
                + ("<div class='sep'></div>" + wx_html if wx_html else "")
                + "</div>"
-               "<script>(function(){function p(n){return(n<10?'0':'')+n;}function t(){var d=new Date();"
+               "<script>(function(){var KEY='wyrm.clock12',mem=null;"
+               "function g(){if(mem!==null)return mem;try{return localStorage.getItem(KEY)==='1';}catch(e){return false;}}"
+               "function s(v){mem=v;try{localStorage.setItem(KEY,v?'1':'0');}catch(e){}}"
+               "function p(n){return(n<10?'0':'')+n;}function t(){var d=new Date();"
                "var c=document.getElementById('wyrm-clock');if(!c)return;"
-               "c.textContent=p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());"
+               "var h=d.getHours(),m=p(d.getMinutes()),ss=p(d.getSeconds());"
+               "if(g()){var ap=h<12?' AM':' PM',hh=h%12;if(hh===0)hh=12;c.textContent=hh+':'+m+':'+ss+ap;}"
+               "else{c.textContent=p(h)+':'+m+':'+ss;}"
                "document.getElementById('wyrm-date').textContent=d.toLocaleDateString(undefined,"
-               "{weekday:'long',year:'numeric',month:'long',day:'numeric'});}t();setInterval(t,1000);})();</script>")
+               "{weekday:'long',year:'numeric',month:'long',day:'numeric'});}"
+               "var c0=document.getElementById('wyrm-clock');"
+               "if(c0){c0.style.cursor='pointer';c0.title='Click to switch between 24-hour and AM/PM';"
+               "c0.addEventListener('click',function(){s(!g());t();});}"
+               "t();setInterval(t,1000);})();</script>")
     mode = ctx.get("mode", "blue")
     mode_line = (f"<p class='modeline {mode}'>"
                  + ("<b>Red team</b> · offensive — recon, test and report. Authorized targets only."

@@ -55,10 +55,41 @@ def _geolocate(proxies, verify) -> dict | None:
     return None
 
 
-def fetch(proxies=None, verify=True) -> dict | None:
-    """{city, region, country, lat, lon, temp_c, code, is_day, emoji, desc} or None if it can't be fetched."""
+def geocode(query: str, proxies=None, verify=True) -> dict | None:
+    """Look up a place the user typed (e.g. "Busan") -> {city, region, country, lat, lon}, via Open-Meteo's
+    keyless geocoding API. Used to let the user set their location manually when IP geolocation is wrong
+    (IP points at the ISP/exit, not the user)."""
     import requests
-    loc = _geolocate(proxies, verify)
+    q = (query or "").strip()
+    if not q:
+        return None
+    try:
+        r = requests.get("https://geocoding-api.open-meteo.com/v1/search", headers=UA, timeout=10,
+                         proxies=proxies, verify=verify,
+                         params={"name": q, "count": 1, "language": "en", "format": "json"})
+        r.raise_for_status()
+        res = (r.json() or {}).get("results") or []
+        if not res:
+            return None
+        g = res[0]
+        if g.get("latitude") is None or g.get("longitude") is None:
+            return None
+        return {"city": g.get("name") or "", "region": g.get("admin1") or "",
+                "country": g.get("country") or "", "lat": g["latitude"], "lon": g["longitude"]}
+    except (requests.RequestException, ValueError, TypeError):
+        return None
+
+
+def fetch(proxies=None, verify=True, place: dict | None = None) -> dict | None:
+    """{city, region, country, lat, lon, temp_c, code, is_day, emoji, desc} or None if it can't be fetched.
+
+    When `place` (a {city, country, lat, lon} the user set manually) is given, use it instead of IP geolocation."""
+    import requests
+    if place and place.get("lat") is not None and place.get("lon") is not None:
+        loc = {"city": place.get("city", ""), "region": place.get("region", ""),
+               "country": place.get("country", ""), "lat": place["lat"], "lon": place["lon"]}
+    else:
+        loc = _geolocate(proxies, verify)
     if loc is None:
         return None
     lat, lon = loc["lat"], loc["lon"]
