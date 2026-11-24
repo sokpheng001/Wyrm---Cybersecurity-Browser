@@ -286,6 +286,23 @@ form.big{max-width:620px;margin:0 auto;position:relative;display:block}
 .scgrid .sclink:hover,.scgrid .scadd:hover{background:var(--hover);text-decoration:none}
 .scgrid .scico{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:600}
 .scgrid img.scico{object-fit:contain;background:#fff;padding:9px}
+.scgrid button.sclink{border:0;background:none;font:inherit;cursor:pointer}
+/* folder tile: a 2x2 mini-grid of the first items */
+.scgrid .scico.fold{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:3px;padding:7px;background:var(--layer2)}
+.scgrid .scico.fold img,.scgrid .scico.fold span{width:100%;height:100%;border-radius:4px;object-fit:contain;background:#fff;color:#fff;font-size:8px;font-weight:600;display:flex;align-items:center;justify-content:center}
+/* folder popover */
+.scgrid .scpop{display:none;position:absolute;top:92px;left:50%;transform:translateX(-50%);z-index:20;min-width:210px;max-height:300px;overflow:auto;background:var(--layer);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.3);padding:6px;text-align:left}
+.scgrid .scpop.open{display:block}
+.scpop .pi{display:flex;align-items:center}
+.scpop .pi>a{display:flex;align-items:center;gap:8px;flex:1;min-width:0;padding:6px 8px;border-radius:8px;color:var(--fg);font-size:13px}
+.scpop .pi>a:hover{background:var(--hover);text-decoration:none}
+.scpop .pi>a>:first-child{width:18px;height:18px;flex:0 0 18px;border-radius:4px;object-fit:contain;background:#fff;color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.scpop .pi>a>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scpop .pidel{padding:6px 8px;color:var(--muted);border-radius:8px}
+.scpop .pidel:hover{background:var(--error);color:#fff;text-decoration:none}
+.scpop .piadd{display:block;padding:7px 8px;color:var(--link);border-radius:8px;font-size:13px}
+.scpop .piadd:hover{background:var(--hover);text-decoration:none}
+body.hasbg .scgrid .scpop{color:var(--fg)}
 .scgrid .scico.add{background:var(--layer2);color:var(--muted);font-weight:300;font-size:26px}
 .scgrid .sct{font-size:12px;max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .scgrid .scdel{position:absolute;top:0;right:4px;width:20px;height:20px;border-radius:50%;background:var(--layer2);color:var(--muted);display:none;align-items:center;justify-content:center;font-size:15px;line-height:1}
@@ -535,25 +552,56 @@ def render_home(ctx: dict) -> str:
     sc_list = ctx.get("shortcuts")
     shortcuts_html = ""
     if sc_list is not None:
+        def _mini(it):   # small icon for popovers / folder grid: the favicon, else a coloured letter
+            ic = it.get("icon") or ""
+            if ic:
+                return f"<img src='{escape(ic, quote=True)}' alt=''>"
+            d = _sc_domain(it.get("url", ""))
+            letter = next((c for c in d if c.isalnum()), "?").upper()
+            return f"<span style='background:hsl({sum(ord(c) for c in d) % 360},52%,45%)'>{escape(letter)}</span>"
+
+        def _tile_icon(it):   # 48px tile icon for a single link
+            ic = it.get("icon") or ""
+            if ic:
+                return f"<img class='scico' src='{escape(ic, quote=True)}' alt=''>"
+            d = _sc_domain(it.get("url", ""))
+            letter = next((c for c in d if c.isalnum()), "?").upper()
+            return f"<span class='scico' style='background:hsl({sum(ord(c) for c in d) % 360},52%,45%)'>{escape(letter)}</span>"
+
         sc_tiles = ""
         for i, s in enumerate(sc_list):
-            u = s.get("url", "")
-            dom = _sc_domain(u)
-            title = s.get("title") or dom or u
-            icon = s.get("icon") or ""
-            if icon:
-                ico_html = f"<img class='scico' src='{escape(icon, quote=True)}' alt=''>"
+            if s.get("is_folder") or isinstance(s.get("items"), list):
+                items = s.get("items") or []
+                name = s.get("title") or "Folder"
+                grid = "".join(_mini(it) for it in items[:4])
+                pop = "".join(
+                    f"<div class='pi'><a href='{escape(it.get('url', ''), quote=True)}'>{_mini(it)}"
+                    f"<span>{escape(it.get('title') or _sc_domain(it.get('url', '')))}</span></a>"
+                    f"<a class='pidel' href='wyrm://do?a=sc-del-in&amp;f={i}&amp;i={j}' title='Remove'>&times;</a></div>"
+                    for j, it in enumerate(items))
+                pop += f"<a class='piadd' href='wyrm://do?a=sc-add-to&amp;f={i}'>+ Add site to this folder</a>"
+                sc_tiles += (f"<div class='sc'>"
+                             f"<button class='sclink' type='button' onclick='wyrmFold(this)'>"
+                             f"<span class='scico fold'>{grid}</span><span class='sct'>{escape(name)}</span></button>"
+                             f"<a class='scdel' href='wyrm://do?a=sc-del&amp;i={i}' title='Remove folder'>&times;</a>"
+                             f"<div class='scpop'>{pop}</div></div>")
             else:
-                letter = next((c for c in dom if c.isalnum()), "?").upper()
-                hue = sum(ord(c) for c in dom) % 360
-                ico_html = f"<span class='scico' style='background:hsl({hue},52%,45%)'>{escape(letter)}</span>"
-            sc_tiles += (f"<div class='sc'><a class='sclink' href='{escape(u, quote=True)}' title='{escape(u, quote=True)}'>"
-                         f"{ico_html}"
-                         f"<span class='sct'>{escape(title)}</span></a>"
-                         f"<a class='scdel' href='wyrm://do?a=sc-del&amp;i={i}' title='Remove shortcut'>&times;</a></div>")
-        shortcuts_html = ("<div class='scgrid'>" + sc_tiles
-                          + "<a class='sc scadd' href='wyrm://do?a=sc-add' title='Add a shortcut'>"
-                            "<span class='scico add'>+</span><span class='sct'>Add</span></a></div>")
+                u = s.get("url", "")
+                title = s.get("title") or _sc_domain(u) or u
+                sc_tiles += (f"<div class='sc'><a class='sclink' href='{escape(u, quote=True)}' title='{escape(u, quote=True)}'>"
+                             f"{_tile_icon(s)}<span class='sct'>{escape(title)}</span></a>"
+                             f"<a class='scdel' href='wyrm://do?a=sc-del&amp;i={i}' title='Remove shortcut'>&times;</a></div>")
+        add = ("<a class='sc scadd' href='wyrm://do?a=sc-add' title='Add a shortcut'>"
+               "<span class='scico add'>+</span><span class='sct'>Add</span></a>"
+               "<a class='sc scadd' href='wyrm://do?a=sc-folder' title='Create a folder'>"
+               "<span class='scico add'>&#128193;</span><span class='sct'>New folder</span></a>")
+        fold_js = ("<script>function wyrmFold(b){var p=b.parentNode.querySelector('.scpop'),"
+                   "open=p.classList.contains('open');"
+                   "document.querySelectorAll('.scpop.open').forEach(function(x){x.classList.remove('open');});"
+                   "if(!open)p.classList.add('open');}"
+                   "document.addEventListener('click',function(e){if(!e.target.closest('.sc'))"
+                   "document.querySelectorAll('.scpop.open').forEach(function(x){x.classList.remove('open');});});</script>")
+        shortcuts_html = f"<div class='scgrid'>{sc_tiles}{add}</div>{fold_js}"
     feed = ""
     kev = ctx.get("kev") or []
     if kev:

@@ -211,9 +211,12 @@ class HomeMixin:
             return [dict(s) for s in self.DEFAULT_SHORTCUTS]
         try:
             v = json.loads(raw) if isinstance(raw, str) else raw
-            return [s for s in v if isinstance(s, dict) and s.get("url")] if isinstance(v, list) else []
         except (ValueError, TypeError):
             return []
+        if not isinstance(v, list):
+            return []
+        # an entry is a link {url,title} or a folder {title, items:[...]}
+        return [s for s in v if isinstance(s, dict) and (s.get("url") or isinstance(s.get("items"), list))]
 
     def _save_shortcuts(self, lst: list):
         import json
@@ -224,7 +227,15 @@ class HomeMixin:
 
     def _shortcuts_with_icons(self) -> list:
         from .. import pages
-        return [{**s, "icon": self._shortcut_icon(pages._sc_domain(s.get("url", "")))} for s in self._shortcuts()]
+        out = []
+        for s in self._shortcuts():
+            if isinstance(s.get("items"), list):   # folder
+                items = [{**it, "icon": self._shortcut_icon(pages._sc_domain(it.get("url", "")))}
+                         for it in s["items"] if it.get("url")]
+                out.append({"title": s.get("title", ""), "items": items, "is_folder": True})
+            else:
+                out.append({**s, "icon": self._shortcut_icon(pages._sc_domain(s.get("url", "")))})
+        return out
 
     def _shortcut_icon_dir(self):
         return self.data_dir / "shortcut_icons"
@@ -248,11 +259,19 @@ class HomeMixin:
         if self.ephemeral:
             return
         from .. import homeinfo, pages
-        want = []
+        want, seen = [], set()
+
+        def consider(url):
+            dom = pages._sc_domain(url or "")
+            if dom and dom not in seen and not (self._shortcut_icon_dir() / (dom + ".img")).exists():
+                seen.add(dom)
+                want.append((dom, url))
         for s in self._shortcuts():
-            dom = pages._sc_domain(s.get("url", ""))
-            if dom and not (self._shortcut_icon_dir() / (dom + ".img")).exists():
-                want.append((dom, s["url"]))
+            if isinstance(s.get("items"), list):
+                for it in s["items"]:
+                    consider(it.get("url", ""))
+            else:
+                consider(s.get("url", ""))
         if not want:
             return
         px, verify = self.proxies(), self.verify_tls()
@@ -289,6 +308,39 @@ class HomeMixin:
         lst = self._shortcuts()
         if 0 <= i < len(lst):
             lst.pop(i)
+            self._save_shortcuts(lst)
+
+    def _add_folder(self):
+        from PySide6.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(self, "New folder", "Folder name:")
+        if not ok or not name.strip():
+            return
+        lst = self._shortcuts()
+        lst.append({"title": name.strip(), "items": []})
+        self._save_shortcuts(lst)
+
+    def _add_to_folder(self, f: int):
+        from PySide6.QtWidgets import QInputDialog
+        from .. import pages
+        lst = self._shortcuts()
+        if not (0 <= f < len(lst)) or not isinstance(lst[f].get("items"), list):
+            return
+        url, ok = QInputDialog.getText(self, "Add to folder", "Website address (e.g. example.com):")
+        if not ok or not url.strip():
+            return
+        url = url.strip()
+        if "://" not in url:
+            url = "https://" + url
+        title, ok = QInputDialog.getText(self, "Add to folder", "Name:", text=pages._sc_domain(url))
+        if not ok:
+            return
+        lst[f]["items"].append({"title": title.strip() or pages._sc_domain(url), "url": url})
+        self._save_shortcuts(lst)
+
+    def _del_in_folder(self, f: int, i: int):
+        lst = self._shortcuts()
+        if 0 <= f < len(lst) and isinstance(lst[f].get("items"), list) and 0 <= i < len(lst[f]["items"]):
+            lst[f]["items"].pop(i)
             self._save_shortcuts(lst)
 
     def scheme_action(self, action: str, params: dict) -> str | None:
@@ -351,9 +403,23 @@ class HomeMixin:
                 QTimer.singleShot(0, self._refresh_home_pages)
             elif do == "sc-add" and not self.tor:
                 QTimer.singleShot(0, self._add_shortcut)  # don't block the scheme request on a dialog
+            elif do == "sc-folder" and not self.tor:
+                QTimer.singleShot(0, self._add_folder)
+            elif do == "sc-add-to" and not self.tor:
+                try:
+                    f = int(params.get("f", "-1"))
+                except ValueError:
+                    f = -1
+                if f >= 0:
+                    QTimer.singleShot(0, lambda f=f: self._add_to_folder(f))
             elif do == "sc-del" and not self.tor:
                 try:
                     self._del_shortcut(int(params.get("i", "-1")))
+                except ValueError:
+                    pass
+            elif do == "sc-del-in" and not self.tor:
+                try:
+                    self._del_in_folder(int(params.get("f", "-1")), int(params.get("i", "-1")))
                 except ValueError:
                     pass
             return None
