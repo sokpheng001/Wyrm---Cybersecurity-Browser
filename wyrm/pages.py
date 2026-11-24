@@ -589,9 +589,11 @@ def render_home(ctx: dict) -> str:
                 continue   # folders live on the top bookmarks bar, not the start-page grid
             u = s.get("url", "")
             title = s.get("title") or _sc_domain(u) or u
+            from urllib.parse import quote
             sc_tiles += (f"<div class='sc'><a class='sclink' href='{escape(u, quote=True)}' title='{escape(u, quote=True)}'>"
                          f"{_tile_icon(s)}<span class='sct'>{escape(title)}</span></a>"
-                         f"<a class='scdel' href='wyrm://do?a=sc-del&amp;i={i}' title='Remove shortcut'>&times;</a></div>")
+                         f"<a class='scdel' href='wyrm://do?a=sc-del-url&amp;u={quote(u, safe='')}' "
+                         f"onclick=\"this.closest('.sc').remove()\" title='Remove shortcut'>&times;</a></div>")
         shortcuts_html = ("<div class='scgrid'>" + sc_tiles
                           + "<a class='sc scadd' href='wyrm://do?a=sc-add' title='Add a shortcut'>"
                             "<span class='scico add'>+</span><span class='sct'>Add</span></a></div>")

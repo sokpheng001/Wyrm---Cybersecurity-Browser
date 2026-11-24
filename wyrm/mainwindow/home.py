@@ -218,11 +218,12 @@ class HomeMixin:
         # an entry is a link {url,title} or a folder {title, items:[...]}
         return [s for s in v if isinstance(s, dict) and (s.get("url") or isinstance(s.get("items"), list))]
 
-    def _save_shortcuts(self, lst: list):
+    def _save_shortcuts(self, lst: list, refresh_page: bool = True):
         import json
         self.settings.setValue("home/shortcuts", json.dumps(lst))
         self.settings.sync()
-        QTimer.singleShot(0, self._refresh_home_pages)
+        if refresh_page:   # deletes skip this so the start page doesn't visibly reload
+            QTimer.singleShot(0, self._refresh_home_pages)
         QTimer.singleShot(0, self._fetch_shortcut_icons)  # grab favicons for any new shortcuts
         if hasattr(self, "_refresh_bookmarks_bar"):
             QTimer.singleShot(0, self._refresh_bookmarks_bar)
@@ -315,7 +316,19 @@ class HomeMixin:
         lst = self._shortcuts()
         if 0 <= i < len(lst):
             lst.pop(i)
-            self._save_shortcuts(lst)
+            self._save_shortcuts(lst, refresh_page=False)   # no visible page reload on delete
+
+    def _del_shortcut_url(self, url: str):
+        """Delete a top-level bookmark by URL (used by the start-page grid × so it stays correct without a
+        reload — the tile is removed client-side)."""
+        if not url:
+            return
+        lst = self._shortcuts()
+        for j, s in enumerate(lst):
+            if not isinstance(s.get("items"), list) and s.get("url") == url:
+                lst.pop(j)
+                self._save_shortcuts(lst, refresh_page=False)
+                return
 
     def _rename_shortcut(self, i: int):
         from PySide6.QtWidgets import QInputDialog
@@ -332,7 +345,7 @@ class HomeMixin:
             if ok and url.strip():
                 u = url.strip()
                 s["url"] = u if "://" in u else "https://" + u
-        self._save_shortcuts(lst)
+        self._save_shortcuts(lst, refresh_page=False)
 
     def _bookmark_current(self):
         """Ctrl+D — add the current page to the bookmarks bar."""
@@ -358,7 +371,7 @@ class HomeMixin:
             return
         lst = self._shortcuts()
         lst.append({"title": name.strip(), "items": []})
-        self._save_shortcuts(lst)
+        self._save_shortcuts(lst, refresh_page=False)
 
     def _add_to_folder(self, f: int):
         from PySide6.QtWidgets import QInputDialog
@@ -376,13 +389,13 @@ class HomeMixin:
         if not ok:
             return
         lst[f]["items"].append({"title": title.strip() or pages._sc_domain(url), "url": url})
-        self._save_shortcuts(lst)
+        self._save_shortcuts(lst, refresh_page=False)
 
     def _del_in_folder(self, f: int, i: int):
         lst = self._shortcuts()
         if 0 <= f < len(lst) and isinstance(lst[f].get("items"), list) and 0 <= i < len(lst[f]["items"]):
             lst[f]["items"].pop(i)
-            self._save_shortcuts(lst)
+            self._save_shortcuts(lst, refresh_page=False)
 
     def scheme_action(self, action: str, params: dict) -> str | None:
         """Called by wyrm://allow and wyrm://do links. Returns a URL to continue to (or None)."""
@@ -460,6 +473,8 @@ class HomeMixin:
                     self._del_shortcut(int(params.get("i", "-1")))
                 except ValueError:
                     pass
+            elif do == "sc-del-url" and not self.tor:
+                self._del_shortcut_url(params.get("u", ""))
             elif do == "sc-del-in" and not self.tor:
                 try:
                     self._del_in_folder(int(params.get("f", "-1")), int(params.get("i", "-1")))
