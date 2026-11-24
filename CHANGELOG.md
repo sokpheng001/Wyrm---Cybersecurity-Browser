@@ -4,7 +4,7 @@ What's new in each version of Wyrm Browser. The release workflow publishes the s
 version (from `wyrm/__init__.py`) as the release description and the in-app **Update** tooltip, so keep the
 most important points first. Each build of a version adds an "Also in this build" list automatically.
 
-## v0.0.2
+## v0.5.0
 
 - Bookmarks bar at the top, like other browsers: your shortcuts and folders (folders open a drop-down menu),
   each showing the site's own logo. Right-click it to add a bookmark or folder; toggle it from the Layout menu
@@ -13,9 +13,6 @@ most important points first. Each build of a version adds an "Also in this build
   wallpaper, upload your own, choose a live wallpaper, solid colour, or none. Hover a card to delete an upload.
 - Tidier toolbar: removed the duplicate shield icon. The Shields button opens the security panel, and
   Ctrl+Shift+S still toggles it.
-
-## v0.5.0
-
 - HTTPS certificate viewer: click the lock in the address bar to see the site's certificate — issuer, validity,
   alternative names, key, signature, the negotiated TLS version and cipher, and the SHA-256 fingerprint, with a
   one-click Copy PEM. It shows expired and self-signed certificates too (handy for testing).
