@@ -6,9 +6,15 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.5.0
 
+- Bookmark the current page with Ctrl+D; mute a noisy tab from its right-click menu.
+- Right-click any page for quick security actions: Scan this page, Send to Repeater, and Copy as cURL.
+- More tools in the menu: New window (Ctrl+N), Downloads, and a More tools submenu (find, zoom, full screen,
+  print, save page, view source, developer tools).
+- Separate Weather and Location toggles for the start page, and setting your city now shows matching places to
+  pick from (accurate, no more IP guessing).
 - Bookmarks bar at the top, like other browsers: your shortcuts and folders (folders open a drop-down menu),
   each showing the site's own logo. Right-click it to add a bookmark or folder; toggle it from the Layout menu
-  or with Ctrl+Shift+B.
+  or with Ctrl+Shift+B. Right-click a folder for Open all / Rename / Delete.
 - Redesigned Customize: a centered panel with a left sidebar (Background, Start page) and a card grid — pick a
   wallpaper, upload your own, choose a live wallpaper, solid colour, or none. Hover a card to delete an upload.
 - Tidier toolbar: removed the duplicate shield icon. The Shields button opens the security panel, and

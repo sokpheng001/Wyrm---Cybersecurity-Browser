@@ -72,6 +72,7 @@ class MenuMixin:
         a.setEnabled(not self.tor)
         em = m.addMenu("Extensions")
         em.aboutToShow.connect(lambda menu=em: self._ext_fill_menu(menu))
+        m.addAction("Bookmark this page   Ctrl+D", self._bookmark_current)
         m.addAction("Downloads   Ctrl+J", self.show_downloads)
         # Tools (shortcuts shown in the labels; the keys themselves are bound on the window, so not re-bound here)
         tools = m.addMenu("More tools")

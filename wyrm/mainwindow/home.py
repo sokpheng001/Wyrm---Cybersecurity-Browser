@@ -334,6 +334,23 @@ class HomeMixin:
                 s["url"] = u if "://" in u else "https://" + u
         self._save_shortcuts(lst)
 
+    def _bookmark_current(self):
+        """Ctrl+D — add the current page to the bookmarks bar."""
+        v = self.current_view()
+        if v is None:
+            return
+        u = v.url().toString()
+        if not u.startswith("http"):
+            self.toast("Only web pages can be bookmarked", 3000)
+            return
+        lst = self._shortcuts()
+        if any(s.get("url") == u for s in lst if not isinstance(s.get("items"), list)):
+            self.toast("This page is already bookmarked", 3000)
+            return
+        lst.append({"title": v.title() or u, "url": u})
+        self._save_shortcuts(lst)
+        self.toast("Added to the bookmarks bar", 3000)
+
     def _add_folder(self):
         from PySide6.QtWidgets import QInputDialog
         name, ok = QInputDialog.getText(self, "New folder", "Folder name:")

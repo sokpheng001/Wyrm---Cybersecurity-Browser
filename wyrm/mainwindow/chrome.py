@@ -348,6 +348,7 @@ class ChromeMixin:
             (["F1"], self.open_help),
             (["Ctrl+Shift+N"], self.open_private_window),
             (["Ctrl+Shift+B"], self._toggle_bookmarks_bar),
+            (["Ctrl+D"], self._bookmark_current),
             (self.HISTORY_KEYS, self.open_history),
             (["Escape"], self._stop_current),
             (["Ctrl+F", "F3"], self._show_find),
@@ -620,6 +621,11 @@ class ChromeMixin:
         m.addAction("Add page…", lambda: self._add_to_folder(idx))
         m.addAction("Add folder…", self._add_folder)
         m.exec(btn.mapToGlobal(pos))
+
+    def _save_page(self):
+        v = self.current_view()
+        if v:
+            v.page().triggerAction(QWebEnginePage.WebAction.SavePage)
 
     def _toggle_bookmarks_bar(self):
         vis = not self.settings.value("ui/bookmarks_bar", True, type=bool)
