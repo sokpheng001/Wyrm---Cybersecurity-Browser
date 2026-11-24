@@ -558,14 +558,6 @@ def render_home(ctx: dict) -> str:
     sc_list = ctx.get("shortcuts")
     shortcuts_html = ""
     if sc_list is not None:
-        def _mini(it):   # small icon for popovers / folder grid: the favicon, else a coloured letter
-            ic = it.get("icon") or ""
-            if ic:
-                return f"<img src='{escape(ic, quote=True)}' alt=''>"
-            d = _sc_domain(it.get("url", ""))
-            letter = next((c for c in d if c.isalnum()), "?").upper()
-            return f"<span style='background:hsl({sum(ord(c) for c in d) % 360},52%,45%)'>{escape(letter)}</span>"
-
         def _tile_icon(it):   # 48px tile icon for a single link
             ic = it.get("icon") or ""
             if ic:
@@ -577,37 +569,15 @@ def render_home(ctx: dict) -> str:
         sc_tiles = ""
         for i, s in enumerate(sc_list):
             if s.get("is_folder") or isinstance(s.get("items"), list):
-                items = s.get("items") or []
-                name = s.get("title") or "Folder"
-                grid = "".join(_mini(it) for it in items[:4])
-                pop = "".join(
-                    f"<div class='pi'><a href='{escape(it.get('url', ''), quote=True)}'>{_mini(it)}"
-                    f"<span>{escape(it.get('title') or _sc_domain(it.get('url', '')))}</span></a>"
-                    f"<a class='pidel' href='wyrm://do?a=sc-del-in&amp;f={i}&amp;i={j}' title='Remove'>&times;</a></div>"
-                    for j, it in enumerate(items))
-                pop += f"<a class='piadd' href='wyrm://do?a=sc-add-to&amp;f={i}'>+ Add site to this folder</a>"
-                sc_tiles += (f"<div class='sc'>"
-                             f"<button class='sclink' type='button' onclick='wyrmFold(this)'>"
-                             f"<span class='scico fold'>{grid}</span><span class='sct'>{escape(name)}</span></button>"
-                             f"<a class='scdel' href='wyrm://do?a=sc-del&amp;i={i}' title='Remove folder'>&times;</a>"
-                             f"<div class='scpop'>{pop}</div></div>")
-            else:
-                u = s.get("url", "")
-                title = s.get("title") or _sc_domain(u) or u
-                sc_tiles += (f"<div class='sc'><a class='sclink' href='{escape(u, quote=True)}' title='{escape(u, quote=True)}'>"
-                             f"{_tile_icon(s)}<span class='sct'>{escape(title)}</span></a>"
-                             f"<a class='scdel' href='wyrm://do?a=sc-del&amp;i={i}' title='Remove shortcut'>&times;</a></div>")
-        add = ("<a class='sc scadd' href='wyrm://do?a=sc-add' title='Add a shortcut'>"
-               "<span class='scico add'>+</span><span class='sct'>Add</span></a>"
-               "<a class='sc scadd' href='wyrm://do?a=sc-folder' title='Create a folder'>"
-               "<span class='scico add'>&#128193;</span><span class='sct'>New folder</span></a>")
-        fold_js = ("<script>function wyrmFold(b){var p=b.parentNode.querySelector('.scpop'),"
-                   "open=p.classList.contains('open');"
-                   "document.querySelectorAll('.scpop.open').forEach(function(x){x.classList.remove('open');});"
-                   "if(!open)p.classList.add('open');}"
-                   "document.addEventListener('click',function(e){if(!e.target.closest('.sc'))"
-                   "document.querySelectorAll('.scpop.open').forEach(function(x){x.classList.remove('open');});});</script>")
-        shortcuts_html = f"<div class='scgrid'>{sc_tiles}{add}</div>{fold_js}"
+                continue   # folders live on the top bookmarks bar, not the start-page grid
+            u = s.get("url", "")
+            title = s.get("title") or _sc_domain(u) or u
+            sc_tiles += (f"<div class='sc'><a class='sclink' href='{escape(u, quote=True)}' title='{escape(u, quote=True)}'>"
+                         f"{_tile_icon(s)}<span class='sct'>{escape(title)}</span></a>"
+                         f"<a class='scdel' href='wyrm://do?a=sc-del&amp;i={i}' title='Remove shortcut'>&times;</a></div>")
+        shortcuts_html = ("<div class='scgrid'>" + sc_tiles
+                          + "<a class='sc scadd' href='wyrm://do?a=sc-add' title='Add a shortcut'>"
+                            "<span class='scico add'>+</span><span class='sct'>Add</span></a></div>")
     feed = ""
     kev = ctx.get("kev") or []
     if kev:

@@ -273,6 +273,22 @@ class ChromeMixin:
         strip.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         nav.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
+        # bookmarks bar (top, like other browsers): the user's shortcuts + folders, folders open a drop-down
+        self.addToolBarBreak()
+        self.bookmarks_bar = QWidget(objectName="BookmarksBar")
+        self.bookmarks_bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self._bm_layout = QHBoxLayout(self.bookmarks_bar)
+        self._bm_layout.setContentsMargins(6, 2, 6, 2)
+        self._bm_layout.setSpacing(1)
+        self.bookmarks_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.bookmarks_bar.customContextMenuRequested.connect(self._bookmarks_bar_menu)
+        self._bm_toolbar = QToolBar(objectName="BookmarksToolBar", movable=False, floatable=False)
+        self._bm_toolbar.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
+        self._bm_toolbar.addWidget(self.bookmarks_bar)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._bm_toolbar)
+        self._bm_toolbar.setVisible(self.settings.value("ui/bookmarks_bar", True, type=bool))
+        QTimer.singleShot(0, self._refresh_bookmarks_bar)
+
         self.loading_bar = LoadingBar()
         col.addWidget(self.loading_bar)
         self.offline_banner = OfflineBanner(self._retry_failed)
@@ -331,6 +347,7 @@ class ChromeMixin:
             (["F11"], self._toggle_fullscreen),
             (["F1"], self.open_help),
             (["Ctrl+Shift+N"], self.open_private_window),
+            (["Ctrl+Shift+B"], self._toggle_bookmarks_bar),
             (self.HISTORY_KEYS, self.open_history),
             (["Escape"], self._stop_current),
             (["Ctrl+F", "F3"], self._show_find),
@@ -495,6 +512,94 @@ class ChromeMixin:
     def _toggle_vertical_tabs(self):
         self._apply_tab_orientation(not self._vertical_tabs)
         self.settings.setValue("ui/vtabs", self._vertical_tabs)
+
+    # ---------------------------------------------------------------- bookmarks bar (top, like other browsers)
+    @staticmethod
+    def _bm_title(t: str) -> str:
+        t = t or ""
+        return (t[:20] + "…") if len(t) > 21 else t
+
+    def _bm_icon_color(self):
+        from .. import theme
+        return theme.resolve_palette(self.theme_name, self.mode)["icon"]
+
+    def _bm_icon(self, s):
+        """A shortcut's favicon (cached), else a generic icon."""
+        from PySide6.QtGui import QIcon, QPixmap
+        from .. import pages
+        dom = pages._sc_domain(s.get("url", ""))
+        p = self.data_dir / "shortcut_icons" / (dom + ".img")
+        if p.exists():
+            pm = QPixmap(str(p))
+            if not pm.isNull():
+                return QIcon(pm)
+        return make_icon("book", self._bm_icon_color())
+
+    def _refresh_bookmarks_bar(self):
+        lay = getattr(self, "_bm_layout", None)
+        if lay is None:
+            return
+        while lay.count():
+            it = lay.takeAt(0)
+            w = it.widget()
+            if w:
+                w.deleteLater()
+        shortcuts = self._shortcuts()
+        if not shortcuts:
+            hint = QLabel("Right-click to add a bookmark or folder")
+            hint.setObjectName("BmHint")
+            lay.addWidget(hint)
+        for i, s in enumerate(shortcuts):
+            btn = QToolButton(objectName="BmBtn")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            if isinstance(s.get("items"), list):   # folder → drop-down menu
+                btn.setText(self._bm_title(s.get("title") or "Folder"))
+                btn.setIcon(make_icon("book", self._bm_icon_color()))
+                btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+                btn.setStyleSheet("QToolButton::menu-indicator{image:none;width:0}")
+                menu = QMenu(btn)
+                for it in s["items"]:
+                    menu.addAction(it.get("title") or it.get("url", ""),
+                                   lambda _c=False, u=it.get("url", ""): self.open_url(u, new_tab=True))
+                if not s["items"]:
+                    menu.addAction("(empty)").setEnabled(False)
+                menu.addSeparator()
+                menu.addAction("Add site to this folder…", lambda _c=False, f=i: self._add_to_folder(f))
+                menu.addAction("Remove folder", lambda _c=False, f=i: self._del_shortcut(f))
+                btn.setMenu(menu)
+            else:                                   # plain bookmark
+                btn.setText(self._bm_title(s.get("title") or ""))
+                btn.setIcon(self._bm_icon(s))
+                btn.setToolTip(s.get("url", ""))
+                btn.clicked.connect(lambda _c=False, u=s.get("url", ""): self.open_url(u))
+                btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+                btn.customContextMenuRequested.connect(
+                    lambda pos, idx=i, b=btn: self._bm_item_menu(idx, b, pos))
+            lay.addWidget(btn)
+        lay.addStretch(1)
+
+    def _bookmarks_bar_menu(self, pos):
+        m = QMenu(self)
+        m.addAction("Add bookmark…", self._add_shortcut)
+        m.addAction("New folder…", self._add_folder)
+        m.addSeparator()
+        m.addAction("Hide bookmarks bar", self._toggle_bookmarks_bar)
+        m.exec(self.bookmarks_bar.mapToGlobal(pos))
+
+    def _bm_item_menu(self, idx, btn, pos):
+        m = QMenu(self)
+        lst = self._shortcuts()
+        url = lst[idx].get("url", "") if 0 <= idx < len(lst) else ""
+        m.addAction("Open in new tab", lambda: self.open_url(url, new_tab=True))
+        m.addSeparator()
+        m.addAction("Remove", lambda: self._del_shortcut(idx))
+        m.exec(btn.mapToGlobal(pos))
+
+    def _toggle_bookmarks_bar(self):
+        vis = not self.settings.value("ui/bookmarks_bar", True, type=bool)
+        self._bm_toolbar.setVisible(vis)
+        self.settings.setValue("ui/bookmarks_bar", vis)
 
     # ================================================================ custom title bar (Windows)
     def _toggle_max(self):

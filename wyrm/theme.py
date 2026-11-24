@@ -98,6 +98,12 @@ QTabBar#MainTabs::close-button:hover { background: $shell_active; }
 #TabStrip QToolButton#CloseButton:hover { background: #c42b1c; }
 #TabStrip QToolButton#CaptionButton, #TabStrip QToolButton#CloseButton { min-width: 46px; }
 #Content { background: $bg; }
+/* ---------- bookmarks bar (top, like other browsers) ---------- */
+QToolBar#BookmarksToolBar { background: $layer; border: none; padding: 0; margin: 0; }
+#BookmarksBar { background: $layer; border-bottom: 1px solid $border; }
+#BookmarksBar QToolButton#BmBtn { border: none; border-radius: 6px; padding: 3px 8px; margin: 0; background: transparent; color: $text; font-size: 12px; }
+#BookmarksBar QToolButton#BmBtn:hover { background: $hover; }
+#BookmarksBar QLabel#BmHint { color: $muted; font-size: 12px; padding: 2px 8px; }
 QTabBar#MainTabs { background: transparent; }
 QTabBar#MainTabs::tab {
     background: transparent; color: $shell_muted; padding: 0 8px 0 16px; height: 38px; margin: 3px 2px 0 2px;

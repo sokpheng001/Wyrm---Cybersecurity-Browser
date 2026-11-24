@@ -49,6 +49,8 @@ class AppearanceMixin:
             act.setIcon(make_icon(icon, ic))
         winframe.set_border_color(self, p["shell"]) if getattr(self, "_frame_installed", False) else None
         self._update_mode_chip()
+        if hasattr(self, "_refresh_bookmarks_bar"):
+            self._refresh_bookmarks_bar()   # recolour generic/fallback bookmark icons for the new theme
         self._sync_chrome()
         for i in range(self.tabbar.count()):  # internal pages follow the theme/mode
             view = self.tabbar.tabData(i)

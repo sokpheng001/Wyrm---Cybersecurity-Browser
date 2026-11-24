@@ -54,6 +54,9 @@ class MenuMixin:
             group.addAction(act)
             self._theme_actions[mode] = act
         vm = m.addMenu("Layout")
+        a = vm.addAction("Bookmarks bar", self._toggle_bookmarks_bar)
+        a.setCheckable(True)
+        a.setChecked(self.settings.value("ui/bookmarks_bar", True, type=bool))
         a = vm.addAction("Vertical tabs", self._toggle_vertical_tabs)
         a.setCheckable(True)
         a.setChecked(self.settings.value("ui/vtabs", False, type=bool))

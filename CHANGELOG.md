@@ -11,8 +11,9 @@ most important points first. Each build of a version adds an "Also in this build
   one-click Copy PEM. It shows expired and self-signed certificates too (handy for testing).
 - Cleaner address bar: the https:// scheme is hidden (the lock icon shows security), and right-click adds
   "Paste and go" plus a choice of searching your selection on the web or for vulnerabilities.
-- Start-page shortcuts: organise them into folders (speed-dial groups) that open a quick list, and each shortcut
-  now shows the site's own logo.
+- Bookmarks bar at the top, like other browsers: your shortcuts and folders (folders open a drop-down), each
+  showing the site's own logo. Toggle it from the Layout menu or with Ctrl+Shift+B. The start page also keeps a
+  quick shortcuts grid.
 - Show or hide the start-page weather and location from Customize → Start page.
 - Settings redesigned: a left sidebar with a search box, so you can find any setting fast.
 - History: a "Recently closed" section to restore tabs you closed, like other browsers.

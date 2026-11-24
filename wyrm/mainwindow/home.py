@@ -224,6 +224,8 @@ class HomeMixin:
         self.settings.sync()
         QTimer.singleShot(0, self._refresh_home_pages)
         QTimer.singleShot(0, self._fetch_shortcut_icons)  # grab favicons for any new shortcuts
+        if hasattr(self, "_refresh_bookmarks_bar"):
+            QTimer.singleShot(0, self._refresh_bookmarks_bar)
 
     def _shortcuts_with_icons(self) -> list:
         from .. import pages
@@ -286,7 +288,12 @@ class HomeMixin:
                     (d / (dom + ".img")).write_bytes(data)
                     got += 1
             return got
-        self.runner.run(work, lambda ok, n: self._refresh_home_pages() if ok and n else None)
+        def done(ok, n):
+            if ok and n:
+                self._refresh_home_pages()
+                if hasattr(self, "_refresh_bookmarks_bar"):
+                    self._refresh_bookmarks_bar()   # show the new favicons on the bar too
+        self.runner.run(work, done)
 
     def _add_shortcut(self):
         from PySide6.QtWidgets import QInputDialog
