@@ -279,6 +279,19 @@ form.big{max-width:620px;margin:0 auto;position:relative;display:block}
 .tile .ico svg{width:28px;height:28px}
 .tile .t{font-size:15px;font-weight:600;margin:10px 0 2px}
 .tile .d{font-size:12px;color:var(--muted);line-height:1.5}
+/* start-page shortcuts (speed dial) */
+.scgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin:22px 0 0}
+.scgrid .sc{position:relative;width:92px}
+.scgrid .sclink,.scgrid .scadd{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 6px;border-radius:12px;color:var(--fg)}
+.scgrid .sclink:hover,.scgrid .scadd:hover{background:var(--hover);text-decoration:none}
+.scgrid .scico{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:600}
+.scgrid .scico.add{background:var(--layer2);color:var(--muted);font-weight:300;font-size:26px}
+.scgrid .sct{font-size:12px;max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scgrid .scdel{position:absolute;top:0;right:4px;width:20px;height:20px;border-radius:50%;background:var(--layer2);color:var(--muted);display:none;align-items:center;justify-content:center;font-size:15px;line-height:1}
+.scgrid .sc:hover .scdel{display:flex}
+.scgrid .scdel:hover{background:var(--error);color:#fff;text-decoration:none}
+body.hasbg .scgrid .sclink,body.hasbg .scgrid .scadd,body.hasbg .scgrid .sct{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+body.hasbg .scgrid .sclink:hover,body.hasbg .scgrid .scadd:hover{background:rgba(255,255,255,.14)}
 .feed{margin:44px 0 0;text-align:left}
 .feed h2{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.3px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
 .feed h2 .live{width:7px;height:7px;border-radius:50%;background:#da1e28;box-shadow:0 0 0 0 rgba(218,30,40,.5);animation:pulse 2s infinite}
@@ -482,6 +495,15 @@ SEARCH_ICON = ("<svg width='20' height='20' viewBox='0 0 24 24' fill='none' stro
                "stroke-linecap='round'><circle cx='11' cy='11' r='7'/><path d='M21 21l-4.3-4.3'/></svg>")
 
 
+def _sc_domain(u: str) -> str:
+    from urllib.parse import urlparse
+    try:
+        h = urlparse(u if "://" in u else "http://" + u).netloc.lower()
+        return h[4:] if h.startswith("www.") else h
+    except ValueError:
+        return u
+
+
 def render_home(ctx: dict) -> str:
     from pathlib import Path
     try:
@@ -507,6 +529,25 @@ def render_home(ctx: dict) -> str:
                 "<a href='wyrm://sec?q=CWE-79'>CWE-79</a></div>")
     tiles = "".join(f"<a class='tile' href='{escape(u, quote=True)}'><div class='ico'>{_ico(TILE_ICONS[key])}</div>"
                     f"<div class='t'>{escape(t)}</div><div class='d'>{escape(d)}</div></a>" for key, t, d, u in TILES)
+    # start-page shortcuts (speed dial) — the user's own sites/tools; add / remove like other browsers.
+    # None (e.g. Tor windows) hides the row entirely; a list (possibly empty) shows it with the "Add" tile.
+    sc_list = ctx.get("shortcuts")
+    shortcuts_html = ""
+    if sc_list is not None:
+        sc_tiles = ""
+        for i, s in enumerate(sc_list):
+            u = s.get("url", "")
+            dom = _sc_domain(u)
+            title = s.get("title") or dom or u
+            letter = next((c for c in dom if c.isalnum()), "?").upper()
+            hue = sum(ord(c) for c in dom) % 360
+            sc_tiles += (f"<div class='sc'><a class='sclink' href='{escape(u, quote=True)}' title='{escape(u, quote=True)}'>"
+                         f"<span class='scico' style='background:hsl({hue},52%,45%)'>{escape(letter)}</span>"
+                         f"<span class='sct'>{escape(title)}</span></a>"
+                         f"<a class='scdel' href='wyrm://do?a=sc-del&amp;i={i}' title='Remove shortcut'>&times;</a></div>")
+        shortcuts_html = ("<div class='scgrid'>" + sc_tiles
+                          + "<a class='sc scadd' href='wyrm://do?a=sc-add' title='Add a shortcut'>"
+                            "<span class='scico add'>+</span><span class='sct'>Add</span></a></div>")
     feed = ""
     kev = ctx.get("kev") or []
     if kev:
@@ -577,6 +618,7 @@ def render_home(ctx: dict) -> str:
         "placeholder='Search the web, or a CVE, IP, domain or URL'>"
         "<button type='submit'>Search</button></form>"
         + examples + status
+        + shortcuts_html
         + ("<p class='privnote'><b>Private window</b> · pages you visit, cookies and site data are deleted when you "
            "close this window. Downloads and bookmarks you save are kept.</p>" if ctx.get("private") else "")
         + f"<div class='grid'>{tiles}</div>"

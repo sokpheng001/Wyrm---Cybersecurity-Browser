@@ -195,6 +195,54 @@ class HomeMixin:
             QTimer.singleShot(0, self._refresh_home_pages)
         self.toast("Removed your uploaded video")
 
+    # ---------------------------------------------------------------- start-page shortcuts (speed dial)
+    DEFAULT_SHORTCUTS = [
+        {"title": "HackerOne", "url": "https://hackerone.com"},
+        {"title": "Exploit-DB", "url": "https://www.exploit-db.com"},
+        {"title": "MITRE ATT&CK", "url": "https://attack.mitre.org"},
+        {"title": "CVE", "url": "https://www.cve.org"},
+        {"title": "OWASP", "url": "https://owasp.org"},
+    ]
+
+    def _shortcuts(self) -> list:
+        import json
+        raw = self.settings.value("home/shortcuts", None)
+        if raw is None:                       # first run: seed a useful starter set the user can edit
+            return [dict(s) for s in self.DEFAULT_SHORTCUTS]
+        try:
+            v = json.loads(raw) if isinstance(raw, str) else raw
+            return [s for s in v if isinstance(s, dict) and s.get("url")] if isinstance(v, list) else []
+        except (ValueError, TypeError):
+            return []
+
+    def _save_shortcuts(self, lst: list):
+        import json
+        self.settings.setValue("home/shortcuts", json.dumps(lst))
+        self.settings.sync()
+        QTimer.singleShot(0, self._refresh_home_pages)
+
+    def _add_shortcut(self):
+        from PySide6.QtWidgets import QInputDialog
+        from .. import pages
+        url, ok = QInputDialog.getText(self, "Add shortcut", "Website address (e.g. example.com):")
+        if not ok or not url.strip():
+            return
+        url = url.strip()
+        if "://" not in url:
+            url = "https://" + url
+        title, ok = QInputDialog.getText(self, "Add shortcut", "Name:", text=pages._sc_domain(url))
+        if not ok:
+            return
+        lst = self._shortcuts()
+        lst.append({"title": title.strip() or pages._sc_domain(url), "url": url})
+        self._save_shortcuts(lst)
+
+    def _del_shortcut(self, i: int):
+        lst = self._shortcuts()
+        if 0 <= i < len(lst):
+            lst.pop(i)
+            self._save_shortcuts(lst)
+
     def scheme_action(self, action: str, params: dict) -> str | None:
         """Called by wyrm://allow and wyrm://do links. Returns a URL to continue to (or None)."""
         if action.startswith("do:"):
@@ -238,6 +286,13 @@ class HomeMixin:
                 QTimer.singleShot(0, self._set_weather_place)  # don't block the scheme request on a dialog
             elif do == "weather-auto" and not self.ephemeral:
                 self._clear_weather_place()
+            elif do == "sc-add" and not self.tor:
+                QTimer.singleShot(0, self._add_shortcut)  # don't block the scheme request on a dialog
+            elif do == "sc-del" and not self.tor:
+                try:
+                    self._del_shortcut(int(params.get("i", "-1")))
+                except ValueError:
+                    pass
             return None
         host, url = params.get("host", ""), params.get("url", "")
         if action == "allow-threat" and host:
@@ -255,6 +310,7 @@ class HomeMixin:
                 "saved": self.library.saved(), "kev": self._kev_recent, "mode": self.mode,
                 "background": (not self.tor) and self._bg_settings()["mode"] != "none",
                 "bg": self._bg_settings(), "news": self._news,
+                "shortcuts": None if self.tor else self._shortcuts(),
                 "weather": getattr(self, "_weather", None),
                 "vid_url": self._bg_video_url(),
                 "tor": bool(self.tor), "private": self.private}
