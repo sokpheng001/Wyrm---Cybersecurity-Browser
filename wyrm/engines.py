@@ -97,6 +97,12 @@ def resolve(text: str, default_engine: str = DEFAULT_ENGINE) -> str:
     scheme = t.split(":", 1)[0].lower() if ":" in t else ""
     if scheme in _KNOWN_SCHEMES:
         return t
+    # a local file path typed without the file:// scheme — open it instead of searching for it:
+    #   Windows drive path (C:\… or C:/…), or a UNC path (\\server\share)
+    if re.match(r"^[A-Za-z]:[\\/]", t):
+        return "file:///" + t.replace("\\", "/")
+    if t.startswith("\\\\"):
+        return "file:" + t.replace("\\", "/")
     if " " not in t and _HOSTLIKE.match(t):
         host = t.split("/", 1)[0]
         local = host.startswith("localhost") or re.match(r"^\d", host)
