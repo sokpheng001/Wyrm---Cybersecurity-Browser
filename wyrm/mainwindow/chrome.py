@@ -198,21 +198,27 @@ class ChromeMixin:
         n.addWidget(self.engine_box)
 
         self._dock_actions = []
-        for dock, icon, tip, key in ((self.security, "shield", "Security panel (Ctrl+Shift+S)", "Ctrl+Shift+S"),
-                                     (self.panel, "book", "Papers panel (Ctrl+B)", "Ctrl+B")):
-            b = QToolButton()
-            b.setCursor(Qt.CursorShape.PointingHandCursor)
-            a = dock.toggleViewAction()
-            a.setShortcut(QKeySequence(key))
-            a.setToolTip(tip)
-            b.setDefaultAction(a)
-            self._dock_actions.append((a, icon))  # icon lives on the action so toggling keeps it
-            n.addWidget(b)
+        # Security panel: keyboard shortcut only (no toolbar button) — the Shields button on the right already
+        # opens this panel, so a second shield icon here was redundant.
+        sec_toggle = self.security.toggleViewAction()
+        sec_toggle.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        sec_toggle.setToolTip("Security panel (Ctrl+Shift+S)")
+        self.addAction(sec_toggle)
+        # Papers panel: toolbar toggle button
+        b = QToolButton()
+        b.setCursor(Qt.CursorShape.PointingHandCursor)
+        a = self.panel.toggleViewAction()
+        a.setShortcut(QKeySequence("Ctrl+B"))
+        a.setToolTip("Papers panel (Ctrl+B)")
+        b.setDefaultAction(a)
+        self._dock_actions.append((a, "book"))  # icon lives on the action so toggling keeps it
+        n.addWidget(b)
         b_flag = self._tool("flag", "Add finding for this page (Ctrl+Shift+F)", lambda: self.add_finding_dialog(),
                             ["Ctrl+Shift+F"])
         n.addWidget(b_flag)
         # Shields: blocked-count badge, opens the Shields report
-        self.b_shield = self._tool("shields", "Shields", lambda: self.security.show_tab("Shields"))
+        self.b_shield = self._tool("shields", "Shields & security panel (Ctrl+Shift+S)",
+                                   lambda: self.security.show_tab("Shields"))
         # icon-only (centred like every other button); the blocked count is a small corner badge
         self.shield_badge = QLabel(self.b_shield, objectName="Badge")
         self.shield_badge.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
