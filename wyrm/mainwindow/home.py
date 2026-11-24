@@ -303,13 +303,68 @@ class HomeMixin:
             pass
         return None
 
+    def _start_weather(self):
+        """Begin locating for the start-page weather. Manual city wins; else try the OS location service
+        (Wi-Fi/GPS, precise — like a phone's weather app); else fall back to coarse IP geolocation."""
+        if self.ephemeral or not self.settings.value("home/weather", True, type=bool):
+            return
+        if self._weather_place():          # user pinned a city — no geolocation needed
+            self._fetch_weather()
+            return
+        if self.settings.value("home/weather_os", True, type=bool) and self._start_oslocation():
+            return                          # OS fix in progress; it fetches when ready (timer falls back to IP)
+        self._fetch_weather()               # OS location unavailable → IP
+
+    def _start_oslocation(self) -> bool:
+        """Ask the OS for a precise position (Wi-Fi/GPS via Qt Positioning). Returns True if a request started;
+        on success it reverse-geocodes + fetches weather, and a timer falls back to IP if no fix arrives."""
+        try:
+            from PySide6.QtPositioning import QGeoPositionInfoSource
+        except Exception:  # noqa: BLE001  — Qt Positioning not available in this build
+            return False
+        src = QGeoPositionInfoSource.createDefaultSource(self)
+        if src is None:                     # no location backend on this platform
+            return False
+        self._geo_src = src                 # keep a reference so it isn't garbage-collected mid-request
+        state = {"done": False}
+
+        def fallback_ip():
+            if state["done"]:
+                return
+            state["done"] = True
+            self._fetch_weather()
+
+        def on_pos(info):
+            if state["done"]:
+                return
+            state["done"] = True
+            c = info.coordinate()
+            lat, lon = c.latitude(), c.longitude()
+            if not lat and not lon:         # invalid fix
+                self._fetch_weather()
+                return
+            from .. import homeinfo
+            self.runner.run(lambda: homeinfo.reverse_geocode(lat, lon, self.proxies(), self.verify_tls()),
+                            lambda ok, g: (setattr(self, "_geo_place",
+                                                   g or {"city": "", "country": "", "lat": lat, "lon": lon}),
+                                           self._fetch_weather()))
+
+        src.positionUpdated.connect(on_pos)
+        try:
+            src.errorOccurred.connect(lambda *_: fallback_ip())  # permission denied / no backend
+        except (AttributeError, TypeError):
+            pass
+        QTimer.singleShot(8000, fallback_ip)  # no fix within 8 s → use IP
+        src.requestUpdate(7000)
+        return True
+
     def _fetch_weather(self):
         # location + weather for the start page; off in private/Tor and when the user disables it. We try even if
         # reachability reports "offline" (it misreports on some systems) — a real offline machine just fails quietly.
         if self.ephemeral or not self.settings.value("home/weather", True, type=bool):
             return
         from .. import homeinfo
-        place = self._weather_place()
+        place = self._weather_place() or getattr(self, "_geo_place", None)  # manual city, else OS fix, else IP
         self.runner.run(lambda: homeinfo.fetch(self.proxies(), self.verify_tls(), place), self._weather_ready)
 
     def _set_weather_place(self):
@@ -343,8 +398,9 @@ class HomeMixin:
         self.settings.remove("home/weather_place")
         self.settings.sync()
         self._weather = None
-        self.toast("Weather will follow your IP location", 4000)
-        self._fetch_weather()
+        self._geo_place = None
+        self.toast("Weather will use your device location (or IP)", 4000)
+        self._start_weather()  # re-detect: OS location if allowed, else IP
 
     def _weather_ready(self, ok, result):
         if ok and result:

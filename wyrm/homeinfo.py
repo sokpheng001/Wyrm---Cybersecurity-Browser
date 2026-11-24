@@ -80,6 +80,23 @@ def geocode(query: str, proxies=None, verify=True) -> dict | None:
         return None
 
 
+def reverse_geocode(lat, lon, proxies=None, verify=True) -> dict | None:
+    """Coordinates (from the OS location service) -> {city, region, country, lat, lon}, via BigDataCloud's
+    keyless reverse-geocoding. Used to label a precise Wi-Fi/GPS fix with a human place name."""
+    import requests
+    try:
+        r = requests.get("https://api.bigdatacloud.net/data/reverse-geocode-client", headers=UA, timeout=10,
+                         proxies=proxies, verify=verify,
+                         params={"latitude": lat, "longitude": lon, "localityLanguage": "en"})
+        r.raise_for_status()
+        d = r.json() or {}
+        city = d.get("city") or d.get("locality") or d.get("principalSubdivision") or ""
+        return {"city": city, "region": d.get("principalSubdivision") or "",
+                "country": d.get("countryName") or "", "lat": lat, "lon": lon}
+    except (requests.RequestException, ValueError, TypeError):
+        return {"city": "", "region": "", "country": "", "lat": lat, "lon": lon}
+
+
 def fetch(proxies=None, verify=True, place: dict | None = None) -> dict | None:
     """{city, region, country, lat, lon, temp_c, code, is_day, emoji, desc} or None if it can't be fetched.
 

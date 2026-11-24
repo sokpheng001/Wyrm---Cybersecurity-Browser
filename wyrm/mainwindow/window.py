@@ -169,7 +169,8 @@ class MainWindow(
             QTimer.singleShot(2500, lambda: self.runner.run(secsearch.recent_kev, self._kev_ready))
             QTimer.singleShot(2500, self._fetch_news)
             self._weather: dict | None = None
-            QTimer.singleShot(2800, self._fetch_weather)
+            self._geo_place: dict | None = None
+            QTimer.singleShot(2800, self._start_weather)
             self._news_timer = QTimer(self)
             self._news_timer.timeout.connect(self._fetch_news)
             self._news_timer.start(30 * 60 * 1000)  # refresh headlines every 30 minutes

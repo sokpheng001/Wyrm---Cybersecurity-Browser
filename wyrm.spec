@@ -35,7 +35,7 @@ a = Analysis(
            ("wyrm/assets", "wyrm/assets"), ("CHANGELOG.md", ".")]
           # ProjectDiscovery tools (tools/fetch_pdtools.py); skipped if not fetched (e.g. a quick local build)
           + ([("wyrm/bin", "wyrm/bin")] if os.path.isdir("wyrm/bin") else []),
-    hiddenimports=["PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtSvg", "PySide6.QtNetwork", "adblock", "stem", "stem.process", "stem.control", "socks", "wyrm.security.triage", "wyrm.security.fuzzer", "wyrm.security.secsearch", "wyrm.security.rewrite", "wyrm.security.mitm", "wyrm.security.har", "wyrm.security.payloads", "wyrm.security.wsframe", "wyrm.security.workflows", "wyrm.security.sessionauth", "wyrm.security.http2", "wyrm.addons", "wyrm.addons.api", "wyrm.addons.loader", "wyrm.panels.addons", "wyrm.panels.audit", "wyrm.security.audit", "wyrm.security.audit.points", "wyrm.security.audit.checks", "wyrm.security.audit.passive", "wyrm.security.audit.engine", "wyrm.security.audit.spider", "wyrm.security.audit.advice", "cryptography", "certifi", "h2", "hpack", "hyperframe"],
+    hiddenimports=["PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtSvg", "PySide6.QtNetwork", "PySide6.QtPositioning", "adblock", "stem", "stem.process", "stem.control", "socks", "wyrm.security.triage", "wyrm.security.fuzzer", "wyrm.security.secsearch", "wyrm.security.rewrite", "wyrm.security.mitm", "wyrm.security.har", "wyrm.security.payloads", "wyrm.security.wsframe", "wyrm.security.workflows", "wyrm.security.sessionauth", "wyrm.security.http2", "wyrm.addons", "wyrm.addons.api", "wyrm.addons.loader", "wyrm.panels.addons", "wyrm.panels.audit", "wyrm.security.audit", "wyrm.security.audit.points", "wyrm.security.audit.checks", "wyrm.security.audit.passive", "wyrm.security.audit.engine", "wyrm.security.audit.spider", "wyrm.security.audit.advice", "cryptography", "certifi", "h2", "hpack", "hyperframe"],
     # trim Qt modules we never use (keeps the bundle smaller)
     excludes=["PySide6.Qt3DCore", "PySide6.QtQuick3D", "PySide6.QtCharts", "PySide6.QtDataVisualization",
               "PySide6.QtMultimedia", "PySide6.QtBluetooth", "PySide6.QtSensors", "PySide6.QtSerialPort",
@@ -60,5 +60,10 @@ if sys.platform == "darwin":
                  info_plist={"CFBundleDisplayName": "Wyrm Browser", "CFBundleName": "Wyrm Browser", "CFBundleShortVersionString": VERSION,
                              "CFBundleVersion": VERSION,
                              "LSMinimumSystemVersion": "12.0",
-                             "NSHighResolutionCapable": True})
+                             "NSHighResolutionCapable": True,
+                             # so macOS can prompt for (precise) location used only for the start-page weather
+                             "NSLocationWhenInUseUsageDescription":
+                                 "Wyrm uses your location only to show local weather on the start page.",
+                             "NSLocationUsageDescription":
+                                 "Wyrm uses your location only to show local weather on the start page."})
 
