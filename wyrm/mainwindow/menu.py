@@ -77,9 +77,29 @@ class MenuMixin:
         # Tools (shortcuts shown in the labels; the keys themselves are bound on the window, so not re-bound here)
         tools = m.addMenu("More tools")
         tools.addAction("Find in page   Ctrl+F", self._show_find)
-        tools.addAction("Zoom in", lambda: self._zoom(0.1))
-        tools.addAction("Zoom out", lambda: self._zoom(-0.1))
-        tools.addAction("Reset zoom", lambda: self._zoom(0))
+        # zoom row: −  100%  +  (the −/+/% buttons keep the menu open and the % updates live), like other browsers
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton, QWidget, QWidgetAction
+        zrow = QWidget()
+        zl = QHBoxLayout(zrow)
+        zl.setContentsMargins(14, 2, 10, 2)
+        zl.setSpacing(6)
+        zl.addWidget(QLabel("Zoom"))
+        zl.addStretch(1)
+        zout = QToolButton(text="−")           # minus
+        zpct = QToolButton(text="100%")             # click to reset to 100%
+        zin = QToolButton(text="+")
+        zpct.setMinimumWidth(50)
+        for b, fn in ((zout, lambda: self._zoom(-0.1)), (zpct, lambda: self._zoom(0)), (zin, lambda: self._zoom(0.1))):
+            b.setAutoRaise(True)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.clicked.connect(fn)
+            zl.addWidget(b)
+        self._zoom_pct_lbl = zpct                    # _zoom() updates this live
+        za = QWidgetAction(tools)
+        za.setDefaultWidget(zrow)
+        tools.addAction(za)
+        tools.aboutToShow.connect(self._refresh_zoom_pct)
         tools.addAction("Full screen   F11", self._toggle_fullscreen)
         tools.addSeparator()
         tools.addAction("Print…   Ctrl+P", self._print_page)
@@ -145,17 +165,86 @@ class MenuMixin:
         elif box.clickedButton() is whatsnew:
             self._show_whats_new()
 
+    def _refresh_zoom_pct(self):
+        v = self.current_view()
+        pct = int(round((v.zoomFactor() if v else 1.0) * 100))
+        lbl = getattr(self, "_zoom_pct_lbl", None)
+        if lbl is not None:
+            lbl.setText(f"{pct}%")
+
     def _show_whats_new(self):
         from html import escape
+        from pathlib import Path
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QPixmap
+        from PySide6.QtWidgets import (QDialog, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea,
+                                       QVBoxLayout, QWidget)
         from .. import updater
         changes = updater.current_changes()
-        body = ("<ul style='margin:6px 0 0 -20px'>" + "".join(f"<li>{escape(c)}</li>" for c in changes) + "</ul>") \
-            if changes else "See the Releases page for the full changelog."
-        box = QMessageBox(self)
-        box.setWindowTitle("What's new")
-        box.setText(f"<b>What's new in Wyrm Browser {version_label()}</b>")
-        box.setInformativeText(body)
-        box.exec()
+        d = QDialog(self, Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
+        d.setObjectName("ConfirmDialog")
+        d.setMinimumWidth(560)
+        d.resize(600, 560)
+        outer = QVBoxLayout(d)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        # header: app logo + title
+        head = QWidget(objectName="WnHead")
+        head.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        hl = QHBoxLayout(head)
+        hl.setContentsMargins(24, 20, 24, 16)
+        hl.setSpacing(14)
+        icon = self._app_icon_path() if hasattr(self, "_app_icon_path") else ""
+        pm = QPixmap(icon) if icon else QPixmap()
+        if not pm.isNull():
+            lg = QLabel()
+            lg.setPixmap(pm.scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio,
+                                   Qt.TransformationMode.SmoothTransformation))
+            lg.setFixedSize(40, 40)
+            hl.addWidget(lg, 0, Qt.AlignmentFlag.AlignVCenter)
+        tcol = QVBoxLayout()
+        tcol.setSpacing(1)
+        t = QLabel("What's new")
+        t.setObjectName("DialogTitle")
+        sub = QLabel(f"Wyrm Browser {version_label()}")
+        sub.setObjectName("Muted")
+        tcol.addWidget(t)
+        tcol.addWidget(sub)
+        hl.addLayout(tcol, 1)
+        outer.addWidget(head)
+        # scrollable list of changes
+        sa = QScrollArea()
+        sa.setWidgetResizable(True)
+        sa.setFrameShape(QFrame.Shape.NoFrame)
+        body = QWidget()
+        bl = QVBoxLayout(body)
+        bl.setContentsMargins(24, 10, 24, 14)
+        bl.setSpacing(12)
+        if changes:
+            for c in changes:
+                row = QLabel("•  " + escape(c))
+                row.setObjectName("DialogBody")
+                row.setWordWrap(True)
+                row.setTextFormat(Qt.TextFormat.RichText)
+                bl.addWidget(row)
+        else:
+            lab = QLabel("See the Releases page for the full changelog.")
+            lab.setObjectName("DialogBody")
+            bl.addWidget(lab)
+        bl.addStretch(1)
+        sa.setWidget(body)
+        outer.addWidget(sa, 1)
+        # footer OK
+        foot = QHBoxLayout()
+        foot.setContentsMargins(24, 12, 24, 18)
+        foot.addStretch(1)
+        ok = QPushButton("OK", objectName="Primary")
+        ok.setMinimumWidth(110)
+        ok.setDefault(True)
+        ok.clicked.connect(d.accept)
+        foot.addWidget(ok)
+        outer.addLayout(foot)
+        d.exec()
 
     def _open_settings(self):
         SettingsDialog(self).exec()

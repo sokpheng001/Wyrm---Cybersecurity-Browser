@@ -79,7 +79,11 @@ class TabsMixin:
             return
         z = 1.0 if delta == 0 else min(3.0, max(0.3, round(v.zoomFactor() + delta, 2)))
         v.setZoomFactor(z)
-        self.toast(f"Zoom {int(z * 100)}%", 1500)
+        pct = int(round(z * 100))
+        self.toast(f"Zoom {pct}%", 1500)
+        lbl = getattr(self, "_zoom_pct_lbl", None)
+        if lbl is not None:
+            lbl.setText(f"{pct}%")
 
     def _loading(self, view, on: bool):
         (self._loading_views.add if on else self._loading_views.discard)(view)
