@@ -97,6 +97,11 @@ QTabBar#MainTabs::close-button:hover { background: $shell_active; }
 #TabStrip QToolButton:hover { background: $shell_hover; }
 #TabStrip QToolButton#CloseButton:hover { background: #c42b1c; }
 #TabStrip QToolButton#CaptionButton, #TabStrip QToolButton#CloseButton { min-width: 46px; }
+/* ---------- left tool rail (Arc/Vivaldi-style launcher) ---------- */
+#ToolRail { background: $shell; border-right: 1px solid $shell_border; }
+#ToolRail QToolButton { border: none; border-radius: 0; background: transparent; min-width: 40px; min-height: 40px; max-width: 40px; max-height: 40px; }
+#ToolRail QToolButton:hover { background: $shell_hover; }
+#Content { background: $bg; }
 QTabBar#MainTabs { background: transparent; }
 QTabBar#MainTabs::tab {
     background: transparent; color: $shell_muted; padding: 0 8px 0 16px; height: 38px; margin: 3px 2px 0 2px;
@@ -105,6 +110,10 @@ QTabBar#MainTabs::tab {
 }
 QTabBar#MainTabs::tab:hover:!selected { background: $shell_hover; color: $shell_text; }
 QTabBar#MainTabs::tab:selected { background: $layer; color: $text; border-top: 3px solid $interactive; }
+/* vertical tabs (left panel, Edge/Arc-style) */
+#VTabs { background: $shell; border-right: 1px solid $shell_border; }
+QTabBar#MainTabs[vertical="true"]::tab { min-width: 196px; max-width: 212px; height: 34px; padding: 0 10px; margin: 2px 4px; border-top: none; border-radius: 4px; }
+QTabBar#MainTabs[vertical="true"]::tab:selected { background: $layer; color: $text; border-top: none; border-left: 3px solid $interactive; }
 
 /* ---------- navigation bar (soft, rounded, pill address bar) ---------- */
 #NavBar { background: $layer; border-bottom: 1px solid $border; }

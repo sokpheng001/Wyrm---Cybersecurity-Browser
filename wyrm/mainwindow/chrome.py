@@ -96,6 +96,9 @@ class ChromeMixin:
         self.tabbar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tabbar.customContextMenuRequested.connect(self._tab_context_menu)
         row.addWidget(self.tabbar, 0, Qt.AlignmentFlag.AlignBottom)
+        self._strip_row = row                      # kept so vertical-tabs mode can move the tab bar out and back
+        self._tab_idx = row.indexOf(self.tabbar)
+        self._vertical_tabs = False
         b_new = self._tool("plus", "New tab (Ctrl+T)", self._new_tab_focus, ["Ctrl+T"])
         self._shell_buttons = {b_new}
         row.addWidget(b_new)
@@ -266,9 +269,45 @@ class ChromeMixin:
         col.addWidget(self.offline_banner)
         self.store_banner = InfoBanner()  # "Add to Wyrm Browser" on Chrome Web Store extension pages
         col.addWidget(self.store_banner)
+        # left tool rail (like Arc / Vivaldi): quick access to the security panel, papers, history and downloads
+        self.toolrail = QWidget(objectName="ToolRail")
+        self.toolrail.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self.toolrail.setFixedWidth(48)
+        tr = QVBoxLayout(self.toolrail)
+        tr.setContentsMargins(0, 6, 0, 6)
+        tr.setSpacing(2)
+        for icon, tip, fn in (("shield", "Security panel (Ctrl+Shift+S)", lambda: self.security.toggleViewAction().trigger()),
+                              ("book", "Papers panel (Ctrl+B)", lambda: self.panel.toggleViewAction().trigger()),
+                              ("clock", "History", lambda: self.open_history()),
+                              ("download", "Downloads (Ctrl+J)", lambda: self.show_downloads())):
+            rb = self._tool(icon, tip, fn)
+            self._shell_buttons.add(rb)   # sits on the shell background → shell-coloured icon
+            tr.addWidget(rb, 0, Qt.AlignmentFlag.AlignHCenter)
+        tr.addStretch(1)
+        self.toolrail.setVisible(self.settings.value("ui/toolrail", True, type=bool))
+
+        # vertical-tabs panel (like Edge/Arc): holds the tab bar on the left when the user turns it on
+        self.vtabs_panel = QWidget(objectName="VTabs")
+        self.vtabs_panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self.vtabs_panel.setFixedWidth(220)
+        self.vtabs_layout = QVBoxLayout(self.vtabs_panel)
+        self.vtabs_layout.setContentsMargins(0, 6, 0, 6)
+        self.vtabs_layout.setSpacing(4)
+        self.vtabs_layout.addStretch(1)
+        self.vtabs_panel.hide()
+
         self.stack = QStackedWidget()
-        col.addWidget(self.stack, 1)
+        content = QWidget(objectName="Content")
+        crow = QHBoxLayout(content)
+        crow.setContentsMargins(0, 0, 0, 0)
+        crow.setSpacing(0)
+        crow.addWidget(self.toolrail)
+        crow.addWidget(self.vtabs_panel)
+        crow.addWidget(self.stack, 1)
+        col.addWidget(content, 1)
         self.setCentralWidget(root)
+        if self.settings.value("ui/vtabs", False, type=bool):
+            self._apply_tab_orientation(True)
         # hover status bubble (bottom-left, like other browsers) with the smart link verdict
         self.link_bubble = QLabel(self.stack, objectName="LinkBubble")
         self.link_bubble.setTextFormat(Qt.TextFormat.RichText)
@@ -312,6 +351,35 @@ class ChromeMixin:
             a.setShortcuts([QKeySequence(k) for k in keys])
             a.triggered.connect(fn)
             self.addAction(a)
+
+    # ---------------------------------------------------------------- left sidebars (tool rail + vertical tabs)
+    def _toggle_toolrail(self):
+        vis = self.toolrail.isHidden()   # isHidden() is reliable regardless of whether the window is shown yet
+        self.toolrail.setVisible(vis)
+        self.settings.setValue("ui/toolrail", vis)
+
+    def _apply_tab_orientation(self, vertical: bool):
+        """Move the tab bar between the top strip (horizontal) and the left panel (vertical, like Edge/Arc)."""
+        self._vertical_tabs = vertical
+        tb = self.tabbar
+        if vertical:
+            self._strip_row.removeWidget(tb)
+            self.vtabs_layout.insertWidget(0, tb)
+            tb.setShape(QTabBar.Shape.RoundedWest)
+            tb.setProperty("vertical", True)
+            self.vtabs_panel.show()
+        else:
+            self.vtabs_layout.removeWidget(tb)
+            self._strip_row.insertWidget(self._tab_idx, tb, 0, Qt.AlignmentFlag.AlignBottom)
+            tb.setShape(QTabBar.Shape.RoundedNorth)
+            tb.setProperty("vertical", False)
+            self.vtabs_panel.hide()
+        tb.style().unpolish(tb)
+        tb.style().polish(tb)
+
+    def _toggle_vertical_tabs(self):
+        self._apply_tab_orientation(not self._vertical_tabs)
+        self.settings.setValue("ui/vtabs", self._vertical_tabs)
 
     # ================================================================ custom title bar (Windows)
     def _toggle_max(self):
