@@ -173,8 +173,11 @@ class EngagementMixin:
         box = self.eng_box
         box.blockSignals(True)
         box.clear()
-        box.addItem("Personal", 0)
+        box.addItem("No engagement (Personal)", 0)   # L-5: don't let "Personal" read like an engagement
         box.setItemData(0, "No engagement: personal browsing session", Qt.ItemDataRole.ToolTipRole)
+        _it_font = box.font()
+        _it_font.setItalic(True)
+        box.setItemData(0, _it_font, Qt.ItemDataRole.FontRole)
         for e in self.store.engagements():
             box.addItem(e.name, e.id)
         box.insertSeparator(box.count())
@@ -188,14 +191,20 @@ class EngagementMixin:
         self._update_scope_badge()
         self._set_window_title(self.current_view().title() if self.current_view() else "")
 
+    def _create_engagement(self) -> bool:
+        """Open the New-engagement dialog; return True if one was created and selected. Shared by the toolbar
+        picker and the 'Create engagement…' shortcut in the add-finding message (L-5)."""
+        d = EngagementDialog(self)
+        if d.exec():
+            self.set_engagement(self.store.save_engagement(d.e))
+            return True
+        self._refresh_engagement_ui()
+        return False
+
     def _on_engagement_chosen(self, idx):
         data = self.eng_box.itemData(idx)
         if data == -1:
-            d = EngagementDialog(self)
-            if d.exec():
-                self.set_engagement(self.store.save_engagement(d.e))
-            else:
-                self._refresh_engagement_ui()
+            self._create_engagement()
         elif data == -2 and self.engagement:
             d = EngagementDialog(self, self.engagement)
             if d.exec():
@@ -230,7 +239,17 @@ class EngagementMixin:
     # ================================================================ findings
     def add_finding_dialog(self, title="", severity="medium", url=None, description="", evidence=""):
         if not self.engagement:
-            QMessageBox.information(self, "Findings", "Select or create an engagement first (toolbar, left of the address bar).")
+            # L-5: Personal isn't an engagement, so offer to make one right here instead of a dead-end message.
+            box = QMessageBox(self)
+            box.setWindowTitle("Findings")
+            box.setText("You're in <b>Personal</b> (no engagement), so there's nowhere to record findings.")
+            box.setInformativeText("Findings are saved to an engagement. Create one now, or pick an existing one "
+                                   "from the toolbar (left of the address bar).")
+            create = box.addButton("Create engagement…", QMessageBox.ButtonRole.AcceptRole)
+            box.addButton(QMessageBox.StandardButton.Cancel)
+            box.exec()
+            if box.clickedButton() is create and self._create_engagement():
+                return self.add_finding_dialog(title, severity, url, description, evidence)
             return
         v = self.current_view()
         url = url or (v.url().toString() if v else "")
