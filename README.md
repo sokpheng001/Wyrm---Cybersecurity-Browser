@@ -9,7 +9,7 @@ Copyright © 2023–present ByKh R&D Group · Version 0.3.0
 
 ### History
 
-Wyrm was developed by **ByKh R&D Group** from **2023 to 2025** and had its **first public release in 2026**
+Wyrm was developed by **ByKh R&D Group** starting in **2023** and had its **first public release in 2024**
 (v0.0.1). Every release since then is published on the [Releases](../../releases) page.
 
 ### The name

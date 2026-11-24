@@ -6,6 +6,20 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.5.0
 
+- Security hardening: anti-fingerprinting no longer reveals that you're using Wyrm and now uses realistic,
+  per-session values, so the feature protects your privacy instead of making you easier to single out.
+- Web pages can no longer open restricted addresses (internal pages, local files, or in-page scripts), and a
+  website can no longer read your browsing history.
+- The Security panels now show everything captured from a target site as plain, inert text, and a page can no
+  longer forge or inject rows into the Traffic/API view.
+- Your AI Triage API key is now encrypted on your device (Windows DPAPI) instead of being kept in plain text.
+- The intercepting proxy now protects its certificate-authority key and automatically removes its trusted
+  certificate after a crash, so it never lingers.
+- Updates now require a verified checksum and reject a damaged or tampered installer; the installer also locks
+  down its program folder so other users on the PC can't modify it.
+- AI Triage ships with a working default model, the About box shows the Chromium engine version, and Recon now
+  reads IP and host:port targets correctly (e.g. 127.0.0.1:8777).
+- The Security panel closes with one clear control, and a detached panel closes with Ctrl+W.
 - Vertical tabs redesigned as a clean left-hand list (readable titles + favicons), replacing the old rotated
   tab bar that showed an empty panel; the top tab strip hides while it's on.
 - Open a local file by typing its plain path (e.g. C:\folder\image.png), not just file://.
