@@ -10,6 +10,7 @@ from __future__ import annotations
 import sys
 
 from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton, QWidget
@@ -56,6 +57,12 @@ class DocksMixin:
                 make_icon("win_close", theme.PALETTES[self.theme_name]["icon"]))
         bar.setFixedHeight(42)
         dock.setTitleBarWidget(bar)
+        if closable:
+            # Ctrl+W closes the panel when focus is inside it — notably when it's floating in its own window,
+            # where the main window's Ctrl+W (close tab) never reached it (UX-1).
+            sc = QShortcut(QKeySequence("Ctrl+W"), dock)
+            sc.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            sc.activated.connect(dock.close)
         # frame the panel whenever it becomes a separate window (button OR dragged out), so the split is obvious
         dock.topLevelChanged.connect(lambda top, d=dock: self._mark_detached(d, top))
 

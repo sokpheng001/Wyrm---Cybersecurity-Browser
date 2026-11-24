@@ -53,6 +53,15 @@ class PrivacyMixin:
         if view is self.current_view() and not self._shield_timer.isActive():
             self._shield_timer.start()
 
+    def _toggle_shields_panel(self):
+        """Toolbar Shields button: open the Shields view, or close the whole panel if it's already the one
+        showing (so the same button both opens and closes — UX-1). close() also handles the floating case."""
+        sec = self.security
+        if sec.isVisible() and sec.current_page() is sec.shields:
+            sec.close()
+        else:
+            sec.show_tab("Shields")
+
     def _update_shield_button(self):
         v = self.current_view()
         n = v.stats.total() if v else 0

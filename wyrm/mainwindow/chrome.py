@@ -226,9 +226,10 @@ class ChromeMixin:
         b_flag = self._tool("flag", "Add finding for this page (Ctrl+Shift+F)", lambda: self.add_finding_dialog(),
                             ["Ctrl+Shift+F"])
         n.addWidget(b_flag)
-        # Shields: blocked-count badge, opens the Shields report
+        # Shields: blocked-count badge; true toggle — opens the Shields view, or closes the panel if it's
+        # already showing Shields (so one button both opens and closes the same view — UX-1).
         self.b_shield = self._tool("shields", "Shields & security panel (Ctrl+Shift+S)",
-                                   lambda: self.security.show_tab("Shields"))
+                                   lambda: self._toggle_shields_panel())
         # icon-only (centred like every other button); the blocked count is a small corner badge
         self.shield_badge = QLabel(self.b_shield, objectName="Badge")
         self.shield_badge.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
