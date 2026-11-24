@@ -242,7 +242,9 @@ class ReconTab(QWidget):
         self.list.clear()
         for text, tip in self._visible():
             it = QListWidgetItem(text)   # list labels are plain text (inert); tooltips auto-render rich text
-            it.setToolTip(escape(tip))   # tip can carry target/API data (mimetype, program URL) → escape (SEC-6)
+            # show the full line + its note on hover so clipped security.txt lines / long URLs stay readable
+            # (L-7), escaped so target/API data can't inject rich text into the tooltip (SEC-6)
+            it.setToolTip(escape(text + (f"\n{tip}" if tip else "")))
             if text in self._chaos_programs:  # clickable Chaos program row
                 f = it.font()
                 f.setBold(True)
