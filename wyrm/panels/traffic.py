@@ -143,6 +143,9 @@ class TrafficTab(QWidget):
         for c, mode in enumerate([QHeaderView.ResizeMode.ResizeToContents] * 4 + [QHeaderView.ResizeMode.Stretch,
                                                                                   QHeaderView.ResizeMode.ResizeToContents]):
             h.setSectionResizeMode(c, mode)
+        # ResizeToContents normally scans up to 1000 rows to size each column — with ~1k live flows that made
+        # dragging the panel recompute hundreds of rows per frame. Sample only a few rows so resizing stays smooth.
+        h.setResizeContentsPrecision(16)
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._menu)
         self.table.doubleClicked.connect(lambda idx: self._send_to_repeater(self._row(idx)))
@@ -151,7 +154,13 @@ class TrafficTab(QWidget):
         self.count.setObjectName("Muted")
         v.addWidget(self.count)
         self._follow = True
-        self.model.rowsInserted.connect(self._on_insert)
+        # Coalesce bursts of new flows: a busy page fires hundreds of requests, and doing the domain scan +
+        # O(n) count + auto-scroll on every single row made the panel crawl. Batch it to ~5×/second instead.
+        self._insert_timer = QTimer(self, singleShot=True, interval=180)
+        self._insert_timer.timeout.connect(self._refresh_after_inserts)
+        self.model.rowsInserted.connect(self._queue_refresh)
+        sb = self.table.verticalScrollBar()
+        sb.valueChanged.connect(lambda v: setattr(self, "_follow", v >= sb.maximum() - 30))
 
     def _refilter(self):
         self.proxy.text = self.filter.text().lower().strip()
@@ -174,18 +183,21 @@ class TrafficTab(QWidget):
     def _ensure_domain(self, dom: str):
         if dom and dom not in self._domains:
             self._domains.add(dom)
-            for d in sorted(self._domains):  # rebuild so the list stays sorted
-                if self.site_box.findData(d) < 0:
-                    self.site_box.addItem(d, d)
+            pos = sorted(self._domains).index(dom) + 1   # insert alphabetically (keep "All traffic" at 0)
+            self.site_box.blockSignals(True)             # inserting must not fire a refilter mid-burst
+            self.site_box.insertItem(pos, dom, dom)
+            self.site_box.blockSignals(False)
 
-    def _on_insert(self, first, *_):
-        for r in self.model.rows[-50:]:  # pick up new domains for the selector
+    def _queue_refresh(self, *_):
+        if not self._insert_timer.isActive():
+            self._insert_timer.start()   # fires once ~180 ms later, coalescing a burst of inserts
+
+    def _refresh_after_inserts(self):
+        for r in self.model.rows[-200:]:  # pick up new domains (a set lookup — cheap when already known)
             self._ensure_domain(registered_domain(r["host"]))
-        sb = self.table.verticalScrollBar()
-        at_bottom = sb.value() >= sb.maximum() - 30
         self._update_count()
-        if at_bottom:
-            QTimer.singleShot(0, self.table.scrollToBottom)
+        if self._follow:
+            self.table.scrollToBottom()
 
     def _update_count(self):
         rows = self.model.rows
