@@ -26,6 +26,17 @@ ANIM_SCENES = {
     "starfield": "Starfield",
 }
 
+# CSS thumbnails that evoke each live wallpaper (shown on the Customize cards instead of one generic gradient)
+SCENE_THUMBS = {
+    "weather": ("radial-gradient(circle at 78% 26%,#fff7cc 7%,rgba(255,224,130,.5) 12%,transparent 20%),"
+                "linear-gradient(#2b6cb0,#a7cce8)"),
+    "aurora": ("radial-gradient(at 30% 40%,rgba(32,200,120,.55),transparent 55%),"
+               "radial-gradient(at 72% 62%,rgba(130,80,255,.55),transparent 55%),#05070d"),
+    "matrix": "repeating-linear-gradient(90deg,#00e676 0 1px,transparent 1px 9px),#05070d",
+    "network": "radial-gradient(#78a9ff 1.4px,transparent 1.6px) 0 0/15px 15px,#070b12",
+    "starfield": "radial-gradient(#ffffff 1px,transparent 1.5px) 0 0/20px 20px,#04060a",
+}
+
 
 def _anim_js(scene: str) -> str:
     """Self-contained Canvas animation for the start-page background. Pauses when the tab is hidden."""
@@ -801,10 +812,12 @@ def _customize_panel(bgc: dict, weather_on: bool = True, location_on: bool = Tru
                     "wyrm://do?a=bg-remove-image")
     big += card("wyrm://do?a=bg-upload", "up", up_icon, "Use your own", False)
     big += card("wyrm://do?a=bg&amp;mode=none", "plain", "", "No background", m == "none")
-    # --- live wallpaper cards ---
-    live = card("wyrm://do?a=bg&amp;mode=weather", "video", "", "Live weather", m == "weather")
+    # --- live wallpaper cards (each previews its own scene, not a generic gradient) ---
+    def _scene_thumb(key):
+        return f"<span class='thumb' style=\"background:{SCENE_THUMBS.get(key, '')}\"></span>"
+    live = card("wyrm://do?a=bg&amp;mode=weather", "", _scene_thumb("weather"), "Live weather", m == "weather")
     for key, label in ANIM_SCENES.items():
-        live += card(f"wyrm://do?a=bg&amp;mode=animated&amp;anim={key}", "video", "", label,
+        live += card(f"wyrm://do?a=bg&amp;mode=animated&amp;anim={key}", "", _scene_thumb(key), label,
                      m == "animated" and cur_anim == key)
     if has_vid:
         live += card("wyrm://do?a=bg&amp;mode=video_local", "video", "", "Your video", m == "video_local",

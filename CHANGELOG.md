@@ -6,6 +6,8 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.5.0
 
+- Customize backgrounds: a new Gradients set (vibrant multi-colour and a mesh gradient), and the live-wallpaper
+  cards now preview each scene (weather, aurora, matrix, particle network, starfield) instead of one gradient.
 - Most visited: the start page now shows tiles for the sites you visit most (from your local history), like
   other browsers — remove one with ×, or turn the whole row off in Customize → Start page.
 - Deleting a shortcut or bookmark no longer reloads the start page — it updates in place.
