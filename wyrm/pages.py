@@ -617,19 +617,23 @@ def render_home(ctx: dict) -> str:
                      + rows + "</section>")
     # info bar: live clock (date + time, drawn here) and, when available, location + weather
     wx = ctx.get("weather") or {}
+    wx_on = ctx.get("weather_on", True)      # show conditions (emoji/temp/description)
+    loc_on = ctx.get("location_on", True)    # show the city
     wx_html = ""
-    if wx:
+    if wx and (wx_on or loc_on):
         loc = ", ".join(p for p in (wx.get("city"), wx.get("country")) if p)
         temp = f"{round(wx['temp_c'])}°C" if wx.get("temp_c") is not None else ""
-        wx_html = ("<div class='wx'>"
-                   + (f"<span class='emoji'>{escape(wx.get('emoji', ''))}</span>" if wx.get("emoji") else "")
-                   + (f"<span class='temp'>{escape(temp)}</span>" if temp else "")
-                   + (f"<span>{escape(wx.get('desc', ''))}</span>" if wx.get("desc") else "")
-                   + (f"<a class='loc' href='wyrm://do?a=weather-place' "
-                      f"title='Wrong place? Click to set your city (weather is detected from your IP)'>"
-                      f"· {escape(loc)} ✎</a>" if loc else
-                      "<a class='loc' href='wyrm://do?a=weather-place' title='Set your city'>· Set location</a>")
-                   + "</div>")
+        cond = ""
+        if wx_on:
+            cond = ((f"<span class='emoji'>{escape(wx.get('emoji', ''))}</span>" if wx.get("emoji") else "")
+                    + (f"<span class='temp'>{escape(temp)}</span>" if temp else "")
+                    + (f"<span>{escape(wx.get('desc', ''))}</span>" if wx.get("desc") else ""))
+        place = ""
+        if loc_on:
+            place = (f"<a class='loc' href='wyrm://do?a=weather-place' "
+                     f"title='Wrong place? Click to set your city'>· {escape(loc)} ✎</a>" if loc else
+                     "<a class='loc' href='wyrm://do?a=weather-place' title='Set your city'>· Set location</a>")
+        wx_html = f"<div class='wx'>{cond}{place}</div>" if (cond or place) else ""
     infobar = ("<div class='infobar'><div class='blk'><span class='clock' id='wyrm-clock'>--:--</span>"
                "<span class='date' id='wyrm-date'></span></div>"
                + ("<div class='sep'></div>" + wx_html if wx_html else "")
@@ -681,7 +685,7 @@ def render_home(ctx: dict) -> str:
     bgc = ctx.get("bg") or {"mode": "random" if ctx.get("background") else "none"}
     bmode = bgc.get("mode", "random")
     # Customize lives outside <main>: main's entry animation would otherwise trap position:fixed inside it
-    panel = _customize_panel(bgc, ctx.get("weather_on", True))
+    panel = _customize_panel(bgc, ctx.get("weather_on", True), ctx.get("location_on", True))
 
     def page(css: str, cls: str = "") -> str:
         html = _page("New tab", body, css, "home").replace("</main>", "</main>" + panel + BG_FADE_JS, 1)
@@ -737,7 +741,7 @@ BG_FADE_JS = ("<script>(function(){var b=document.body;if(!b.classList.contains(
               "var im=new Image();im.onload=im.onerror=ready;im.src=m[1];})();</script>")  # cached image: no fade
 
 
-def _customize_panel(bgc: dict, weather_on: bool = True) -> str:
+def _customize_panel(bgc: dict, weather_on: bool = True, location_on: bool = True) -> str:
     """Bottom-right "Customize" button: a centered panel to pick the start-page background and how often the
     wallpaper changes (applied instantly, remembered). Stays open after a choice (wyrm://home#customize)."""
     m = bgc.get("mode", "random")
@@ -789,7 +793,10 @@ def _customize_panel(bgc: dict, weather_on: bool = True) -> str:
                  f"href='wyrm://do?a=bg&amp;mode={'none' if show_bg else 'random'}'>"
                  "<span><b>Show background</b></span><span class='sw'></span></a>")
     wx_toggle = ("<a class='ctog" + (" on" if weather_on else "") + "' href='wyrm://do?a=weather-toggle'>"
-                 "<span><b>Weather &amp; location</b><small>Show today's weather and your city</small></span>"
+                 "<span><b>Weather</b><small>Show today's temperature and conditions</small></span>"
+                 "<span class='sw'></span></a>"
+                 "<a class='ctog" + (" on" if location_on else "") + "' href='wyrm://do?a=location-toggle'>"
+                 "<span><b>Location</b><small>Show your city on the start page</small></span>"
                  "<span class='sw'></span></a>")
     # --- icons / chrome ---
     I_IMG = ("<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6'>"

@@ -55,6 +55,31 @@ def _geolocate(proxies, verify) -> dict | None:
     return None
 
 
+def geocode_all(query: str, proxies=None, verify=True, count: int = 8) -> list[dict]:
+    """Up to `count` place matches for what the user typed, so they can pick the exact one (disambiguation —
+    the accurate pattern other browsers use). Each: {city, region, country, lat, lon, label}."""
+    import requests
+    q = (query or "").strip()
+    if not q:
+        return []
+    try:
+        r = requests.get("https://geocoding-api.open-meteo.com/v1/search", headers=UA, timeout=10,
+                         proxies=proxies, verify=verify,
+                         params={"name": q, "count": count, "language": "en", "format": "json"})
+        r.raise_for_status()
+        out = []
+        for g in (r.json() or {}).get("results") or []:
+            if g.get("latitude") is None or g.get("longitude") is None:
+                continue
+            city, region, country = g.get("name") or "", g.get("admin1") or "", g.get("country") or ""
+            label = ", ".join(x for x in (city, region, country) if x)
+            out.append({"city": city, "region": region, "country": country,
+                        "lat": g["latitude"], "lon": g["longitude"], "label": label})
+        return out
+    except (requests.RequestException, ValueError, TypeError):
+        return []
+
+
 def geocode(query: str, proxies=None, verify=True) -> dict | None:
     """Look up a place the user typed (e.g. "Busan") -> {city, region, country, lat, lon}, via Open-Meteo's
     keyless geocoding API. Used to let the user set their location manually when IP geolocation is wrong

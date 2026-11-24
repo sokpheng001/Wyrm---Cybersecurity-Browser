@@ -398,15 +398,17 @@ class HomeMixin:
                 QTimer.singleShot(0, self._set_weather_place)  # don't block the scheme request on a dialog
             elif do == "weather-auto" and not self.ephemeral:
                 self._clear_weather_place()
-            elif do == "weather-toggle" and not self.tor:
-                on = not self.settings.value("home/weather", True, type=bool)
-                self.settings.setValue("home/weather", on)
+            elif do in ("weather-toggle", "location-toggle") and not self.tor:
+                key = "home/weather" if do == "weather-toggle" else "home/location"
+                on = not self.settings.value(key, True, type=bool)
+                self.settings.setValue(key, on)
                 self.settings.sync()
-                if on:
-                    self._start_weather()       # turned on → detect + fetch now
+                if self._wx_enabled():
+                    self._start_weather()        # (re)detect + fetch so whichever part is on has data
                 else:
-                    self._weather = None         # turned off → hide it
-                self.toast("Weather & location shown" if on else "Weather & location hidden", 3000)
+                    self._weather = None          # both off → nothing to show
+                label = "Weather" if do == "weather-toggle" else "Location"
+                self.toast(f"{label} {'shown' if on else 'hidden'} on the start page", 3000)
                 QTimer.singleShot(0, self._refresh_home_pages)
             elif do == "sc-add" and not self.tor:
                 QTimer.singleShot(0, self._add_shortcut)  # don't block the scheme request on a dialog
@@ -447,6 +449,7 @@ class HomeMixin:
                 "background": (not self.tor) and self._bg_settings()["mode"] != "none",
                 "bg": self._bg_settings(), "news": self._news,
                 "weather_on": self.settings.value("home/weather", True, type=bool),
+                "location_on": self.settings.value("home/location", True, type=bool),
                 "shortcuts": None if self.tor else self._shortcuts_with_icons(),
                 "weather": getattr(self, "_weather", None),
                 "vid_url": self._bg_video_url(),
@@ -482,6 +485,11 @@ class HomeMixin:
                 self.toast(f"Updated {res[0]} security tool(s) to the latest ProjectDiscovery release", 6000)
         self.runner.run(work, done)
 
+    def _wx_enabled(self) -> bool:
+        """Whether to fetch weather/location at all — true if either the weather or the location display is on."""
+        return bool(self.settings.value("home/weather", True, type=bool)
+                    or self.settings.value("home/location", True, type=bool))
+
     def _weather_place(self) -> dict | None:
         """The city the user set manually (overrides IP geolocation), or None to auto-detect from the IP."""
         import json
@@ -499,7 +507,7 @@ class HomeMixin:
     def _start_weather(self):
         """Begin locating for the start-page weather. Manual city wins; else try the OS location service
         (Wi-Fi/GPS, precise — like a phone's weather app); else fall back to coarse IP geolocation."""
-        if self.ephemeral or not self.settings.value("home/weather", True, type=bool):
+        if self.ephemeral or not self._wx_enabled():
             return
         if self._weather_place():          # user pinned a city — no geolocation needed
             self._fetch_weather()
@@ -554,20 +562,20 @@ class HomeMixin:
     def _fetch_weather(self):
         # location + weather for the start page; off in private/Tor and when the user disables it. We try even if
         # reachability reports "offline" (it misreports on some systems) — a real offline machine just fails quietly.
-        if self.ephemeral or not self.settings.value("home/weather", True, type=bool):
+        if self.ephemeral or not self._wx_enabled():
             return
         from .. import homeinfo
         place = self._weather_place() or getattr(self, "_geo_place", None)  # manual city, else OS fix, else IP
         self.runner.run(lambda: homeinfo.fetch(self.proxies(), self.verify_tls(), place), self._weather_ready)
 
     def _set_weather_place(self):
-        """Ask the user for a city and pin the start-page weather there (IP geolocation points at the ISP, not you)."""
+        """Ask for a city, then let the user pick the exact match (disambiguation — the accurate pattern other
+        browsers use; IP geolocation points at the ISP, not you)."""
         from PySide6.QtWidgets import QInputDialog
-        import json
         cur = self._weather_place() or {}
         text, ok = QInputDialog.getText(self, "Set your location",
-                                        "City (e.g. Busan, Seoul, New York) — leave empty to detect from your IP:",
-                                        text=cur.get("city", ""))
+                                        "Search for a city (e.g. Busan, Seoul, New York) — leave empty to detect "
+                                        "from your IP:", text=cur.get("city", ""))
         if not ok:
             return
         text = text.strip()
@@ -575,17 +583,33 @@ class HomeMixin:
             self._clear_weather_place()
             return
 
-        def done(ok2, g):
-            if not ok2 or not g:
+        def done(ok2, matches):
+            if not ok2 or not matches:
                 self.toast(f"Couldn't find “{text}”. Try a nearby bigger city.", 5000)
                 return
-            self.settings.setValue("home/weather_place", json.dumps(g))
-            self.settings.sync()
-            label = ", ".join(x for x in (g.get("city"), g.get("country")) if x) or text
-            self.toast(f"Weather set to {label}", 4000)
-            self._fetch_weather()
+            self._choose_weather_place(matches)
         from .. import homeinfo
-        self.runner.run(lambda: homeinfo.geocode(text, self.proxies(), self.verify_tls()), done)
+        self.toast("Searching…", 1500)
+        self.runner.run(lambda: homeinfo.geocode_all(text, self.proxies(), self.verify_tls()), done)
+
+    def _choose_weather_place(self, matches: list):
+        """Show the geocoding matches so the user picks the exact place (region + country)."""
+        from PySide6.QtWidgets import QInputDialog
+        import json
+        if len(matches) == 1:
+            chosen = matches[0]
+        else:
+            labels = [m["label"] for m in matches]
+            label, ok = QInputDialog.getItem(self, "Set your location", "Pick the right place:", labels, 0, False)
+            if not ok:
+                return
+            chosen = next((m for m in matches if m["label"] == label), matches[0])
+        place = {k: chosen[k] for k in ("city", "region", "country", "lat", "lon") if k in chosen}
+        self.settings.setValue("home/weather_place", json.dumps(place))
+        self.settings.sync()
+        self._geo_place = None
+        self.toast(f"Weather set to {chosen.get('label') or chosen.get('city', '')}", 4000)
+        self._fetch_weather()
 
     def _clear_weather_place(self):
         self.settings.remove("home/weather_place")
