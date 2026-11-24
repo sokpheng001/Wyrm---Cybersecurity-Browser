@@ -249,10 +249,14 @@ class TabsMixin:
             self.urlbar.setText(u[8:] if u.startswith("https://") else u[7:] if u.startswith("http://") else u)
         self.urlbar.setCursorPosition(0)
         p = theme.PALETTES[self.theme_name]
-        icon = {"https": "lock", "http": "unlock"}.get(url.scheme(), "search")
+        if getattr(v, "cert_error", False) and url.scheme() == "https":
+            icon, tip = "unlock", "Certificate problem — the connection is NOT secure (click to inspect)"
+        else:
+            icon = {"https": "lock", "http": "unlock"}.get(url.scheme(), "search")
+            tip = {"lock": "Secure connection (HTTPS) — click to view the certificate",
+                   "unlock": "Not secure (plain HTTP)"}.get(icon, "")
         self.url_icon.setPixmap(make_icon(icon, p["error"] if icon == "unlock" else p["muted"]).pixmap(18, 18))
-        self.url_icon.setToolTip({"lock": "Secure connection (HTTPS) — click to view the certificate",
-                                  "unlock": "Not secure (plain HTTP)"}.get(icon, ""))
+        self.url_icon.setToolTip(tip)
         h = v.history()
         self.b_back.setEnabled(h.canGoBack())
         self.b_fwd.setEnabled(h.canGoForward())

@@ -43,6 +43,25 @@ class BrowserView(QWebEngineView):
         self.guard = TrafficInterceptor(win, self)
         page.setUrlRequestInterceptor(self.guard)
         page.linkHovered.connect(win.on_link_hovered)
+        # track TLS state so the URL bar shows "not secure" on a bad certificate, not a padlock (H-1)
+        self.cert_error = False
+        page.certificateError.connect(self._on_cert_error)
+        self.loadStarted.connect(self._clear_cert_error)
+
+    def _on_cert_error(self, error):
+        try:
+            if hasattr(error, "isMainFrame") and not error.isMainFrame():
+                return  # a sub-resource problem shouldn't flip the whole page to "not secure"
+        except Exception:  # noqa: BLE001
+            pass
+        self.cert_error = True
+        try:
+            error.rejectCertificate()   # keep Chromium's default: show the certificate-error page
+        except Exception:  # noqa: BLE001 — not accepting it rejects by default on some Qt versions
+            pass
+
+    def _clear_cert_error(self):
+        self.cert_error = False
 
     def createWindow(self, _type):  # target=_blank, window.open
         return self.win.new_tab(None, popup=True)
