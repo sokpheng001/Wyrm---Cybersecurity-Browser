@@ -25,10 +25,9 @@ class InterceptMixin:
         return self._intercept_win
 
     def open_intercept(self):
-        """Show the Intercept window and switch Intercept on."""
+        """Show the Intercept window WITHOUT turning interception on — the user flips it on deliberately, so just
+        opening the window never silently starts holding traffic."""
         w = self._intercept_window()
-        self.set_intercept(True)
-        w.toggle.setChecked(True)
         w.show()
         w.raise_()
         w.activateWindow()
@@ -53,3 +52,5 @@ class InterceptMixin:
         w = self._intercept_window()
         self._intercept_held.add(req["url"])
         w.hold(view, req)
+        w.show()        # a request is held — make sure the Intercept window is visible so the browser isn't "frozen"
+        w.raise_()
