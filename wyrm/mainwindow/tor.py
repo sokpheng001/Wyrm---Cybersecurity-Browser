@@ -18,9 +18,23 @@ class TorMixin:
 
     # ================================================================ Tor / private windows
     def open_new_window(self):
-        """A second normal browser window (separate process)."""
-        args = ([] if getattr(sys, "frozen", False) else [sys.argv[0]])
-        QProcess.startDetached(sys.executable, args)
+        """A second normal browser window, in the SAME process. A separate process would open the shared Chromium
+        profile twice, which crashes Qt WebEngine — so new windows live in this process. Starts blank."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QApplication
+        from ..window import MainWindow
+        w = MainWindow(new_window=True)
+        w.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        app = QApplication.instance()
+        wins = getattr(app, "_wyrm_windows", None)
+        if wins is None:
+            wins = app._wyrm_windows = []
+        wins.append(w)                                   # keep a reference so it isn't garbage-collected
+        w.destroyed.connect(lambda *_a, ww=w: wins.remove(ww) if ww in wins else None)
+        w.show()
+        w.raise_()
+        w.activateWindow()
+        return w
 
     def open_private_window(self):
         """Private window (like incognito): separate process with an in-memory profile; nothing is saved."""

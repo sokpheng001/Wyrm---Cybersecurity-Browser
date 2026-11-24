@@ -74,11 +74,24 @@ class EngagementMixin:
         key = "tor" if self.tor else "private" if self.private else (f"eng-{eng.id}" if eng else "personal")
         if key in self.profiles:
             return self.profiles[key]
+        # Disk-backed profiles are shared across all windows in this process: Qt can't build two profiles with the
+        # same storage name, and a second window must reuse the first's cookies/logins. Parent to the app so the
+        # profile outlives any single window. (Off-the-record profiles stay per-window — private/Tor are separate
+        # processes anyway.)
+        from PySide6.QtWidgets import QApplication
+        _app = QApplication.instance()
+        shared = getattr(_app, "_wyrm_profiles", None)
+        if shared is None:
+            shared = _app._wyrm_profiles = {}
+        if not self.ephemeral and key in shared:
+            self.profiles[key] = shared[key]
+            return shared[key]
         if self.ephemeral:
             prof = QWebEngineProfile(self)  # off-the-record: no cookies, cache or history touch the disk
         else:
             prof = _persistent_profile(f"Wyrm-{key}", str(self.data_dir / "profiles" / key),
-                                       str(self.data_dir / "cache" / key), self)
+                                       str(self.data_dir / "cache" / key), _app)
+            shared[key] = prof
         def inject(name, source, subframes=False):
             sc = QWebEngineScript()
             sc.setName(name)

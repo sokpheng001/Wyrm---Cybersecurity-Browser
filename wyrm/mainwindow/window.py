@@ -71,8 +71,9 @@ class MainWindow(
     ProxyMixin,
     QMainWindow,
 ):
-    def __init__(self, tor=None, private: bool = False):
+    def __init__(self, tor=None, private: bool = False, new_window: bool = False):
         super().__init__()
+        self._new_window = new_window  # a second window opened in-process (Ctrl+N): blank, doesn't save the session
         self.tor = tor  # TorManager when this is a Tor window
         self.private = bool(private) and not tor  # private window: in-memory profile, nothing saved
         self.ephemeral = bool(tor) or self.private  # Tor and private windows never write browsing data
@@ -208,14 +209,16 @@ class MainWindow(
         QGuiApplication.styleHints().colorSchemeChanged.connect(
             lambda *_: self.theme_mode == "system" and self.apply_theme("system"))
         self._refresh_engagement_ui()
-        if not self._restore_session():
+        if self._new_window:
+            self.new_tab(QUrl(HOME))   # a fresh second window starts blank — never restores/clobbers the session
+        elif not self._restore_session():
             first_run = not self.ephemeral and not self.settings.value("welcome/seen", False, type=bool)
             if first_run:
                 self.settings.setValue("welcome/seen", True)
                 self.new_tab(QUrl("wyrm://welcome"))
             else:
                 self.new_tab(QUrl(HOME))
-        if not self.ephemeral:  # keep the saved session fresh, so tabs survive even a crash
+        if not self.ephemeral and not self._new_window:  # keep the saved session fresh, so tabs survive a crash
             self._session_timer = QTimer(self)
             self._session_timer.timeout.connect(self._save_session)
             self._session_timer.start(20_000)

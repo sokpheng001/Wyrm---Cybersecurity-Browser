@@ -28,8 +28,8 @@ class SessionMixin:
         return urls
 
     def _save_session(self):
-        if self.ephemeral:
-            return  # Tor and private windows never leave a trace
+        if self.ephemeral or getattr(self, "_new_window", False):
+            return  # Tor/private windows never persist; a second in-process window must not clobber the session
         self.settings.setValue("session/tabs", json.dumps(self._session_urls()))
         self.settings.setValue("session/current", self.tabbar.currentIndex())
         self.settings.sync()

@@ -98,6 +98,17 @@ class TorDialog(QDialog):
 def main():
     QCoreApplication.setOrganizationName("HackPi")
     QCoreApplication.setApplicationName("Wyrm")
+    try:   # crash logging: Python-level faults go to a log with the Wyrm version (H-4)
+        import faulthandler
+        from wyrm import __version__ as _wv
+        _ld = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))
+        _ld.mkdir(parents=True, exist_ok=True)
+        _crash = open(_ld / "crash.log", "a", buffering=1, encoding="utf-8")
+        import datetime as _dt
+        _crash.write(f"\n=== Wyrm {_wv} started {_dt.datetime.now():%Y-%m-%d %H:%M:%S} ===\n")
+        faulthandler.enable(_crash)
+    except Exception:  # noqa: BLE001 — logging must never block startup
+        pass
     tor_mode = "--tor" in sys.argv
     private_mode = "--private" in sys.argv and not tor_mode  # private window: nothing is saved
     argv = [a for a in sys.argv if a not in ("--tor", "--private")]
@@ -151,12 +162,43 @@ def main():
             sys.exit(0)
         app.aboutToQuit.connect(tor.stop)
 
+    rest = [a for a in argv[1:] if not a.startswith("--")]
+    # Single instance for normal windows: a second launch hands its URL to the running app and exits, so the
+    # on-disk Chromium profile is never opened by two processes at once (that crashes Qt WebEngine). Tor/private
+    # windows are intentionally separate processes — each uses its own or an off-the-record profile.
+    single_server = None
+    if not tor_mode and not private_mode:
+        from PySide6.QtNetwork import QLocalServer, QLocalSocket
+        key = "WyrmBrowser-instance"
+        probe = QLocalSocket()
+        probe.connectToServer(key)
+        if probe.waitForConnected(300):
+            probe.write((" ".join(rest)).encode())
+            probe.flush()
+            probe.waitForBytesWritten(500)
+            probe.disconnectFromServer()
+            sys.exit(0)   # another Wyrm is already running — it will open our URL / a new window
+        QLocalServer.removeServer(key)   # clear any stale socket from a crash
+        single_server = QLocalServer()
+        single_server.listen(key)
+
     from wyrm.window import MainWindow
     win = MainWindow(tor=tor, private=private_mode)
-    rest = [a for a in argv[1:] if not a.startswith("--")]
     if rest:
         win.current_view().setUrl(QUrl(engines.resolve(" ".join(rest))))
     win.show()
+    if single_server is not None:
+        def _on_second_launch():
+            conn = single_server.nextPendingConnection()
+            if conn is None:
+                return
+            conn.waitForReadyRead(400)
+            url = bytes(conn.readAll()).decode(errors="ignore").strip()
+            nw = win.open_new_window()
+            if url and nw is not None:
+                nw.current_view().setUrl(QUrl(engines.resolve(url)))
+        single_server.newConnection.connect(_on_second_launch)
+        app._wyrm_single_server = single_server   # keep a reference for the app's lifetime
     sys.exit(app.exec())
 
 
