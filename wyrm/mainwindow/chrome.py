@@ -568,6 +568,9 @@ class ChromeMixin:
                 menu.addAction("Add site to this folder…", lambda _c=False, f=i: self._add_to_folder(f))
                 menu.addAction("Remove folder", lambda _c=False, f=i: self._del_shortcut(f))
                 btn.setMenu(menu)
+                btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+                btn.customContextMenuRequested.connect(
+                    lambda pos, idx=i, b=btn: self._bm_folder_menu(idx, b, pos))
             else:                                   # plain bookmark
                 btn.setText(self._bm_title(s.get("title") or ""))
                 btn.setIcon(self._bm_icon(s))
@@ -591,9 +594,31 @@ class ChromeMixin:
         m = QMenu(self)
         lst = self._shortcuts()
         url = lst[idx].get("url", "") if 0 <= idx < len(lst) else ""
+        m.addAction("Open", lambda: self.open_url(url))
         m.addAction("Open in new tab", lambda: self.open_url(url, new_tab=True))
         m.addSeparator()
+        m.addAction("Rename…", lambda: self._rename_shortcut(idx))
         m.addAction("Remove", lambda: self._del_shortcut(idx))
+        m.addSeparator()
+        m.addAction("Add bookmark…", self._add_shortcut)
+        m.addAction("New folder…", self._add_folder)
+        m.exec(btn.mapToGlobal(pos))
+
+    def _bm_folder_menu(self, idx, btn, pos):
+        lst = self._shortcuts()
+        if not (0 <= idx < len(lst)):
+            return
+        items = lst[idx].get("items") or []
+        m = QMenu(self)
+        a = m.addAction(f"Open all ({len(items)})", lambda: [self.open_url(it.get("url", ""), new_tab=True)
+                                                             for it in items if it.get("url")])
+        a.setEnabled(bool(items))
+        m.addSeparator()
+        m.addAction("Rename…", lambda: self._rename_shortcut(idx))
+        m.addAction("Delete folder", lambda: self._del_shortcut(idx))
+        m.addSeparator()
+        m.addAction("Add page…", lambda: self._add_to_folder(idx))
+        m.addAction("Add folder…", self._add_folder)
         m.exec(btn.mapToGlobal(pos))
 
     def _toggle_bookmarks_bar(self):

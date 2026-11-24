@@ -317,6 +317,23 @@ class HomeMixin:
             lst.pop(i)
             self._save_shortcuts(lst)
 
+    def _rename_shortcut(self, i: int):
+        from PySide6.QtWidgets import QInputDialog
+        lst = self._shortcuts()
+        if not (0 <= i < len(lst)):
+            return
+        s = lst[i]
+        title, ok = QInputDialog.getText(self, "Rename", "Name:", text=s.get("title", ""))
+        if not ok:
+            return
+        s["title"] = title.strip() or s.get("title", "")
+        if "items" not in s:   # a bookmark (not a folder) — also let the address be edited
+            url, ok = QInputDialog.getText(self, "Edit bookmark", "Address:", text=s.get("url", ""))
+            if ok and url.strip():
+                u = url.strip()
+                s["url"] = u if "://" in u else "https://" + u
+        self._save_shortcuts(lst)
+
     def _add_folder(self):
         from PySide6.QtWidgets import QInputDialog
         name, ok = QInputDialog.getText(self, "New folder", "Folder name:")
