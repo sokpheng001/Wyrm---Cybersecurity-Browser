@@ -355,6 +355,8 @@ class SettingsDialog(QDialog):
         self.proxy_port = QSpinBox()
         self.proxy_port.setRange(1, 65535)
         self.proxy_port.setValue(self.settings.value("proxy/port", 8080, type=int))
+        self.proxy_port.setMinimumHeight(30)   # L-10: bigger, usable step buttons (the default arrows were tiny)
+        self.proxy_port.setButtonSymbols(QSpinBox.ButtonSymbols.PlusMinus)
         self._row(lay, "Port", self.proxy_port, "proxy port")
         self.proxy_insecure = QCheckBox("Trust the proxy's CA (ignore certificate errors while proxied)")
         self.proxy_insecure.setChecked(self.settings.value("proxy/insecure", False, type=bool))
