@@ -240,6 +240,55 @@ class HomeMixin:
                 out.append({**s, "icon": self._shortcut_icon(pages._sc_domain(s.get("url", "")))})
         return out
 
+    # ---------------------------------------------------------------- "Most visited" (auto, from history)
+    def _topsites_hidden(self) -> set:
+        import json
+        raw = self.settings.value("home/topsites_hidden", "", type=str)
+        try:
+            return set(json.loads(raw)) if raw else set()
+        except (ValueError, TypeError):
+            return set()
+
+    def _hide_topsite(self, url: str):
+        import json
+        from .. import pages
+        from ..linkguard import registered_domain
+        dom = registered_domain(pages._sc_domain(url or ""))
+        if not dom:
+            return
+        hidden = self._topsites_hidden()
+        hidden.add(dom)   # hide the whole site (we de-dupe by domain), so the tile doesn't come back as another page
+        self.settings.setValue("home/topsites_hidden", json.dumps(sorted(hidden)))
+        self.settings.sync()   # tile already removed client-side — no page reload
+
+    def _top_sites(self, limit: int = 10) -> list:
+        """Most-visited pages from history, de-duplicated by site, excluding ones you've hidden or already
+        bookmarked. [] when off, or in private/Tor windows (no history)."""
+        if self.history_db is None or not self.settings.value("home/topsites", True, type=bool):
+            return []
+        from .. import pages
+        from ..linkguard import registered_domain
+        hidden = self._topsites_hidden()
+        manual = set()
+        for s in self._shortcuts():
+            if isinstance(s.get("items"), list):
+                for it in s["items"]:
+                    manual.add(registered_domain(pages._sc_domain(it.get("url", ""))))
+            else:
+                manual.add(registered_domain(pages._sc_domain(s.get("url", ""))))
+        out, seen = [], set()
+        for r in self.history_db.top_sites():
+            u = r["url"]
+            dom = registered_domain(pages._sc_domain(u))
+            if not dom or dom in seen or dom in manual or dom in hidden:
+                continue
+            seen.add(dom)
+            out.append({"url": u, "title": r.get("title") or pages._sc_domain(u),
+                        "icon": self._shortcut_icon(pages._sc_domain(u))})
+            if len(out) >= limit:
+                break
+        return out
+
     def _shortcut_icon_dir(self):
         return self.data_dir / "shortcut_icons"
 
@@ -275,6 +324,8 @@ class HomeMixin:
                     consider(it.get("url", ""))
             else:
                 consider(s.get("url", ""))
+        for t in self._top_sites():   # most-visited tiles want favicons too
+            consider(t.get("url", ""))
         if not want:
             return
         px, verify = self.proxies(), self.verify_tls()
@@ -475,6 +526,14 @@ class HomeMixin:
                     pass
             elif do == "sc-del-url" and not self.tor:
                 self._del_shortcut_url(params.get("u", ""))
+            elif do == "topsite-hide" and not self.tor:
+                self._hide_topsite(params.get("u", ""))
+            elif do == "topsites-toggle" and not self.tor:
+                on = not self.settings.value("home/topsites", True, type=bool)
+                self.settings.setValue("home/topsites", on)
+                self.settings.sync()
+                self.toast(f"Most visited {'shown' if on else 'hidden'}", 3000)
+                QTimer.singleShot(0, self._refresh_home_pages)
             elif do == "sc-del-in" and not self.tor:
                 try:
                     self._del_in_folder(int(params.get("f", "-1")), int(params.get("i", "-1")))
@@ -499,6 +558,8 @@ class HomeMixin:
                 "bg": self._bg_settings(), "news": self._news,
                 "weather_on": self.settings.value("home/weather", True, type=bool),
                 "location_on": self.settings.value("home/location", True, type=bool),
+                "top_sites": None if self.tor else self._top_sites(),
+                "topsites_on": self.settings.value("home/topsites", True, type=bool),
                 "shortcuts": None if self.tor else self._shortcuts_with_icons(),
                 "weather": getattr(self, "_weather", None),
                 "vid_url": self._bg_video_url(),

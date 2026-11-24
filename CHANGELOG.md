@@ -6,6 +6,9 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.5.0
 
+- Most visited: the start page now shows tiles for the sites you visit most (from your local history), like
+  other browsers — remove one with ×, or turn the whole row off in Customize → Start page.
+- Deleting a shortcut or bookmark no longer reloads the start page — it updates in place.
 - Bookmark the current page with Ctrl+D; mute a noisy tab from its right-click menu.
 - Right-click any page for quick security actions: Scan this page, Send to Repeater, and Copy as cURL.
 - More tools in the menu: New window (Ctrl+N), Downloads, and a More tools submenu (find, zoom, full screen,

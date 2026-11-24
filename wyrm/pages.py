@@ -280,6 +280,8 @@ form.big{max-width:620px;margin:0 auto;position:relative;display:block}
 .tile .t{font-size:15px;font-weight:600;margin:10px 0 2px}
 .tile .d{font-size:12px;color:var(--muted);line-height:1.5}
 /* start-page shortcuts (speed dial) */
+.schdr{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.3px;margin:26px 0 6px;text-align:center}
+body.hasbg .schdr{color:rgba(255,255,255,.85);text-shadow:0 1px 3px rgba(0,0,0,.5)}
 .scgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin:22px 0 0}
 .scgrid .sc{position:relative;width:92px}
 .scgrid .sclink,.scgrid .scadd{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 6px;border-radius:12px;color:var(--fg)}
@@ -545,6 +547,16 @@ def _sc_domain(u: str) -> str:
         return u
 
 
+def _sc_tile_icon(it: dict) -> str:
+    """48px tile icon for a shortcut/top-site: its favicon if cached, else a coloured letter."""
+    ic = it.get("icon") or ""
+    if ic:
+        return f"<img class='scico' src='{escape(ic, quote=True)}' alt=''>"
+    d = _sc_domain(it.get("url", ""))
+    letter = next((c for c in d if c.isalnum()), "?").upper()
+    return f"<span class='scico' style='background:hsl({sum(ord(c) for c in d) % 360},52%,45%)'>{escape(letter)}</span>"
+
+
 def render_home(ctx: dict) -> str:
     from pathlib import Path
     try:
@@ -572,31 +584,32 @@ def render_home(ctx: dict) -> str:
                     f"<div class='t'>{escape(t)}</div><div class='d'>{escape(d)}</div></a>" for key, t, d, u in TILES)
     # start-page shortcuts (speed dial) — the user's own sites/tools; add / remove like other browsers.
     # None (e.g. Tor windows) hides the row entirely; a list (possibly empty) shows it with the "Add" tile.
+    from urllib.parse import quote
     sc_list = ctx.get("shortcuts")
     shortcuts_html = ""
     if sc_list is not None:
-        def _tile_icon(it):   # 48px tile icon for a single link
-            ic = it.get("icon") or ""
-            if ic:
-                return f"<img class='scico' src='{escape(ic, quote=True)}' alt=''>"
-            d = _sc_domain(it.get("url", ""))
-            letter = next((c for c in d if c.isalnum()), "?").upper()
-            return f"<span class='scico' style='background:hsl({sum(ord(c) for c in d) % 360},52%,45%)'>{escape(letter)}</span>"
-
         sc_tiles = ""
         for i, s in enumerate(sc_list):
             if s.get("is_folder") or isinstance(s.get("items"), list):
                 continue   # folders live on the top bookmarks bar, not the start-page grid
             u = s.get("url", "")
             title = s.get("title") or _sc_domain(u) or u
-            from urllib.parse import quote
             sc_tiles += (f"<div class='sc'><a class='sclink' href='{escape(u, quote=True)}' title='{escape(u, quote=True)}'>"
-                         f"{_tile_icon(s)}<span class='sct'>{escape(title)}</span></a>"
+                         f"{_sc_tile_icon(s)}<span class='sct'>{escape(title)}</span></a>"
                          f"<a class='scdel' href='wyrm://do?a=sc-del-url&amp;u={quote(u, safe='')}' "
                          f"onclick=\"this.closest('.sc').remove()\" title='Remove shortcut'>&times;</a></div>")
         shortcuts_html = ("<div class='scgrid'>" + sc_tiles
                           + "<a class='sc scadd' href='wyrm://do?a=sc-add' title='Add a shortcut'>"
                             "<span class='scico add'>+</span><span class='sct'>Add</span></a></div>")
+    # "Most visited" — auto tiles from history (like other browsers); × hides one (no reload)
+    ts_list = ctx.get("top_sites") or []
+    if ts_list:
+        ts_tiles = "".join(
+            f"<div class='sc'><a class='sclink' href='{escape(t['url'], quote=True)}' title='{escape(t['url'], quote=True)}'>"
+            f"{_sc_tile_icon(t)}<span class='sct'>{escape(t.get('title') or _sc_domain(t['url']))}</span></a>"
+            f"<a class='scdel' href='wyrm://do?a=topsite-hide&amp;u={quote(t['url'], safe='')}' "
+            f"onclick=\"this.closest('.sc').remove()\" title='Remove'>&times;</a></div>" for t in ts_list)
+        shortcuts_html += f"<h2 class='schdr'>Most visited</h2><div class='scgrid'>{ts_tiles}</div>"
     feed = ""
     kev = ctx.get("kev") or []
     if kev:
@@ -687,7 +700,8 @@ def render_home(ctx: dict) -> str:
     bgc = ctx.get("bg") or {"mode": "random" if ctx.get("background") else "none"}
     bmode = bgc.get("mode", "random")
     # Customize lives outside <main>: main's entry animation would otherwise trap position:fixed inside it
-    panel = _customize_panel(bgc, ctx.get("weather_on", True), ctx.get("location_on", True))
+    panel = _customize_panel(bgc, ctx.get("weather_on", True), ctx.get("location_on", True),
+                             ctx.get("topsites_on", True))
 
     def page(css: str, cls: str = "") -> str:
         html = _page("New tab", body, css, "home").replace("</main>", "</main>" + panel + BG_FADE_JS, 1)
@@ -743,7 +757,7 @@ BG_FADE_JS = ("<script>(function(){var b=document.body;if(!b.classList.contains(
               "var im=new Image();im.onload=im.onerror=ready;im.src=m[1];})();</script>")  # cached image: no fade
 
 
-def _customize_panel(bgc: dict, weather_on: bool = True, location_on: bool = True) -> str:
+def _customize_panel(bgc: dict, weather_on: bool = True, location_on: bool = True, topsites_on: bool = True) -> str:
     """Bottom-right "Customize" button: a centered panel to pick the start-page background and how often the
     wallpaper changes (applied instantly, remembered). Stays open after a choice (wyrm://home#customize)."""
     m = bgc.get("mode", "random")
@@ -799,6 +813,9 @@ def _customize_panel(bgc: dict, weather_on: bool = True, location_on: bool = Tru
                  "<span class='sw'></span></a>"
                  "<a class='ctog" + (" on" if location_on else "") + "' href='wyrm://do?a=location-toggle'>"
                  "<span><b>Location</b><small>Show your city on the start page</small></span>"
+                 "<span class='sw'></span></a>"
+                 "<a class='ctog" + (" on" if topsites_on else "") + "' href='wyrm://do?a=topsites-toggle'>"
+                 "<span><b>Most visited</b><small>Show tiles for the sites you visit most</small></span>"
                  "<span class='sw'></span></a>")
     # --- icons / chrome ---
     I_IMG = ("<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6'>"

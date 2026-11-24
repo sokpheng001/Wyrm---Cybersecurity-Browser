@@ -51,6 +51,13 @@ class History:
                                "ORDER BY ts DESC LIMIT ?", (q, q, limit)).fetchall()
         return [{"id": r[0], "url": r[1], "title": r[2], "ts": r[3]} for r in rows]
 
+    def top_sites(self, scan: int = 300) -> list[dict]:
+        """Most-visited pages, most-frequent first (by number of visit sessions, then recency). The caller
+        de-duplicates by site. Powers the start page's 'Most visited' tiles, like other browsers."""
+        rows = self.db.execute("SELECT url, title, COUNT(*) c, MAX(ts) m FROM visits "
+                               "GROUP BY url ORDER BY c DESC, m DESC LIMIT ?", (scan,)).fetchall()
+        return [{"url": r[0], "title": r[1], "visits": r[2]} for r in rows]
+
     def delete(self, entry_id: int) -> None:
         self.db.execute("DELETE FROM visits WHERE id = ?", (int(entry_id),))
         self.db.commit()
