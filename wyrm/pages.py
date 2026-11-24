@@ -633,7 +633,8 @@ def render_home(ctx: dict) -> str:
             f"{_sc_tile_icon(t)}<span class='sct'>{escape(t.get('title') or _sc_domain(t['url']))}</span></a>"
             f"<a class='scdel' href='wyrm://do?a=topsite-hide&amp;u={quote(t['url'], safe='')}' "
             f"onclick=\"this.closest('.sc').remove()\" title='Remove'>&times;</a></div>" for t in ts_list)
-        shortcuts_html += f"<h2 class='schdr'>Most visited</h2><div class='scgrid'>{ts_tiles}</div>"
+        shortcuts_html += (f"<div id='ts-sec'><h2 class='schdr'>Most visited</h2>"
+                           f"<div class='scgrid'>{ts_tiles}</div></div>")
     feed = ""
     kev = ctx.get("kev") or []
     if kev:
@@ -664,9 +665,10 @@ def render_home(ctx: dict) -> str:
         temp = f"{round(wx['temp_c'])}°C" if wx.get("temp_c") is not None else ""
         cond = ""
         if wx_on:
-            cond = ((f"<span class='emoji'>{escape(wx.get('emoji', ''))}</span>" if wx.get("emoji") else "")
-                    + (f"<span class='temp'>{escape(temp)}</span>" if temp else "")
-                    + (f"<span>{escape(wx.get('desc', ''))}</span>" if wx.get("desc") else ""))
+            inner = ((f"<span class='emoji'>{escape(wx.get('emoji', ''))}</span>" if wx.get("emoji") else "")
+                     + (f"<span class='temp'>{escape(temp)}</span>" if temp else "")
+                     + (f"<span>{escape(wx.get('desc', ''))}</span>" if wx.get("desc") else ""))
+            cond = f"<span class='wxcond'>{inner}</span>" if inner else ""
         place = ""
         if loc_on:
             place = (f"<a class='loc' href='wyrm://do?a=weather-place' "
@@ -836,15 +838,18 @@ def _customize_panel(bgc: dict, weather_on: bool = True, location_on: bool = Tru
     bg_toggle = (f"<a class='ctog{' on' if show_bg else ''}' "
                  f"href='wyrm://do?a=bg&amp;mode={'none' if show_bg else 'random'}'>"
                  "<span><b>Show background</b></span><span class='sw'></span></a>")
-    wx_toggle = ("<a class='ctog" + (" on" if weather_on else "") + "' href='wyrm://do?a=weather-toggle'>"
-                 "<span><b>Weather</b><small>Show today's temperature and conditions</small></span>"
-                 "<span class='sw'></span></a>"
-                 "<a class='ctog" + (" on" if location_on else "") + "' href='wyrm://do?a=location-toggle'>"
-                 "<span><b>Location</b><small>Show your city on the start page</small></span>"
-                 "<span class='sw'></span></a>"
-                 "<a class='ctog" + (" on" if topsites_on else "") + "' href='wyrm://do?a=topsites-toggle'>"
-                 "<span><b>Most visited</b><small>Show tiles for the sites you visit most</small></span>"
-                 "<span class='sw'></span></a>")
+    # toggles flip the matching start-page element in place (no page reload, panel stays open); the link persists it
+    def _ctog(href, title, sub, on, js):
+        return (f"<a class='ctog{' on' if on else ''}' href='{href}' onclick=\"{js}\">"
+                f"<span><b>{title}</b><small>{sub}</small></span><span class='sw'></span></a>")
+    _flip = "var o=this.classList.toggle('on');"
+    wx_toggle = (
+        _ctog("wyrm://do?a=weather-toggle", "Weather", "Show today's temperature and conditions", weather_on,
+              _flip + "document.querySelectorAll('.wxcond').forEach(function(e){e.style.display=o?'':'none';});")
+        + _ctog("wyrm://do?a=location-toggle", "Location", "Show your city on the start page", location_on,
+                _flip + "document.querySelectorAll('.loc').forEach(function(e){e.style.display=o?'':'none';});")
+        + _ctog("wyrm://do?a=topsites-toggle", "Most visited", "Show tiles for the sites you visit most", topsites_on,
+                _flip + "var s=document.getElementById('ts-sec');if(s)s.style.display=o?'':'none';"))
     # --- icons / chrome ---
     I_IMG = ("<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6'>"
              "<rect x='3' y='4' width='18' height='16' rx='2'/><circle cx='8.5' cy='9.5' r='1.5'/>"

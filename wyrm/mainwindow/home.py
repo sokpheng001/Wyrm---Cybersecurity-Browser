@@ -261,9 +261,13 @@ class HomeMixin:
         self.settings.setValue("home/topsites_hidden", json.dumps(sorted(hidden)))
         self.settings.sync()   # tile already removed client-side — no page reload
 
+    # a site must be visited on at least this many separate occasions before it counts as "most visited"
+    # (like other browsers — a page you opened once should never show up here)
+    TOPSITE_MIN_VISITS = 3
+
     def _top_sites(self, limit: int = 10) -> list:
-        """Most-visited pages from history, de-duplicated by site, excluding ones you've hidden or already
-        bookmarked. [] when off, or in private/Tor windows (no history)."""
+        """Most-visited sites from history: visits are summed per site (not per page), and a site only qualifies
+        after it's been visited several times. Excludes hidden/bookmarked sites. [] when off or in private/Tor."""
         if self.history_db is None or not self.settings.value("home/topsites", True, type=bool):
             return []
         from .. import pages
@@ -276,17 +280,24 @@ class HomeMixin:
                     manual.add(registered_domain(pages._sc_domain(it.get("url", ""))))
             else:
                 manual.add(registered_domain(pages._sc_domain(s.get("url", ""))))
-        out, seen = [], set()
-        for r in self.history_db.top_sites():
-            u = r["url"]
-            dom = registered_domain(pages._sc_domain(u))
-            if not dom or dom in seen or dom in manual or dom in hidden:
+        agg: dict = {}   # domain -> aggregated visits + the most-visited page as the representative
+        for r in self.history_db.top_sites(scan=800):
+            dom = registered_domain(pages._sc_domain(r["url"]))
+            if not dom or dom in manual or dom in hidden:
                 continue
-            seen.add(dom)
-            out.append({"url": u, "title": r.get("title") or pages._sc_domain(u),
-                        "icon": self._shortcut_icon(pages._sc_domain(u))})
-            if len(out) >= limit:
-                break
+            v = int(r.get("visits") or 1)
+            a = agg.get(dom)
+            if a is None:
+                agg[dom] = {"visits": v, "url": r["url"], "title": r.get("title") or pages._sc_domain(r["url"]),
+                            "best": v}
+            else:
+                a["visits"] += v
+                if v > a["best"]:   # show the page of the site you open most as the tile
+                    a["best"], a["url"], a["title"] = v, r["url"], r.get("title") or pages._sc_domain(r["url"])
+        top = sorted((a for a in agg.values() if a["visits"] >= self.TOPSITE_MIN_VISITS),
+                     key=lambda a: a["visits"], reverse=True)
+        out = [{"url": a["url"], "title": a["title"], "icon": self._shortcut_icon(pages._sc_domain(a["url"]))}
+               for a in top[:limit]]
         return out
 
     def _shortcut_icon_dir(self):
@@ -497,17 +508,15 @@ class HomeMixin:
             elif do == "weather-auto" and not self.ephemeral:
                 self._clear_weather_place()
             elif do in ("weather-toggle", "location-toggle") and not self.tor:
+                # persist only — the Customize panel flips the element in place (no page reload, panel stays open)
                 key = "home/weather" if do == "weather-toggle" else "home/location"
                 on = not self.settings.value(key, True, type=bool)
                 self.settings.setValue(key, on)
                 self.settings.sync()
-                if self._wx_enabled():
-                    self._start_weather()        # (re)detect + fetch so whichever part is on has data
-                else:
-                    self._weather = None          # both off → nothing to show
-                label = "Weather" if do == "weather-toggle" else "Location"
-                self.toast(f"{label} {'shown' if on else 'hidden'} on the start page", 3000)
-                QTimer.singleShot(0, self._refresh_home_pages)
+                if on and self._wx_enabled() and not getattr(self, "_weather", None):
+                    self._start_weather()         # enabling for the first time this session → fetch in background
+                elif not self._wx_enabled():
+                    self._weather = None
             elif do == "sc-add" and not self.tor:
                 QTimer.singleShot(0, self._add_shortcut)  # don't block the scheme request on a dialog
             elif do == "sc-folder" and not self.tor:
@@ -529,11 +538,9 @@ class HomeMixin:
             elif do == "topsite-hide" and not self.tor:
                 self._hide_topsite(params.get("u", ""))
             elif do == "topsites-toggle" and not self.tor:
-                on = not self.settings.value("home/topsites", True, type=bool)
+                on = not self.settings.value("home/topsites", True, type=bool)  # persist only; panel flips it in place
                 self.settings.setValue("home/topsites", on)
                 self.settings.sync()
-                self.toast(f"Most visited {'shown' if on else 'hidden'}", 3000)
-                QTimer.singleShot(0, self._refresh_home_pages)
             elif do == "sc-del-in" and not self.tor:
                 try:
                     self._del_in_folder(int(params.get("f", "-1")), int(params.get("i", "-1")))
