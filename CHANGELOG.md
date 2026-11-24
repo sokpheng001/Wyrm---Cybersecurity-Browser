@@ -4,6 +4,24 @@ What's new in each version of Wyrm Browser. The release workflow publishes the s
 version (from `wyrm/__init__.py`) as the release description and the in-app **Update** tooltip, so keep the
 most important points first. Each build of a version adds an "Also in this build" list automatically.
 
+## v0.4.0
+
+- Realistic live weather wallpaper (Customize → Live weather): the start-page background is now drawn to look
+  real, not abstract — volumetric sunlit clouds, a sky that shifts from dawn to day to dusk to night with sun
+  glow and god-rays, parallax rain with ground ripples, depth-layered snow, drifting fog, and storms with
+  branching lightning. Runs offline, no video files. Developers: Oda, Kwan, Lida.
+- Accurate weather location: Wyrm now uses your device's location service (Wi-Fi/GPS, like a phone's weather app)
+  for a precise city, falling back to IP if that's unavailable. Wrong place? Click the location on the start page
+  to set your city by name — your choice always wins. Developers: Kim, Oda.
+- Start-page shortcuts (speed dial): a grid of your own sites and tools you can add and remove, like other
+  browsers. Seeded with a few security sites you can change. Developers: Kwan, Naly.
+- Left tool sidebar (Layout menu → Tool sidebar): an Arc/Vivaldi-style rail for one-click access to the Security
+  panel, Papers, History and Downloads. Developers: Oda, Buri.
+- Vertical tabs (Layout menu → Vertical tabs): move the tab bar to a left panel, like Edge/Arc — handy with many
+  tabs. Off by default. Developers: Kwan, Kim.
+- Clock format: click the start-page clock to switch between 24-hour and AM/PM. Developers: Lida, Vatanny.
+- A neutral "Check for updates" button is always in the toolbar, and the Update pill always triggers a check.
+
 ## v0.3.0
 
 - WebSocket frame editing (Security panel → WebSocket): with the intercepting proxy on, every WebSocket frame
