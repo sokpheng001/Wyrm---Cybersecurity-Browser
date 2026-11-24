@@ -95,9 +95,25 @@ class TorDialog(QDialog):
         self.cancel.setText("Close")
 
 
+def _migrate_secrets():
+    """One-time: re-store any plaintext secret as DPAPI ciphertext so the registry no longer holds the raw
+    key (SEC-7). Safe to run every launch — already-encrypted or empty values are left untouched."""
+    try:
+        from wyrm import secretstore
+        if not secretstore.available():
+            return
+        s = QSettings()
+        raw = s.value("ai/api_key", "", type=str)
+        if raw and not secretstore.is_encrypted(raw):
+            secretstore.set(s, "ai/api_key", raw)
+    except Exception:  # noqa: BLE001 — migration must never block startup
+        pass
+
+
 def main():
     QCoreApplication.setOrganizationName("HackPi")
     QCoreApplication.setApplicationName("Wyrm")
+    _migrate_secrets()
     try:   # crash logging: Python-level faults go to a log with the Wyrm version (H-4)
         import faulthandler
         from wyrm import __version__ as _wv

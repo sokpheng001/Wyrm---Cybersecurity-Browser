@@ -261,9 +261,11 @@ class SettingsDialog(QDialog):
         self._row(lay, "Save files to", dl_row, "download folder location")
         self._note(lay, "When “Ask where to save” is off, files go straight to this folder.")
         self._section(lay, "AI Triage")
-        self.ai_key = QLineEdit(self.settings.value("ai/api_key", "", type=str))
+        from . import secretstore
+        self.ai_key = QLineEdit(secretstore.get(self.settings, "ai/api_key"))
         self.ai_key.setEchoMode(QLineEdit.EchoMode.Password)
-        self.ai_key.setPlaceholderText("API key (kept only on this device)")
+        self.ai_key.setPlaceholderText("API key (encrypted on this device)" if secretstore.available()
+                                       else "API key (kept only on this device)")
         self._row(lay, "API key", self.ai_key, "ai triage llm key")
         self.ai_model = QLineEdit(self.settings.value("ai/model", "", type=str))
         self.ai_model.setPlaceholderText("Model name (e.g. your provider's model id)")
@@ -373,7 +375,8 @@ class SettingsDialog(QDialog):
         s.setValue("downloads/folder", self.dl_folder.text())
         s.setValue("general/restore_tabs", self.restore_tabs.isChecked())
         s.setValue("sec/auto", self.autoanalyze.isChecked())
-        s.setValue("ai/api_key", self.ai_key.text().strip())
+        from . import secretstore
+        secretstore.set(s, "ai/api_key", self.ai_key.text())   # encrypted at rest (DPAPI on Windows) — SEC-7
         s.setValue("ai/model", self.ai_model.text().strip())
         s.setValue("privacy/https_only", self.https_only.isChecked())
         s.setValue("privacy/geo_mode", self.geo_mode.currentData())
