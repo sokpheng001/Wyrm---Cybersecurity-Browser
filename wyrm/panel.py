@@ -21,6 +21,15 @@ ROLE_URL = Qt.ItemDataRole.UserRole
 ROLE_KEY = Qt.ItemDataRole.UserRole + 1
 
 
+class _PaperCard(QTextBrowser):
+    """The current-paper card. All content we set is HTML-escaped, but refuse remote resources outright so a
+    stray/remote <img> or stylesheet can never load from here (SEC-5: no remote images from bridge data)."""
+    def loadResource(self, type_, url):
+        if url.scheme() in ("http", "https", "ftp", "data"):
+            return None
+        return super().loadResource(type_, url)
+
+
 class ResearchPanel(QDockWidget):
     open_url = Signal(str)        # open in current tab
     save_toggled = Signal(str, bool)  # key, saved
@@ -46,7 +55,7 @@ class ResearchPanel(QDockWidget):
     def _build_page_tab(self) -> QWidget:
         w = QWidget()
         v = QVBoxLayout(w)
-        self.card = QTextBrowser()
+        self.card = _PaperCard()
         self.card.setOpenLinks(False)
         self.card.anchorClicked.connect(lambda u: self.open_url.emit(u.toString()))
         v.addWidget(self.card, 3)
@@ -172,8 +181,11 @@ class ResearchPanel(QDockWidget):
             rec = self.library.get(p["key"]) if st else None
             title = (rec or {}).get("title") or p.get("text") or p["key"]
             mark = {"saved": "★ ", "read": "✓ "}.get(st, "• ")
+            # The item label is plain text (QListWidgetItem never renders rich text) so page-controlled
+            # title/text can't inject markup. Tooltips, however, auto-render as rich text when the string
+            # looks like HTML, so escape the page-controlled key/href before showing them (SEC-5).
             it = QListWidgetItem(f"{mark}{title}")
-            it.setToolTip(f"{p['key']}\n{p['href']}")
+            it.setToolTip(escape(f"{p['key']}\n{p['href']}"))
             it.setData(ROLE_URL, p["href"])
             it.setData(ROLE_KEY, p["key"])
             if st == "saved":
