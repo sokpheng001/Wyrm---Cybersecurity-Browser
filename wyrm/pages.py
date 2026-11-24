@@ -161,7 +161,20 @@ BG_COLORS = [
     ("sunset", "Sunset", "linear-gradient(135deg,#3e1a00,#d4500f)"),
     ("graphite", "Graphite", "linear-gradient(135deg,#121212,#3d3d3d)"),
 ]
-BG_COLOR_CSS = {k: css for k, _, css in BG_COLORS}
+# richer multi-colour gradients (a separate "Gradients" section in Customize), applied the same way as colours
+BG_GRADIENTS = [
+    ("g-aurora", "Aurora", "linear-gradient(135deg,#00c3ff,#7a5fff 50%,#ff4ecd)"),
+    ("g-sunset", "Sunset", "linear-gradient(135deg,#ff512f,#dd2476)"),
+    ("g-ocean", "Ocean", "linear-gradient(135deg,#2193b0,#6dd5ed)"),
+    ("g-ember", "Ember", "linear-gradient(135deg,#f12711,#f5af19)"),
+    ("g-emerald", "Emerald", "linear-gradient(135deg,#11998e,#38ef7d)"),
+    ("g-berry", "Berry", "linear-gradient(135deg,#5f0a87,#a4508b 55%,#ff6a88)"),
+    ("g-twilight", "Twilight", "linear-gradient(135deg,#0f2027,#203a43 50%,#2c5364)"),
+    ("g-mesh", "Mesh", "radial-gradient(at 18% 22%,#7a5fff,transparent 50%),"
+                       "radial-gradient(at 82% 28%,#ff4ecd,transparent 50%),"
+                       "radial-gradient(at 50% 85%,#00c3ff,transparent 55%),#111225"),
+]
+BG_COLOR_CSS = {k: css for k, _, css in BG_COLORS + BG_GRADIENTS}
 
 from . import engines
 from . import years as _years
@@ -798,9 +811,11 @@ def _customize_panel(bgc: dict, weather_on: bool = True, location_on: bool = Tru
                      "wyrm://do?a=bg-remove-video")
     live += card("wyrm://do?a=bg-upload-video", "up", up_icon, "Upload a video", False)
     # --- swatches + rotation intervals ---
-    sws = "".join(f"<a class='csw{' on' if m == 'color' and bgc.get('color') == k else ''}' title='{escape(label)}' "
-                  f"href='wyrm://do?a=bg&amp;mode=color&amp;color={k}' style='background:{css}'></a>"
-                  for k, label, css in BG_COLORS)
+    def _swatch(k, label, css):
+        return (f"<a class='csw{' on' if m == 'color' and bgc.get('color') == k else ''}' title='{escape(label)}' "
+                f"href='wyrm://do?a=bg&amp;mode=color&amp;color={k}' style='background:{css}'></a>")
+    sws = "".join(_swatch(k, label, css) for k, label, css in BG_COLORS)
+    gsws = "".join(_swatch(k, label, css) for k, label, css in BG_GRADIENTS)
     ivs = "".join(f"<a class='civ{' on' if mins == every else ''}' href='wyrm://do?a=bg-interval&amp;min={mins}'>{lbl}</a>"
                   for mins, lbl in BG_INTERVALS)
     # --- toggles ---
@@ -835,6 +850,7 @@ def _customize_panel(bgc: dict, weather_on: bool = True, location_on: bool = Tru
               f"<div class='cgrid'>{big}</div>"
               f"<h4>LIVE WALLPAPERS</h4><div class='cgrid small'>{live}</div>"
               f"<h4>SOLID COLORS</h4><div class='cswatches'>{sws}</div>"
+              f"<h4>GRADIENTS</h4><div class='cswatches'>{gsws}</div>"
               f"<h4>CHANGE WALLPAPER EVERY</h4><div class='civs'>{ivs}</div></div>")
     start_sec = (f"<div class='csec' data-sec='start'><h2>Start page</h2>{wx_toggle}"
                  "<p style='color:var(--muted);font-size:13px;margin:16px 2px'>"
