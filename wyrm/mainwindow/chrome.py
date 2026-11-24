@@ -146,6 +146,8 @@ class ChromeMixin:
         self.urlbar.setFixedHeight(38)
         self.urlbar.setTextMargins(28, 0, 0, 0)  # reserve space for the icon inside the pill
         self.urlbar.returnPressed.connect(lambda: self.navigate(self.urlbar.text()))
+        self.urlbar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.urlbar.customContextMenuRequested.connect(self._urlbar_context_menu)
         # address-bar autocomplete: history + live search suggestions (Tor windows never record anything)
         from PySide6.QtGui import QStandardItemModel
         self._history = [] if self.ephemeral else list(self.settings.value("history/entries", [], type=list) or [])
@@ -351,6 +353,24 @@ class ChromeMixin:
             a.setShortcuts([QKeySequence(k) for k in keys])
             a.triggered.connect(fn)
             self.addAction(a)
+
+    # ---------------------------------------------------------------- address-bar menu ("Paste and go")
+    def _urlbar_context_menu(self, pos):
+        from PySide6.QtGui import QGuiApplication
+        menu = self.urlbar.createStandardContextMenu()
+        clip = QGuiApplication.clipboard().text().strip()
+        if clip:
+            one_line = clip.splitlines()[0][:48] + ("…" if len(clip) > 48 else "")
+            go = QAction(f"Paste and go — {one_line}", menu)
+            go.triggered.connect(lambda: (self.urlbar.setText(clip), self.navigate(clip)))
+            acts = menu.actions()
+            paste = next((a for a in acts if "paste" in a.text().lower()), None)
+            if paste is not None:  # place it right after the standard "Paste"
+                i = acts.index(paste)
+                menu.insertAction(acts[i + 1] if i + 1 < len(acts) else None, go)
+            else:
+                menu.insertAction(acts[0] if acts else None, go)
+        menu.exec(self.urlbar.mapToGlobal(pos))
 
     # ---------------------------------------------------------------- left sidebars (tool rail + vertical tabs)
     def _toggle_toolrail(self):
