@@ -2,9 +2,11 @@
    request+response bodies and WebSocket frames without a MITM proxy. Reports via a sentinel console message
    that Wyrm's page object intercepts. Read-only; bodies are capped. */
 (function () {
-  if (window.__wyrmCap) return;
-  window.__wyrmCap = 1;
-  var P = "[[WYRMCAP]]";
+  // No page-readable global (SEC-3). Injected once per document at creation, so no re-entry guard is needed.
+  // Grab the ORIGINAL console.debug now, before any page script can override it — so a page can neither read
+  // our per-session token nor intercept what we emit (SEC-4).
+  var _cd = (window.console && console.debug) ? console.debug.bind(console) : function () {};
+  var P = "[[WYRMCAP:__WYRM_CAP_TOKEN__]]";   // __WYRM_CAP_TOKEN__ is replaced with a random secret at injection
   var MAX = 12000;
   function clip(s) {
     try { s = (typeof s === "string") ? s : JSON.stringify(s); } catch (e) { s = String(s); }
@@ -12,7 +14,7 @@
     return s.length > MAX ? s.slice(0, MAX) + "…[truncated]" : s;
   }
   function emit(o) {
-    try { o.t = Date.now(); o.page = location.href; console.debug(P + JSON.stringify(o)); } catch (e) {}
+    try { o.t = Date.now(); o.page = location.href; _cd(P + JSON.stringify(o)); } catch (e) {}
   }
   var of = window.fetch;
   if (of) {

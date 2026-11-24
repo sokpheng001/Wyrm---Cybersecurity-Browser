@@ -7,6 +7,7 @@
 """JavaScript injected into pages (CiteSee, YouTube ad removal, anti-fingerprinting, collectors)."""
 from __future__ import annotations
 
+import secrets
 from pathlib import Path
 
 
@@ -25,7 +26,12 @@ YOUTUBE_JS = _load("youtube.js")
 
 FINGERPRINT_JS = _load("fingerprint.js")
 
-CAPTURE_JS = _load("capture.js")
+# Per-process random secret so a page can't forge capture rows (SEC-4): the sentinel console.debug line that
+# Wyrm listens for carries this token, which pages can neither read (we emit via the original console.debug) nor
+# guess. _CAP_PREFIX in the page object is derived from the same token.
+CAP_TOKEN = secrets.token_hex(16)
+CAP_PREFIX = "[[WYRMCAP:" + CAP_TOKEN + "]]"
+CAPTURE_JS = _load("capture.js").replace("__WYRM_CAP_TOKEN__", CAP_TOKEN)
 
 
 COLLECT_JS = """JSON.stringify((function(){const c=new Set(),i=new Set();

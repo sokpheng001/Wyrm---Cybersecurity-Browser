@@ -50,6 +50,10 @@ class CaptureMixin:
 
     def _on_capture(self, payload: str):
         """Called (UI thread) from _CapturePage for each sentinel console message."""
+        # Defence in depth (SEC-4): even though the sentinel carries an unguessable per-process token, ignore
+        # anything that arrives while capture is off, so a page can never add rows unless the user opted in.
+        if not self.capture_enabled():
+            return
         self._init_capture()
         try:
             rec = json.loads(payload)

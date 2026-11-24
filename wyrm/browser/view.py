@@ -13,11 +13,9 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QMenu
 
 from .interceptor import TrafficInterceptor
+from .scripts import CAP_PREFIX as _CAP_PREFIX
 from .. import engines, linkguard
 from ..shields import PageStats
-
-
-_CAP_PREFIX = "[[WYRMCAP]]"
 
 
 class _CapturePage(QWebEnginePage):
