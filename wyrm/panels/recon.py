@@ -7,6 +7,7 @@
 """Security panel → Recon: crt.sh, Wayback, well-known files and ProjectDiscovery Chaos."""
 from __future__ import annotations
 
+import ipaddress
 from html import escape
 from urllib.parse import urlparse
 
@@ -17,6 +18,38 @@ from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QLineEdit, QListWi
 from .common import mono
 from ..security import chaos, intel
 from ..widgets import BusyOverlay
+
+
+def _host_from_text(text: str) -> str:
+    """Extract just the host from a typed target or a URL: strip scheme, userinfo, port and path, so
+    'http://user@127.0.0.1:8777/p', '127.0.0.1:8777' and 'example.com/x' all reduce to the bare host.
+    Returns '' for internal/non-network URLs (wyrm://home → '', not 'home') — BUG-1."""
+    t = (text or "").strip()
+    if not t:
+        return ""
+    if "://" in t:                                    # a full URL: honour its scheme
+        u = urlparse(t)
+        if u.scheme not in ("http", "https", "ftp"):
+            return ""                                 # wyrm://, file://, data: … are not recon targets
+    else:                                             # a bare 'host', 'host:port', or 'scheme:path'
+        head = t.split(":", 1)[0].lower()
+        if head in ("about", "mailto", "data", "javascript", "file", "tel", "wyrm", "blob", "chrome", "view-source"):
+            return ""                                 # about:blank, mailto:…, etc. — not a host:port
+        u = urlparse("//" + t)                        # add '//' so 'host:port' parses as authority
+    host = (u.hostname or "").strip(".")              # urlparse.hostname is lowercased and port/userinfo-free
+    return host[4:] if host.startswith("www.") else host
+
+
+def _is_ip_or_local(host: str) -> bool:
+    """True for IP literals and localhost — crt.sh certificate-transparency search doesn't apply to them."""
+    h = host.strip("[]")
+    if h == "localhost" or h.endswith(".localhost"):
+        return True
+    try:
+        ipaddress.ip_address(h)
+        return True
+    except ValueError:
+        return False
 
 
 # =================================================================== Recon
@@ -74,15 +107,18 @@ class ReconTab(QWidget):
 
     def use_current(self):
         v = self.win.current_view()
-        host = urlparse(v.url().toString()).hostname if v else ""
-        if host:
-            self.domain.setText(host[4:] if host.startswith("www.") else host)
+        u = v.url() if v else None
+        if u is None or u.scheme() not in ("http", "https", "ftp"):
+            self.status.setText("Open an http(s) site first, then “Use current”.")
+            return
+        host = u.host()                               # QUrl.host(): no scheme/port/userinfo/path
+        self.domain.setText(host[4:] if host.startswith("www.") else host)
 
     def _target(self) -> str | None:
-        d = self.domain.text().strip().lower().removeprefix("https://").removeprefix("http://").split("/")[0]
+        d = _host_from_text(self.domain.text())
         if not d:
             self.use_current()
-            d = self.domain.text().strip()
+            d = _host_from_text(self.domain.text())
         if not d:
             return None
         eng = self.win.engagement
@@ -104,6 +140,14 @@ class ReconTab(QWidget):
         self.win.runner.run(fn, done, d)
 
     def subdomains(self):
+        d = self._target()
+        if not d:
+            return
+        if _is_ip_or_local(d):                        # BUG-1: crt.sh has no subdomains for an IP/localhost
+            self.status.setText(f"{d} is an IP address or localhost — certificate-transparency subdomain "
+                                "search only works for registered domain names.")
+            return
+
         def render(d, names):
             eng = self.win.engagement
             self.items = [(n, "in scope" if eng and eng.in_scope(n) else "") for n in names]
