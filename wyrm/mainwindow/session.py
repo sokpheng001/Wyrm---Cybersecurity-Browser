@@ -28,15 +28,16 @@ class SessionMixin:
         return urls
 
     def _save_session(self):
-        if self.ephemeral or getattr(self, "_new_window", False):
-            return  # Tor/private windows never persist; a second in-process window must not clobber the session
+        if self.ephemeral or getattr(self, "_new_window", False) \
+                or not self.settings.value("general/restore_tabs", False, type=bool):
+            return  # only persist when "Reopen last session" is on (and not Tor/private/second window)
         self.settings.setValue("session/tabs", json.dumps(self._session_urls()))
         self.settings.setValue("session/current", self.tabbar.currentIndex())
         self.settings.sync()
 
     def _restore_session(self) -> bool:
-        if self.ephemeral:
-            return False
+        if self.ephemeral or not self.settings.value("general/restore_tabs", False, type=bool):
+            return False   # respect "Reopen last session's tabs on startup"
         try:
             urls = [u for u in json.loads(self.settings.value("session/tabs", "[]") or "[]") if isinstance(u, str)]
         except ValueError:
@@ -68,7 +69,11 @@ class SessionMixin:
                     "Downloads are kept.")
         else:
             title = "Close Wyrm Browser?"
-            body = f"You have {tabs} open. They'll be reopened the next time you start Wyrm Browser."
+            if self.settings.value("general/restore_tabs", False, type=bool):
+                body = f"You have {tabs} open. They'll be reopened the next time you start Wyrm Browser."
+            else:
+                body = (f"You have {tabs} open. They won't be reopened — turn on "
+                        "“Reopen last session's tabs” in Settings if you want that.")
 
         ok, dont = ask(self, title, body, "Close", checkbox="Don't ask again", window_title="Close Wyrm Browser")
         if not ok:
