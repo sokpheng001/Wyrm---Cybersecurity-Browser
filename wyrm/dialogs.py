@@ -396,6 +396,7 @@ class SettingsDialog(QDialog):
         self.win.apply_dns()
         if hasattr(self.win.security, "shields"):
             self.win.security.shields.sync_from_settings()
+        self.win._apply_fp_ua_all()   # apply/clear the anti-fingerprinting User-Agent without a restart
         self.accept()
         if proxy_before != proxy_after:
             self.win.prompt_restart_for_proxy()

@@ -122,12 +122,26 @@ class EngagementMixin:
             s.setAttribute(attr, True)
         # Smooth scrolling: eases each wheel step so scrolling glides instead of jumping a big chunk per notch.
         s.setAttribute(QWebEngineSettings.WebAttribute.ScrollAnimatorEnabled, True)
+        prof._wyrm_default_ua = prof.httpUserAgent()   # stash the pristine UA so antifp can be toggled back off
+        self._apply_fp_ua(prof)
         prof.installUrlSchemeHandler(SCHEME, self.scheme_handler)
         prof.downloadRequested.connect(self._on_download)
         self.profiles[key] = prof
         if not self.ephemeral:
             self._ext_attach(prof)  # browser extensions (normal windows only)
         return prof
+
+    def _apply_fp_ua(self, prof):
+        """With 'Resist fingerprinting' on, drop the QtWebEngine token so the UA looks like plain Chrome 140."""
+        import re
+        default = getattr(prof, "_wyrm_default_ua", None) or prof.httpUserAgent()
+        ua = re.sub(r"\s*QtWebEngine/\S+", "", default) if self.shields.enabled("antifp") else default
+        if prof.httpUserAgent() != ua:
+            prof.setHttpUserAgent(ua)
+
+    def _apply_fp_ua_all(self):
+        for prof in self.profiles.values():
+            self._apply_fp_ua(prof)
 
     def _rules_key(self) -> str:
         return f"rules/eng-{self.engagement.id}" if self.engagement else "rules/personal"
