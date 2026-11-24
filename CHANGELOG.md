@@ -6,6 +6,9 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.5.0
 
+- Vertical tabs redesigned as a clean left-hand list (readable titles + favicons), replacing the old rotated
+  tab bar that showed an empty panel; the top tab strip hides while it's on.
+- Open a local file by typing its plain path (e.g. C:\folder\image.png), not just file://.
 - Fixed the Update button: it now shows download progress and responds to the first click (no more clicking
   several times) — clicking while an update is downloading restarts to finish as soon as it's ready.
 - Customize backgrounds: a new Gradients set (vibrant multi-colour and a mesh gradient), and the live-wallpaper

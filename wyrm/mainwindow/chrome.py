@@ -13,7 +13,7 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QSize, QTimer, QUrl, Qt
 from PySide6.QtGui import QAction, QKeySequence, QPixmap
 from PySide6.QtWebEngineCore import QWebEnginePage
-from PySide6.QtWidgets import QComboBox, QCompleter, QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton, QSizePolicy, QStackedWidget, QTabBar, QToolBar, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QCompleter, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMenu, QPushButton, QSizePolicy, QStackedWidget, QTabBar, QToolBar, QToolButton, QVBoxLayout, QWidget
 
 from .. import engines, theme, winframe
 from ..widgets import InfoBanner, LoadingBar, OfflineBanner
@@ -295,14 +295,23 @@ class ChromeMixin:
         col.addWidget(self.offline_banner)
         self.store_banner = InfoBanner()  # "Add to Wyrm Browser" on Chrome Web Store extension pages
         col.addWidget(self.store_banner)
-        # vertical-tabs panel (like Edge/Arc): holds the tab bar on the left when the user turns it on
+        # vertical-tabs panel (like Edge/Arc): a readable list of tabs on the left when the user turns it on
         self.vtabs_panel = QWidget(objectName="VTabs")
         self.vtabs_panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.vtabs_panel.setFixedWidth(220)
-        self.vtabs_layout = QVBoxLayout(self.vtabs_panel)
-        self.vtabs_layout.setContentsMargins(0, 6, 0, 6)
-        self.vtabs_layout.setSpacing(4)
-        self.vtabs_layout.addStretch(1)
+        vcol = QVBoxLayout(self.vtabs_panel)
+        vcol.setContentsMargins(6, 6, 6, 6)
+        vcol.setSpacing(6)
+        self.vtab_list = QListWidget(objectName="VTabList")
+        self.vtab_list.setIconSize(QSize(16, 16))
+        self.vtab_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.vtab_list.customContextMenuRequested.connect(self._vtab_menu)
+        self.vtab_list.currentRowChanged.connect(self._vtab_row_changed)
+        vcol.addWidget(self.vtab_list, 1)
+        vnew = QPushButton("  +   New tab", objectName="VTabNew")
+        vnew.setCursor(Qt.CursorShape.PointingHandCursor)
+        vnew.clicked.connect(self._new_tab_focus)
+        vcol.addWidget(vnew)
         self.vtabs_panel.hide()
 
         self.stack = QStackedWidget()
@@ -490,29 +499,69 @@ class ChromeMixin:
             QGuiApplication.clipboard().setText(r["pem"])
             self.toast("Certificate PEM copied to clipboard", 3000)
 
-    # ---------------------------------------------------------------- vertical tabs (left panel)
+    # ---------------------------------------------------------------- vertical tabs (left list panel)
     def _apply_tab_orientation(self, vertical: bool):
-        """Move the tab bar between the top strip (horizontal) and the left panel (vertical, like Edge/Arc)."""
+        """Vertical mode hides the top tab strip and shows the tabs as a readable list on the left (Edge/Arc)."""
         self._vertical_tabs = vertical
-        tb = self.tabbar
+        self.tabbar.setVisible(not vertical)
+        self.vtabs_panel.setVisible(vertical)
         if vertical:
-            self._strip_row.removeWidget(tb)
-            self.vtabs_layout.insertWidget(0, tb)
-            tb.setShape(QTabBar.Shape.RoundedWest)
-            tb.setProperty("vertical", True)
-            self.vtabs_panel.show()
-        else:
-            self.vtabs_layout.removeWidget(tb)
-            self._strip_row.insertWidget(self._tab_idx, tb, 0, Qt.AlignmentFlag.AlignBottom)
-            tb.setShape(QTabBar.Shape.RoundedNorth)
-            tb.setProperty("vertical", False)
-            self.vtabs_panel.hide()
-        tb.style().unpolish(tb)
-        tb.style().polish(tb)
+            self._sync_vtabs()
 
     def _toggle_vertical_tabs(self):
         self._apply_tab_orientation(not self._vertical_tabs)
         self.settings.setValue("ui/vtabs", self._vertical_tabs)
+
+    def _sync_vtabs(self):
+        """Rebuild the left tab list from the real tab bar (titles + favicons)."""
+        if not getattr(self, "_vertical_tabs", False):
+            return
+        lst = self.vtab_list
+        self._vtab_syncing = True
+        lst.clear()
+        for i in range(self.tabbar.count()):
+            it = QListWidgetItem(self.tabbar.tabText(i).strip() or "New tab")
+            ic = self.tabbar.tabIcon(i)
+            if not ic.isNull():
+                it.setIcon(ic)
+            it.setToolTip(self.tabbar.tabToolTip(i))
+            lst.addItem(it)
+        lst.setCurrentRow(self.tabbar.currentIndex())
+        self._vtab_syncing = False
+
+    def _vtab_update_current(self):
+        if getattr(self, "_vertical_tabs", False) and not getattr(self, "_vtab_syncing", False):
+            self._vtab_syncing = True
+            self.vtab_list.setCurrentRow(self.tabbar.currentIndex())
+            self._vtab_syncing = False
+
+    def _vtab_refresh_row(self, view):
+        if not getattr(self, "_vertical_tabs", False):
+            return
+        i = self._index_of(view)
+        it = self.vtab_list.item(i) if i >= 0 else None
+        if it is not None:
+            it.setText((self.tabbar.tabText(i) or "New tab").strip() or "New tab")
+            ic = self.tabbar.tabIcon(i)
+            if not ic.isNull():
+                it.setIcon(ic)
+
+    def _vtab_row_changed(self, row):
+        if getattr(self, "_vtab_syncing", False):
+            return
+        if 0 <= row < self.tabbar.count():
+            self.tabbar.setCurrentIndex(row)
+
+    def _vtab_menu(self, pos):
+        row = self.vtab_list.indexAt(pos).row()
+        m = QMenu(self)
+        m.addAction("New tab", self._new_tab_focus)
+        if row >= 0:
+            m.addAction("Reload", lambda r=row: (self.tabbar.tabData(r).reload() if self.tabbar.tabData(r) else None))
+            m.addAction("Duplicate tab", lambda r=row: self.duplicate_tab(r))
+            m.addSeparator()
+            m.addAction("Close tab", lambda r=row: self.close_tab(r))
+        m.exec(self.vtab_list.mapToGlobal(pos))
 
     # ---------------------------------------------------------------- bookmarks bar (top, like other browsers)
     @staticmethod

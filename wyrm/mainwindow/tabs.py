@@ -48,12 +48,14 @@ class TabsMixin:
         self.tabbar.setCurrentIndex(idx)
         self.stack.setCurrentWidget(view)
         view.titleChanged.connect(lambda t, v=view: self._set_tab_text(v, t))
-        view.iconChanged.connect(lambda ic, v=view: self.tabbar.setTabIcon(self._index_of(v), ic))
+        view.iconChanged.connect(lambda ic, v=view: (self.tabbar.setTabIcon(self._index_of(v), ic),
+                                                     self._vtab_refresh_row(v)))
         view.urlChanged.connect(lambda u, v=view: v is self.current_view() and self._sync_chrome())
         view.loadStarted.connect(lambda v=view: self._loading(v, True))
         view.loadProgress.connect(lambda p, v=view: v is self.current_view() and self.loading_bar.set_progress(p))
         view.loadFinished.connect(lambda ok, v=view: self._on_load_finished(v, ok))
         view.page().loadingChanged.connect(lambda info, v=view: self._on_loading_info(v, info))
+        self._sync_vtabs()   # keep the left tab list (if shown) in step
         if url is not None:
             view.setUrl(url)
         return view
@@ -92,6 +94,7 @@ class TabsMixin:
             muted = view.page().isAudioMuted()
             self.tabbar.setTabText(i, ("🔇 " if muted else "") + (title or "New tab"))
             self.tabbar.setTabToolTip(i, title)
+            self._vtab_refresh_row(view)   # mirror the title into the left tab list
             if view is self.current_view():
                 self._set_window_title(title)
 
@@ -113,6 +116,7 @@ class TabsMixin:
         self.tabbar.removeTab(i)
         self.stack.removeWidget(view)
         view.deleteLater()
+        self._sync_vtabs()   # keep the left tab list (if shown) in step
 
     def close_tab(self, i: int):
         if i < 0:
@@ -212,6 +216,7 @@ class TabsMixin:
         if not v:
             return
         self.stack.setCurrentWidget(v)
+        self._vtab_update_current()   # highlight the active row in the left tab list
         self._sync_chrome()
         self._set_window_title(v.title())
         self.loading_bar.reset()

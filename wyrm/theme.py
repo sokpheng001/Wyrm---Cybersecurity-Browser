@@ -114,8 +114,12 @@ QTabBar#MainTabs::tab:hover:!selected { background: $shell_hover; color: $shell_
 QTabBar#MainTabs::tab:selected { background: $layer; color: $text; border-top: 3px solid $interactive; }
 /* vertical tabs (left panel, Edge/Arc-style) */
 #VTabs { background: $shell; border-right: 1px solid $shell_border; }
-QTabBar#MainTabs[vertical="true"]::tab { min-width: 196px; max-width: 212px; height: 34px; padding: 0 10px; margin: 2px 4px; border-top: none; border-radius: 4px; }
-QTabBar#MainTabs[vertical="true"]::tab:selected { background: $layer; color: $text; border-top: none; border-left: 3px solid $interactive; }
+#VTabList { background: transparent; border: none; outline: none; }
+#VTabList::item { color: $shell_muted; padding: 7px 8px; border-radius: 6px; margin: 1px 0; }
+#VTabList::item:hover { color: $shell_text; background: $shell_hover; }
+#VTabList::item:selected { color: $text; background: $layer; }
+#VTabNew { background: transparent; color: $shell_muted; border: none; text-align: left; padding: 8px; border-radius: 6px; font-size: 13px; }
+#VTabNew:hover { background: $shell_hover; color: $shell_text; }
 
 /* ---------- navigation bar (soft, rounded, pill address bar) ---------- */
 #NavBar { background: $layer; border-bottom: 1px solid $border; }
