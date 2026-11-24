@@ -87,12 +87,16 @@ class TabsMixin:
 
     def _loading(self, view, on: bool):
         (self._loading_views.add if on else self._loading_views.discard)(view)
+        if on:
+            from ..shields import PageStats
+            view.stats = PageStats()   # new page → reset the per-tab blocked counter, whatever the scheme (M-6)
         if view is not self.current_view():
             return
         if on:
             c = self.urlbar.completer()        # a navigation started → close the address-bar suggestion popup
             if c is not None:
                 c.popup().hide()
+            self._shield_timer.start()         # refresh the Shields badge for the new (empty) page
         self.loading_bar.start() if on else self.loading_bar.finish()
         self.b_reload.setIcon(make_icon("stop" if on else "reload", theme.PALETTES[self.theme_name]["icon"]))
 
