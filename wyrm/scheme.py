@@ -153,7 +153,11 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
                 job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
         elif host == "bg":  # random new-tab background, held in memory (never saved to disk), changes every 30 min
             self._serve_bg(job)
-        elif host == "history":  # browsing history page
+        elif host == "history":  # browsing history page — only our own chrome / the address bar may open it
+            initiator = job.initiator().scheme() if not job.initiator().isEmpty() else ""
+            if initiator not in ("", "wyrm"):   # a website must never read the user's history (SEC-10)
+                job.fail(QWebEngineUrlRequestJob.Error.RequestDenied)
+                return
             hp = getattr(self, "history_page", None)
             self._reply(job, hp(q) if hp else pages.render_message("History", "History is not available here."))
         elif host == "frametest":  # clickjacking proof-of-concept: frames the target locally

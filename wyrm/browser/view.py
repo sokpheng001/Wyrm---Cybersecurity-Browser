@@ -14,12 +14,25 @@ from PySide6.QtWidgets import QMenu
 
 from .interceptor import TrafficInterceptor
 from .scripts import CAP_PREFIX as _CAP_PREFIX
-from .. import engines, linkguard
+from .. import engines, linkguard, navpolicy
 from ..shields import PageStats
 
 
 class _CapturePage(QWebEnginePage):
-    """Routes the capture script's sentinel console messages to the window; real console logs pass through."""
+    """Routes the capture script's sentinel console messages to the window; real console logs pass through.
+    Also gates page-initiated navigation to privileged/local/script schemes (SEC-10)."""
+
+    def acceptNavigationRequest(self, url, nav_type, is_main_frame):
+        NT = QWebEnginePage.NavigationType
+        user_driven = nav_type in (NT.NavigationTypeTyped, NT.NavigationTypeBackForward, NT.NavigationTypeReload)
+        if navpolicy.should_block(url.scheme(), is_main_frame=is_main_frame, user_driven=user_driven,
+                                  current_scheme=self.url().scheme()):
+            win = getattr(self, "_wyrm_win", None)
+            if win is not None and hasattr(win, "toast"):
+                win.toast("Blocked a page from opening a restricted address", 4000)
+            return False
+        return super().acceptNavigationRequest(url, nav_type, is_main_frame)
+
     def javaScriptConsoleMessage(self, level, message, line, source):
         if message.startswith(_CAP_PREFIX):
             win = getattr(self, "_wyrm_win", None)
