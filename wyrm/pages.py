@@ -348,51 +348,66 @@ body.hasbg .news .tt{color:#161616}
 :root[data-theme=dark] body.hasbg .news a.it{background:rgba(20,20,28,.72);border-color:rgba(255,255,255,.12)}
 :root[data-theme=dark] body.hasbg .news .tt{color:#f4f4f4}
 
-/* "Customize": button bottom-right like other browsers; the panel opens centered over a dimmed page */
+/* "Customize": button bottom-right; opens a large centered panel (left sidebar + cards), Brave-style */
 details.cust{position:fixed;right:20px;bottom:20px;z-index:50;text-align:left}
 details.cust summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;
   padding:9px 16px;border-radius:20px;background:var(--layer);color:var(--fg);border:1px solid var(--line);
-  box-shadow:0 2px 10px rgba(0,0,0,.18)}
+  box-shadow:0 2px 10px rgba(0,0,0,.18);position:relative;z-index:1}
 details.cust summary::-webkit-details-marker{display:none}
 details.cust summary:hover{background:var(--hover)}
 details.cust[open] summary{background:var(--btn);color:#fff;border-color:var(--btn)}
-details.cust summary{position:relative;z-index:1}
 details.cust[open]::before{content:"";position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px)}
-.cpanel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100vw - 32px));
-  max-height:calc(100vh - 48px);overflow:auto;padding:20px 20px 16px;background:var(--layer);color:var(--fg);
-  border:1px solid var(--line);box-shadow:0 12px 48px rgba(0,0,0,.45)}
-.cpanel .hd{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px}
-.cpanel .hd h3{margin:0}
-.cpanel .x{display:flex;align-items:center;justify-content:center;width:32px;height:32px;color:var(--fg);cursor:pointer}
-.cpanel .x:hover{background:var(--hover)}
-.cpanel .ivs{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 0}
-.cpanel .iv{font-size:12px;padding:5px 12px;border-radius:14px;background:var(--layer2);color:var(--fg)}
-.cpanel .iv:hover{background:var(--hover);text-decoration:none}
-.cpanel .iv.on{background:var(--btn);color:#fff;font-weight:600}
-.cpanel .note{font-size:12px;color:var(--muted);margin:6px 0 0}
-.cpanel h3{font-size:14px;font-weight:600;margin:0 0 12px}
-.cpanel h4{font-size:12px;font-weight:600;color:var(--muted);margin:16px 0 8px;letter-spacing:.3px}
-.cpanel .opt{display:flex;align-items:center;gap:12px;padding:8px;color:var(--fg);border:2px solid transparent}
-.cpanel .opt:hover{background:var(--hover);text-decoration:none}
-.cpanel .opt.on{border-color:var(--btn)}
-.cpanel .opt{border-radius:10px}
-.cpanel .opt .pv{width:56px;height:36px;flex:none;background-size:cover;background-position:center;border:1px solid var(--line);border-radius:8px}
-.cpanel .optwrap{position:relative}
-.cpanel .optwrap:hover .opt{background:var(--hover)}
-.cpanel .optdel{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:32px;height:32px;display:none;align-items:center;justify-content:center;border-radius:8px;color:var(--muted)}
-.cpanel .optwrap:hover .optdel{display:flex}
-.cpanel .optdel:hover{background:var(--error);color:#fff;text-decoration:none}
-.cpanel .opt .pv.photo{background:linear-gradient(135deg,#0f62fe,#8a3ffc 50%,#da1e28)}
-.cpanel .opt .pv.plain{background:var(--bg)}
-.cpanel .opt .pv.video{background:linear-gradient(135deg,#001141,#0f62fe 60%,#08bdba);position:relative}
-.cpanel .opt .pv.video::after{content:'▶';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px}
-.cpanel .opt .pv.up{display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--muted)}
-.cpanel .opt b{display:block;font-size:13px;font-weight:600}
-.cpanel .opt small{display:block;font-size:12px;color:var(--muted)}
-.cpanel .sws{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.cpanel .sw{height:40px;border:2px solid transparent;outline:1px solid var(--line)}
-.cpanel .sw:hover{outline:2px solid var(--fg)}
-.cpanel .sw.on{border-color:#fff;outline:2px solid var(--btn)}
+.cmodal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;
+  width:min(880px,calc(100vw - 32px));height:min(620px,calc(100vh - 48px));
+  background:var(--bg);color:var(--fg);border-radius:18px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.cmodal .cnav{width:220px;flex:none;background:var(--layer);padding:22px 14px;display:flex;flex-direction:column;gap:2px}
+.cmodal .cnav h3{font-size:20px;font-weight:600;margin:2px 6px 18px}
+.cnavitem{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;color:var(--fg);font-size:14px;cursor:pointer}
+.cnavitem:hover{background:var(--hover);text-decoration:none}
+.cnavitem.on{background:var(--hover);color:var(--link);font-weight:600}
+.cnavitem svg{width:18px;height:18px;flex:none}
+.cmodal .cbody{flex:1;min-width:0;overflow:auto;padding:24px 28px;position:relative}
+.cmodal .x{position:absolute;right:16px;top:14px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:50%;color:var(--fg);cursor:pointer}
+.cmodal .x:hover{background:var(--hover)}
+.cmodal h2{font-size:17px;font-weight:600;margin:2px 0 8px}
+.cmodal h4{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.3px;margin:22px 0 10px}
+.csec{display:none}
+.csec.on{display:block}
+.ctog{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 2px;border-bottom:1px solid var(--line);color:var(--fg)}
+.ctog:hover{text-decoration:none}
+.ctog b{font-weight:400;font-size:14px}
+.ctog small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.ctog .sw{flex:none;width:42px;height:24px;border-radius:12px;background:var(--layer2);position:relative;transition:background .15s}
+.ctog .sw::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}
+.ctog.on .sw{background:var(--btn)}
+.ctog.on .sw::after{left:21px}
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:16px 0 0}
+.cgrid.small{grid-template-columns:repeat(3,1fr);gap:14px}
+.ccardwrap{position:relative}
+.ccard{display:block;position:relative;aspect-ratio:16/10;border-radius:12px;overflow:hidden;border:2px solid transparent;background:var(--layer2)}
+.ccardwrap:hover .ccard{border-color:var(--strong)}
+.ccard.on{border-color:var(--btn)}
+.ccard:hover{text-decoration:none}
+.ccard.photo{background:linear-gradient(135deg,#0f62fe,#8a3ffc 50%,#da1e28)}
+.ccard.video{background:linear-gradient(135deg,#001141,#0f62fe 60%,#08bdba)}
+.ccard.plain{background:var(--bg);outline:1px solid var(--line);outline-offset:-2px}
+.ccard.up{display:flex;align-items:center;justify-content:center;background:var(--layer);border:2px dashed var(--line)}
+.ccard .upicon{font-size:24px;color:var(--muted)}
+.ccard .thumb{position:absolute;inset:0;background-size:cover;background-position:center}
+.ccard .chk{position:absolute;right:8px;bottom:8px;width:24px;height:24px;border-radius:50%;background:var(--btn);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px}
+.clabel{text-align:center;font-size:13px;margin:8px 0 0}
+.cdel{position:absolute;right:8px;top:8px;width:30px;height:30px;display:none;align-items:center;justify-content:center;border-radius:8px;background:rgba(0,0,0,.5);color:#fff}
+.ccardwrap:hover .cdel{display:flex}
+.cdel:hover{background:var(--error);text-decoration:none}
+.cswatches{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+.csw{height:34px;border-radius:8px;border:2px solid transparent;outline:1px solid var(--line)}
+.csw:hover{outline:2px solid var(--fg)}
+.csw.on{border-color:#fff;outline:2px solid var(--btn)}
+.civs{display:flex;flex-wrap:wrap;gap:6px}
+.civ{font-size:12px;padding:6px 12px;border-radius:14px;background:var(--layer2);color:var(--fg)}
+.civ:hover{background:var(--hover);text-decoration:none}
+.civ.on{background:var(--btn);color:#fff;font-weight:600}
+@media (max-width:620px){.cmodal{flex-direction:column;height:min(90vh,620px)}.cmodal .cnav{width:auto;flex-direction:row;overflow:auto;padding:10px}.cmodal .cnav h3{display:none}}
 
 /* daily background photo (Brave-style): full-bleed, with a scrim so content stays legible */
 body.hasbg{background:#0b0b10}
@@ -733,64 +748,81 @@ def _customize_panel(bgc: dict, weather_on: bool = True) -> str:
              "stroke-linecap='round' stroke-linejoin='round'><path d='M3 6h18M8 6V4h8v2M18 6l-1 14H7L6 6'/>"
              "<path d='M10 10v7M14 10v7'/></svg>")
 
-    def opt(href, pv, title, sub, on):
-        return (f"<a class='opt{' on' if on else ''}' href='{href}'><span class='pv {pv}'>{'+' if pv == 'up' else ''}</span>"
-                f"<span><b>{title}</b><small>{sub}</small></span></a>")
-
-    def opt_del(href, pv_html, title, sub, on, del_href, del_tip):
-        """An option row with a trash button on the right (shown on hover) to delete the uploaded media."""
-        return (f"<div class='optwrap'><a class='opt{' on' if on else ''}' href='{href}'>{pv_html}"
-                f"<span><b>{title}</b><small>{sub}</small></span></a>"
-                f"<a class='optdel' href='{del_href}' title='{del_tip}'>{TRASH}</a></div>")
-
-    opts = opt("wyrm://do?a=bg&amp;mode=random", "photo", "Wyrm wallpapers",
-               f"Cybersecurity &amp; tech photos, new one {every_txt}", m == "random")
-    if has_img:
-        pv = f"<span class='pv' style=\"background-image:url('wyrm://bgimg?v={escape(str(bgc['image_ver']))}')\"></span>"
-        opts += opt_del("wyrm://do?a=bg&amp;mode=image", pv, "Your image", "The picture you uploaded",
-                        m == "image", "wyrm://do?a=bg-remove-image", "Delete your image")
-    opts += opt("wyrm://do?a=bg-upload", "up", "Upload from device…" if not has_img else "Upload another image…",
-                "JPG, PNG, WebP or GIF, up to 25 MB", False)
-    # Live wallpapers: weather, Wyrm's own animated scenes (no files, offline), and your own uploaded video
-    live = opt("wyrm://do?a=bg&amp;mode=weather", "video", "Live weather",
-               "Matches the sky now — rain, snow, sun, clouds", m == "weather")
+    has_vid = bool(bgc.get("video_ver"))
     cur_anim = bgc.get("anim", "aurora")
+    up_icon = "<span class='upicon'>&#8593;</span>"
+
+    def card(href, cls, inner, label, on, del_href=None):
+        chk = "<span class='chk'>&#10003;</span>" if on else ""
+        dele = f"<a class='cdel' href='{del_href}' title='Delete'>{TRASH}</a>" if del_href else ""
+        return (f"<div class='ccardwrap'><a class='ccard {cls}{' on' if on else ''}' href='{href}'>{inner}{chk}</a>"
+                f"{dele}<div class='clabel'>{escape(label)}</div></div>")
+
+    # --- big background cards (Brave-style grid) ---
+    big = card("wyrm://do?a=bg&amp;mode=random", "photo", "", "Wyrm wallpapers", m == "random")
+    if has_img:
+        thumb = f"<span class='thumb' style=\"background-image:url('wyrm://bgimg?v={escape(str(bgc['image_ver']))}')\"></span>"
+        big += card("wyrm://do?a=bg&amp;mode=image", "", thumb, "Your image", m == "image",
+                    "wyrm://do?a=bg-remove-image")
+    big += card("wyrm://do?a=bg-upload", "up", up_icon, "Use your own", False)
+    big += card("wyrm://do?a=bg&amp;mode=none", "plain", "", "No background", m == "none")
+    # --- live wallpaper cards ---
+    live = card("wyrm://do?a=bg&amp;mode=weather", "video", "", "Live weather", m == "weather")
     for key, label in ANIM_SCENES.items():
-        live += opt(f"wyrm://do?a=bg&amp;mode=animated&amp;anim={key}", "video", f"Animated · {label}",
-                    "Live wallpaper, runs offline", m == "animated" and cur_anim == key)
-    if bgc.get("video_ver"):
-        live += opt_del("wyrm://do?a=bg&amp;mode=video_local", "<span class='pv video'></span>", "Your video",
-                        "The video you uploaded", m == "video_local",
-                        "wyrm://do?a=bg-remove-video", "Delete your video")
-    live += opt("wyrm://do?a=bg-upload-video", "up", "Upload a video…" if not bgc.get("video_ver")
-                else "Upload another video…", "MP4 or WebM, up to 60 MB", False)
-    none_opt = opt("wyrm://do?a=bg&amp;mode=none", "plain", "No background", "Plain light / dark theme", m == "none")
-    ivs = "".join(f"<a class='iv{' on' if mins == every else ''}' href='wyrm://do?a=bg-interval&amp;min={mins}'>{lbl}</a>"
-                  for mins, lbl in BG_INTERVALS)
-    sws = "".join(f"<a class='sw{' on' if m == 'color' and bgc.get('color') == k else ''}' title='{escape(label)}' "
+        live += card(f"wyrm://do?a=bg&amp;mode=animated&amp;anim={key}", "video", "", label,
+                     m == "animated" and cur_anim == key)
+    if has_vid:
+        live += card("wyrm://do?a=bg&amp;mode=video_local", "video", "", "Your video", m == "video_local",
+                     "wyrm://do?a=bg-remove-video")
+    live += card("wyrm://do?a=bg-upload-video", "up", up_icon, "Upload a video", False)
+    # --- swatches + rotation intervals ---
+    sws = "".join(f"<a class='csw{' on' if m == 'color' and bgc.get('color') == k else ''}' title='{escape(label)}' "
                   f"href='wyrm://do?a=bg&amp;mode=color&amp;color={k}' style='background:{css}'></a>"
                   for k, label, css in BG_COLORS)
+    ivs = "".join(f"<a class='civ{' on' if mins == every else ''}' href='wyrm://do?a=bg-interval&amp;min={mins}'>{lbl}</a>"
+                  for mins, lbl in BG_INTERVALS)
+    # --- toggles ---
+    show_bg = m != "none"
+    bg_toggle = (f"<a class='ctog{' on' if show_bg else ''}' "
+                 f"href='wyrm://do?a=bg&amp;mode={'none' if show_bg else 'random'}'>"
+                 "<span><b>Show background</b></span><span class='sw'></span></a>")
+    wx_toggle = ("<a class='ctog" + (" on" if weather_on else "") + "' href='wyrm://do?a=weather-toggle'>"
+                 "<span><b>Weather &amp; location</b><small>Show today's weather and your city</small></span>"
+                 "<span class='sw'></span></a>")
+    # --- icons / chrome ---
+    I_IMG = ("<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6'>"
+             "<rect x='3' y='4' width='18' height='16' rx='2'/><circle cx='8.5' cy='9.5' r='1.5'/>"
+             "<path d='M4 18l5-5 4 4 3-3 4 4'/></svg>")
+    I_START = ("<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6'>"
+               "<circle cx='12' cy='12' r='9'/><path d='M12 7v5l3 2'/></svg>")
     pencil = ("<svg width='16' height='16' viewBox='0 0 16 16' aria-hidden='true'><path fill='currentColor' "
               "d='M11.3 1.3a1 1 0 0 1 1.4 0l2 2a1 1 0 0 1 0 1.4L6 13.4 2 14l.6-4 8.7-8.7zM4.4 10.6l-.3 1.3 1.3-.3 "
               "7.6-7.6-1-1-7.6 7.6z'/></svg>")
     close = ("<a class='x' role='button' aria-label='Close' title='Close'><svg width='16' height='16' viewBox='0 0 16 16' "
              "aria-hidden='true'><path d='M3 3l10 10M13 3L3 13' stroke='currentColor' stroke-width='1.6'/></svg></a>")
-    # open after a choice (#customize), close on Esc / outside click / ×
+    nav = (f"<div class='cnav'><h3>Customize</h3>"
+           f"<a class='cnavitem on' data-sec='bg'>{I_IMG}Background</a>"
+           f"<a class='cnavitem' data-sec='start'>{I_START}Start page</a></div>")
+    bg_sec = (f"<div class='csec on' data-sec='bg'><h2>Background</h2>{bg_toggle}"
+              f"<div class='cgrid'>{big}</div>"
+              f"<h4>LIVE WALLPAPERS</h4><div class='cgrid small'>{live}</div>"
+              f"<h4>SOLID COLORS</h4><div class='cswatches'>{sws}</div>"
+              f"<h4>CHANGE WALLPAPER EVERY</h4><div class='civs'>{ivs}</div></div>")
+    start_sec = (f"<div class='csec' data-sec='start'><h2>Start page</h2>{wx_toggle}"
+                 "<p style='color:var(--muted);font-size:13px;margin:16px 2px'>"
+                 "Tip: click the clock on the start page to switch between 24-hour and AM/PM.</p></div>")
     js = ("<script>(function(){var d=document.querySelector('details.cust');if(!d)return;"
           "if(location.hash==='#customize'){d.open=true;history.replaceState(null,'',location.pathname+location.search);}"
-          "d.querySelector('.x').addEventListener('click',function(e){e.preventDefault();d.open=false;});"
+          "d.querySelectorAll('.cnavitem').forEach(function(it){it.addEventListener('click',function(e){e.preventDefault();"
+          "var s=it.getAttribute('data-sec');"
+          "d.querySelectorAll('.cnavitem').forEach(function(x){x.classList.toggle('on',x===it);});"
+          "d.querySelectorAll('.csec').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-sec')===s);});});});"
+          "var x=d.querySelector('.x');if(x)x.addEventListener('click',function(e){e.preventDefault();d.open=false;});"
           "document.addEventListener('keydown',function(e){if(e.key==='Escape')d.open=false;});"
-          "document.addEventListener('click',function(e){if(d.open&&!e.target.closest('.cpanel')"
+          "document.addEventListener('click',function(e){if(d.open&&!e.target.closest('.cmodal')"
           "&&!e.target.closest('summary'))d.open=false;});})();</script>")
-    weather_opt = opt("wyrm://do?a=weather-toggle", "plain", "Weather &amp; location",
-                      "Show today's weather and your city on the start page", weather_on)
-    return (f"<details class='cust'><summary>{pencil}Customize</summary><div class='cpanel'>"
-            f"<div class='hd'><h3>Background</h3>{close}</div>{opts}"
-            f"<h4>LIVE WALLPAPERS</h4>{live}{none_opt}"
-            f"<h4>CHANGE WALLPAPER EVERY</h4><div class='ivs'>{ivs}</div>"
-            + ("" if m == "random" else "<p class='note'>Applies when Wyrm wallpapers is selected.</p>")
-            + f"<h4>COLORS</h4><div class='sws'>{sws}</div>"
-            + f"<h4>START PAGE</h4>{weather_opt}</div></details>{js}")
+    return (f"<details class='cust'><summary>{pencil}Customize</summary>"
+            f"<div class='cmodal'>{nav}<div class='cbody'>{close}{bg_sec}{start_sec}</div></div></details>{js}")
 
 
 # ====================================================================== paper search results
