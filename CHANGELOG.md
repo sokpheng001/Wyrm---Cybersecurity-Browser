@@ -9,18 +9,18 @@ most important points first. Each build of a version adds an "Also in this build
 - Realistic live weather wallpaper (Customize → Live weather): the start-page background is now drawn to look
   real, not abstract — volumetric sunlit clouds, a sky that shifts from dawn to day to dusk to night with sun
   glow and god-rays, parallax rain with ground ripples, depth-layered snow, drifting fog, and storms with
-  branching lightning. Runs offline, no video files. Developers: Oda, Kwan, Lida.
+  branching lightning. Runs offline, no video files.
 - Accurate weather location: Wyrm now uses your device's location service (Wi-Fi/GPS, like a phone's weather app)
   for a precise city, falling back to IP if that's unavailable. Wrong place? Click the location on the start page
-  to set your city by name — your choice always wins. Developers: Kim, Oda.
+  to set your city by name — your choice always wins.
 - Start-page shortcuts (speed dial): a grid of your own sites and tools you can add and remove, like other
-  browsers. Seeded with a few security sites you can change. Developers: Kwan, Naly.
-- Left tool sidebar (Layout menu → Tool sidebar): an Arc/Vivaldi-style rail for one-click access to the Security
-  panel, Papers, History and Downloads. Developers: Oda, Buri.
+  browsers, each showing the site's own logo.
 - Vertical tabs (Layout menu → Vertical tabs): move the tab bar to a left panel, like Edge/Arc — handy with many
-  tabs. Off by default. Developers: Kwan, Kim.
-- Clock format: click the start-page clock to switch between 24-hour and AM/PM. Developers: Lida, Vatanny.
-- A neutral "Check for updates" button is always in the toolbar, and the Update pill always triggers a check.
+  tabs. Off by default.
+- Address bar: the https:// scheme is hidden (the lock icon shows security), click the lock to view the site's
+  certificate, right-click for "Paste and go", and search the selection on the web or for vulnerabilities.
+- History: a "Recently closed" section restores closed tabs, and Settings has a new sidebar with a search box.
+- Clock format: click the start-page clock to switch between 24-hour and AM/PM.
 
 ## v0.3.0
 

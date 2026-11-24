@@ -16,8 +16,9 @@ from PySide6.QtWidgets import QCheckBox, QDialog, QHBoxLayout, QLabel, QPushButt
 
 
 def ask(parent: QWidget, title: str, body: str, ok: str, cancel: str = "Cancel",
-        checkbox: str | None = None, window_title: str = "Wyrm Browser") -> tuple[bool, bool]:
-    """Show the dialog. Returns (accepted, checkbox ticked). The OK button is the default (Enter)."""
+        checkbox: str | None = None, window_title: str = "Wyrm Browser", icon: str = "") -> tuple[bool, bool]:
+    """Show the dialog. Returns (accepted, checkbox ticked). The OK button is the default (Enter).
+    `icon` (an image path) shows a logo beside the title, for a cleaner, more standard look."""
     d = QDialog(parent, Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
     d.setObjectName("ConfirmDialog")
     d.setWindowTitle(window_title)
@@ -28,7 +29,21 @@ def ask(parent: QWidget, title: str, body: str, ok: str, cancel: str = "Cancel",
     head = QLabel(title)
     head.setObjectName("DialogTitle")
     head.setWordWrap(True)
-    v.addWidget(head)
+    pm = None
+    if icon:
+        from PySide6.QtGui import QPixmap
+        pm = QPixmap(icon)
+    if pm is not None and not pm.isNull():
+        hdr = QHBoxLayout()
+        hdr.setSpacing(14)
+        logo = QLabel()
+        logo.setPixmap(pm.scaled(44, 44, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        logo.setFixedSize(44, 44)
+        hdr.addWidget(logo, 0, Qt.AlignmentFlag.AlignTop)
+        hdr.addWidget(head, 1)
+        v.addLayout(hdr)
+    else:
+        v.addWidget(head)
     text = QLabel(body)
     text.setObjectName("DialogBody")
     text.setWordWrap(True)

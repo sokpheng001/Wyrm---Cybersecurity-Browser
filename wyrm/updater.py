@@ -103,23 +103,45 @@ def check(current: str, proxies=None, verify=True, build: int = 0) -> dict:
     }
 
 
+def _clean_change(line: str) -> str:
+    line = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", line)        # [text](url) -> text
+    line = re.sub(r"https?://\S+", "", line)                        # bare links
+    line = re.sub(r"\s+by @\S+.*$|\s+in\s*$", "", line)            # GitHub's "by @x in <url>" tails
+    line = re.sub(r"\s*(?:[—–\-·.]\s*)?Developers?:.*$", "", line, flags=re.I)  # never show developer credits
+    return re.sub(r"[*_`]", "", line).strip(" -–—:")
+
+
 def whats_new(notes: str, limit: int = 12) -> list[str]:
-    """Plain 'what's new' lines from release notes: bullet lines only, links and markdown removed (the app
-    never shows repository links)."""
-    out = []
-    for line in (notes or "").splitlines():
-        line = line.strip()
-        if not line.startswith(("- ", "* ")):
-            continue
-        line = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", line[2:])   # [text](url) -> text
-        line = re.sub(r"https?://\S+", "", line)                       # bare links
-        line = re.sub(r"\s+by @\S+.*$|\s+in\s*$", "", line)           # GitHub's "by @x in <url>" tails
-        line = re.sub(r"[*_`]", "", line).strip(" -–—:")
-        if line:
-            out.append(line)
-        if len(out) >= limit:
+    """Clean, user-facing 'what's new' bullets from release notes: the curated changelog bullets only — wrapped
+    lines rejoined, markdown/links/developer credits stripped, and the auto-generated commit list and checksums
+    (everything from the first heading or 'Also in this build') dropped."""
+    out: list[str] = []
+    cur: str | None = None
+
+    def flush():
+        nonlocal cur
+        if cur:
+            c = _clean_change(cur)
+            if c:
+                out.append(c)
+        cur = None
+    for raw in (notes or "").splitlines():
+        s = raw.strip()
+        low = s.lower()
+        if low.startswith(("#", "also in this build", "checksum", "sha-256", "sha256")) \
+                or re.match(r"[0-9a-fA-F]{64}\s", s):   # end of the human changelog → stop
             break
-    return out
+        if s.startswith(("- ", "* ")):
+            flush()
+            cur = s[2:]
+        elif not s:
+            flush()
+        elif cur is not None:
+            cur += " " + s                              # continuation of a wrapped bullet
+        if len(out) >= limit:
+            return out
+    flush()
+    return out[:limit]
 
 
 def current_changes(limit: int = 20) -> list[str]:

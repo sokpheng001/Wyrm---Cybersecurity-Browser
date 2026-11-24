@@ -136,19 +136,29 @@ class UpdatesMixin:
                                  "or just keep browsing: it installs when you close the browser.")
         self._ask_restart()
 
+    def _app_icon_path(self) -> str:
+        """Path to the bundled app logo (for the update dialog figure), in both source and frozen builds."""
+        import sys
+        from pathlib import Path
+        mp = getattr(sys, "_MEIPASS", None)
+        p = (Path(mp) / "wyrm" / "assets" / "icon.png") if mp else \
+            (Path(__file__).resolve().parent.parent / "assets" / "icon.png")
+        return str(p) if p.exists() else ""
+
     def _ask_restart(self):
         from ..ui.dialogs import ask
         from ..ui.update_runner import install_and_quit
         from .. import updater
         info = self._update_info or {}
         ver = info.get("version", "")
-        body = ("Restart now to finish updating and get the latest features. Your open tabs will reopen. "
-                "Choose Later to keep browsing: the update installs when you close Wyrm Browser.")
+        body = ("Restart now to finish updating. Your open tabs will reopen. Choose Later to keep browsing — "
+                "the update installs when you close Wyrm Browser.")
         changes = updater.whats_new(info.get("notes", ""))
         if changes:
-            body += f"\n\nWhat's new in {ver}:\n" + "\n".join("•  " + c for c in changes[:12])
+            body += "\n\nWhat's new:\n" + "\n".join("•  " + c for c in changes[:7])
         now, _ = ask(self, f"Wyrm Browser {ver} is ready to install", body,
-                     "Restart now", cancel="Later", window_title="Update Wyrm Browser")
+                     "Restart now", cancel="Later", window_title="Update Wyrm Browser",
+                     icon=self._app_icon_path())
         if now:
             path, self._pending_update = self._pending_update, None
             self._save_session()  # tabs come back after the restart
