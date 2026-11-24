@@ -18,7 +18,9 @@ import json
 import requests
 
 API_URL = "https://api.anthropic.com/v1/messages"
-DEFAULT_MODEL = "kim-modeling-sp-001"
+# A real, current Claude model id (BUG-2): the previous default was a placeholder dev string that made every
+# Triage call fail with a model error until the user overwrote it. Users can still override in Settings → Model.
+DEFAULT_MODEL = "claude-sonnet-5-5"
 
 SYSTEM_PROMPT = """You are an Application Security Triage Assistant supporting an authorized penetration tester. \
 Your role is to analyze HTTP request/response pairs, API schemas, or source code to identify potential security \

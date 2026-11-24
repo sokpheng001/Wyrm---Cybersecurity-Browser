@@ -84,8 +84,9 @@ class ToolsTab(QWidget):
         scope = ", ".join(eng.scope) if eng and eng.scope else ""
         self.tr_scope.setText(f"Authorized scope: <b>{escape(scope) or 'none set — set an engagement scope first'}</b> · "
                               "analysis only, no requests are sent, benign verification steps only.")
-        key = self.win.settings.value("ai/api_key", "", type=str)
-        model = self.win.settings.value("ai/model", "kim-modeling-sp-001", type=str)
+        from .. import secretstore
+        key = secretstore.get(self.win.settings, "ai/api_key")
+        model = (self.win.settings.value("ai/model", "", type=str) or triage.DEFAULT_MODEL)
         if not key:
             self.tr_out.setHtml("<p>No API key set. Add one in <b>Settings → General → AI Triage</b> "
                                 "(your own API key, stored only on this device).</p>")
