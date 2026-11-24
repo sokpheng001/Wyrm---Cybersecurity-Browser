@@ -107,9 +107,8 @@ class EngagementMixin:
         for attr in (QWebEngineSettings.WebAttribute.PluginsEnabled, QWebEngineSettings.WebAttribute.PdfViewerEnabled,
                      QWebEngineSettings.WebAttribute.FullScreenSupportEnabled):
             s.setAttribute(attr, True)
-        # Keep the scroll animator OFF: its eased animation makes wheel scrolling feel laggy/floaty; native
-        # scrolling is immediate and snappy.
-        s.setAttribute(QWebEngineSettings.WebAttribute.ScrollAnimatorEnabled, False)
+        # Smooth scrolling: eases each wheel step so scrolling glides instead of jumping a big chunk per notch.
+        s.setAttribute(QWebEngineSettings.WebAttribute.ScrollAnimatorEnabled, True)
         prof.installUrlSchemeHandler(SCHEME, self.scheme_handler)
         prof.downloadRequested.connect(self._on_download)
         self.profiles[key] = prof

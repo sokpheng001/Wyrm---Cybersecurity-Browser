@@ -30,21 +30,39 @@ _WMO = {
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Wyrm/1.0 (start page)"}
 
 
-def fetch(proxies=None, verify=True) -> dict | None:
-    """{city, region, country, lat, lon, temp_c, code, emoji, desc} or None if it can't be fetched."""
+def _geolocate(proxies, verify) -> dict | None:
+    """IP geolocation from several free, keyless providers (first that answers wins) — ipapi.co is heavily
+    rate-limited, so fall back to ipwho.is and ip-api.com."""
     import requests
-    try:
-        r = requests.get("https://ipapi.co/json/", headers=UA, timeout=12, proxies=proxies, verify=verify)
-        r.raise_for_status()
-        loc = r.json()
-        lat, lon = loc.get("latitude"), loc.get("longitude")
-        if lat is None or lon is None:
-            return None
-        info = {"city": loc.get("city") or "", "region": loc.get("region") or "",
-                "country": loc.get("country_name") or loc.get("country") or "", "lat": lat, "lon": lon,
-                "temp_c": None, "code": None, "is_day": True, "emoji": "", "desc": ""}
-    except (requests.RequestException, ValueError):
+    providers = [
+        ("https://ipapi.co/json/", lambda d: (d.get("city"), d.get("region"),
+                                              d.get("country_name") or d.get("country"), d.get("latitude"), d.get("longitude"))),
+        ("https://ipwho.is/", lambda d: (d.get("city"), d.get("region"), d.get("country"),
+                                         d.get("latitude"), d.get("longitude")) if d.get("success", True) else (None,) * 5),
+        ("http://ip-api.com/json/", lambda d: (d.get("city"), d.get("regionName"), d.get("country"),
+                                               d.get("lat"), d.get("lon"))),
+    ]
+    for url, parse in providers:
+        try:
+            r = requests.get(url, headers=UA, timeout=10, proxies=proxies, verify=verify)
+            r.raise_for_status()
+            city, region, country, lat, lon = parse(r.json())
+            if lat is not None and lon is not None:
+                return {"city": city or "", "region": region or "", "country": country or "",
+                        "lat": lat, "lon": lon}
+        except (requests.RequestException, ValueError, TypeError):
+            continue
+    return None
+
+
+def fetch(proxies=None, verify=True) -> dict | None:
+    """{city, region, country, lat, lon, temp_c, code, is_day, emoji, desc} or None if it can't be fetched."""
+    import requests
+    loc = _geolocate(proxies, verify)
+    if loc is None:
         return None
+    lat, lon = loc["lat"], loc["lon"]
+    info = {**loc, "temp_c": None, "code": None, "is_day": True, "emoji": "", "desc": ""}
     try:
         w = requests.get("https://api.open-meteo.com/v1/forecast", headers=UA, timeout=12,
                          proxies=proxies, verify=verify,

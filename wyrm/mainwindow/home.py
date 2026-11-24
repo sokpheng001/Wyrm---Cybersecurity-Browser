@@ -250,8 +250,8 @@ class HomeMixin:
         return {"engagement": eng, "counts": self.store.counts(e.id) if e else {}, "engine_name": name,
                 "saved": self.library.saved(), "kev": self._kev_recent, "mode": self.mode,
                 "background": (not self.tor) and self._bg_settings()["mode"] != "none",
-                "bg": self._bg_settings(), "news": self._news if self._is_online else [],
-                "weather": getattr(self, "_weather", None) if self._is_online else None,
+                "bg": self._bg_settings(), "news": self._news,
+                "weather": getattr(self, "_weather", None),
                 "vid_url": self._bg_video_url(),
                 "tor": bool(self.tor), "private": self.private}
 
@@ -286,14 +286,20 @@ class HomeMixin:
         self.runner.run(work, done)
 
     def _fetch_weather(self):
-        # location + weather for the start page; off in private/Tor and when the user disables it
-        if self.ephemeral or not self._is_online \
-                or not self.settings.value("home/weather", True, type=bool):
+        # location + weather for the start page; off in private/Tor and when the user disables it. We try even if
+        # reachability reports "offline" (it misreports on some systems) — a real offline machine just fails quietly.
+        if self.ephemeral or not self.settings.value("home/weather", True, type=bool):
             return
         from .. import homeinfo
         self.runner.run(lambda: homeinfo.fetch(self.proxies(), self.verify_tls()), self._weather_ready)
 
     def _weather_ready(self, ok, result):
-        if ok and result and result != getattr(self, "_weather", None):
-            self._weather = result
-            self._refresh_home_pages()
+        if ok and result:
+            if not self._is_online:   # we clearly reached the internet: correct a false "offline" state
+                self._is_online = True
+                banner = getattr(self, "offline_banner", None)
+                if banner is not None:
+                    banner.set_offline(False)
+            if result != getattr(self, "_weather", None):
+                self._weather = result
+                self._refresh_home_pages()

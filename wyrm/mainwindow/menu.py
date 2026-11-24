@@ -65,9 +65,31 @@ class MenuMixin:
         em.aboutToShow.connect(lambda menu=em: self._ext_fill_menu(menu))
         m.addSeparator()
         m.addAction("Help — how to use Wyrm (F1)", self.open_help)
-        m.addAction("Check for updates…", self._check_updates)
+        # Update item shows a count when an update is available/downloaded, and refreshes each time the menu opens.
+        self._menu_update_action = m.addAction("Check for updates…", self._update_menu_clicked)
         m.addAction("About Wyrm Browser", self._about)
+        m.aboutToShow.connect(self._refresh_menu_update)
         return m
+
+    def _refresh_menu_update(self):
+        act = getattr(self, "_menu_update_action", None)
+        if act is None:
+            return
+        info = getattr(self, "_update_info", None)
+        if getattr(self, "_pending_update", None):
+            act.setText("⬆  Restart to finish updating   (1)")
+        elif info and info.get("newer"):
+            act.setText(f"⬆  Update to Wyrm {info.get('version', '')}   (1)")
+        else:
+            act.setText("Check for updates…")
+
+    def _update_menu_clicked(self):
+        if getattr(self, "_pending_update", None):
+            self._ask_restart()
+        elif getattr(self, "_update_info", None) and self._update_info.get("newer"):
+            self._open_update()
+        else:
+            self._check_updates()
 
     def open_help(self):
         """Built-in user guide in a new tab."""
