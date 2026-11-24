@@ -52,6 +52,9 @@ class SearchMixin:
     def navigate(self, text: str):
         self._record_history(text.strip())
         url = engines.resolve(text, self.default_engine())
+        c = self.urlbar.completer()           # close the suggestion dropdown so it doesn't linger over the page
+        if c is not None:
+            c.popup().hide()
         self.current_view().setUrl(QUrl.fromUserInput(url) if "://" not in url else QUrl(url))
         self.current_view().setFocus()
 
