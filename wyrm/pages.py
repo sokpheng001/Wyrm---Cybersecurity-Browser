@@ -384,9 +384,11 @@ details.cust[open]::before{content:"";position:fixed;inset:0;background:rgba(0,0
 .cgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:16px 0 0}
 .cgrid.small{grid-template-columns:repeat(3,1fr);gap:14px}
 .ccardwrap{position:relative}
-.ccard{display:block;position:relative;aspect-ratio:16/10;border-radius:12px;overflow:hidden;border:2px solid transparent;background:var(--layer2)}
-.ccardwrap:hover .ccard{border-color:var(--strong)}
-.ccard.on{border-color:var(--btn)}
+.ccard{display:block;position:relative;aspect-ratio:16/10;border-radius:12px;overflow:hidden;background:var(--layer2)}
+/* clean selection ring with a gap, like a browser's thumbnail picker (not a border flush on the art) */
+.ccardwrap:hover .ccard{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--strong)}
+.ccard.on{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--btn)}
+.ccard.on:hover,.ccardwrap:hover .ccard.on{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--btn)}
 .ccard:hover{text-decoration:none}
 .ccard.photo{background:linear-gradient(135deg,#0f62fe,#8a3ffc 50%,#da1e28)}
 .ccard.video{background:linear-gradient(135deg,#001141,#0f62fe 60%,#08bdba)}
