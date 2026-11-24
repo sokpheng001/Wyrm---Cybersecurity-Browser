@@ -58,29 +58,30 @@ class UpdatesMixin:
             return  # already downloading or downloaded
         self._update_info = info
         kind = self._update_kind(info)
+        # Always show the Update button so the user knows an update is available — even routine build bumps.
+        from .. import updater
+        changes = updater.whats_new(info.get("notes", ""))
+        tip = (f"<b>Wyrm Browser {escape(info.get('version', ''))}</b> is available (you have {version_label()}).<br>"
+               "Click to update now — or it installs automatically when you restart Wyrm.")
+        if changes:
+            tip += "<br><br><b>What's new</b><ul style='margin:4px 0 0 -18px'>" + \
+                   "".join(f"<li>{escape(c)}</li>" for c in changes) + "</ul>"
+        self.b_update.setText("  Update")
+        self.b_update.setEnabled(True)
+        self.b_update.setToolTip(tip)
+        self.b_update.show()
         if kind == "auto" and not manual:
-            # silent: download in the background now, apply on next restart — no button, no click
+            # routine update: download quietly in the background now; it still installs on restart. The button is
+            # just the heads-up (no forced dialog), so the user always knows an update is waiting.
             self._auto_update = True
             self._updater = Updater(self, info)
             if not self._updater.start():
                 self._updater = None
                 self._auto_update = False
-            return
-        # feature update (or manual check): show the Update button and let the user choose
-        self._auto_update = False
-        self.b_update.setText("  Update")
-        self.b_update.setEnabled(True)
-        from .. import updater
-        changes = updater.whats_new(info.get("notes", ""))
-        tip = (f"<b>Wyrm Browser {escape(info.get('version', ''))}</b> is available (you have {version_label()}).<br>"
-               "Click to update — it installs and restarts automatically.")
-        if changes:
-            tip += "<br><br><b>What's new</b><ul style='margin:4px 0 0 -18px'>" + \
-                   "".join(f"<li>{escape(c)}</li>" for c in changes) + "</ul>"
-        self.b_update.setToolTip(tip)
-        self.b_update.show()
-        if manual:
-            self.toast(f"Wyrm Browser {info.get('version')} is available — click Update at the top right.", 6000)
+        else:
+            self._auto_update = False
+            if manual:
+                self.toast(f"Wyrm Browser {info.get('version')} is available — click Update at the top right.", 6000)
 
     def _open_update(self):
         """Update pill clicked: download (progress on the pill), then ask to restart now or later."""
@@ -100,8 +101,10 @@ class UpdatesMixin:
 
     def _update_failed(self, msg: str):
         self._updater = None
-        if getattr(self, "_auto_update", False):  # silent update failed: stay quiet, retry next check
+        if getattr(self, "_auto_update", False):  # routine update download failed: keep the button so they can retry
             self._auto_update = False
+            self.b_update.setEnabled(True)
+            self.b_update.setText("  Update")
             return
         self.b_update.setEnabled(True)
         self.b_update.setText("  Update failed — retry")
@@ -115,8 +118,14 @@ class UpdatesMixin:
         self._updater = None
         self._pending_update = path
         if getattr(self, "_auto_update", False):
-            # routine update: it installs automatically when Wyrm is next closed/restarted — no prompt
-            self.toast("Wyrm will finish updating automatically next time you restart it.", 7000)
+            # routine update downloaded: show "Restart to update" so the user can finish now if they want — but
+            # don't force a dialog; it still installs automatically when Wyrm is next closed/restarted.
+            self.b_update.setEnabled(True)
+            self.b_update.setText("  Restart to update")
+            self.b_update.setToolTip("Update downloaded — click to restart and finish now, or it installs when you "
+                                     "close Wyrm.")
+            self.b_update.show()
+            self.toast("Update downloaded — it installs when you restart Wyrm (or click “Restart to update”).", 7000)
             return
         self.b_update.setEnabled(True)
         self.b_update.setText("  Restart to update")

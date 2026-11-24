@@ -394,11 +394,18 @@ class DownloadsHistoryWindow(QWidget):
 
     def reload(self):
         self.tree.clear()
+        from PySide6.QtGui import QBrush, QColor
         for rec in self.win.download_history():
             folder = os.path.dirname(rec.get("path", ""))
+            gone = not (rec.get("path") and os.path.isfile(rec["path"]))
+            state = "deleted" if gone else rec.get("state", "")
             it = QTreeWidgetItem([rec.get("name", ""), _fmt_size(rec.get("size", 0)),
-                                  rec.get("state", ""), rec.get("time", ""), folder])
+                                  state, rec.get("time", ""), folder])
             it.setData(0, Qt.ItemDataRole.UserRole, rec)
+            if gone:   # file no longer on disk → grey it out and make it non-selectable (can't Preview/Open)
+                it.setFlags(it.flags() & ~Qt.ItemFlag.ItemIsEnabled)
+                for c in range(5):
+                    it.setForeground(c, QBrush(QColor("#9aa3ad")))
             self.tree.addTopLevelItem(it)
         if not self.tree.topLevelItemCount():
             self.tree.addTopLevelItem(QTreeWidgetItem(["No downloads yet.", "", "", "", ""]))
@@ -594,8 +601,12 @@ class DownloadsPopup(QWidget):
         else:
             row = QHBoxLayout()
             row.setSpacing(6)
-            if rec["state"] == "done":
+            exists = rec["state"] == "done" and os.path.isfile(rec["path"])
+            if rec["state"] == "done" and exists:
                 status = QLabel(f"<span style='color:#3fb950'>Done</span> · {escape(os.path.dirname(rec['path']))}")
+            elif rec["state"] == "done":   # file was deleted/moved: grey it out, like other browsers
+                status = QLabel("<span style='color:#9aa3ad'>Deleted — no longer on disk</span>")
+                name.setEnabled(False)
             elif rec["state"] == "canceled":
                 status = QLabel("<span style='color:#9aa3ad'>Canceled</span>")
             else:
@@ -611,7 +622,9 @@ class DownloadsPopup(QWidget):
                             ("Show in folder", lambda _c=False, p=rec["path"]: _show_in_folder(p))]
                 for label, fn in actions:
                     b = QPushButton(label)
-                    b.setCursor(Qt.CursorShape.PointingHandCursor)
+                    b.setEnabled(exists)   # deleted file → greyed, not clickable (like other browsers)
+                    if exists:
+                        b.setCursor(Qt.CursorShape.PointingHandCursor)
                     b.clicked.connect(fn)
                     row.addWidget(b)
                 if rec.get("risky") and rec.get("digest"):
