@@ -29,6 +29,8 @@ class ChromeMixin:
         b.setFixedSize(40, 40)  # square, so the hover background is centred on the icon
         b.setIconSize(b.iconSize().scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio))
         b.setToolTip(tip)
+        import re as _re
+        b.setAccessibleName(_re.split(r"\s*\(|\s{2,}", tip)[0].strip())  # screen-reader name (tooltip minus shortcut)
         b.setCursor(Qt.CursorShape.PointingHandCursor)
         self._icon_buttons.append((b, icon))
         if fn:
@@ -139,6 +141,7 @@ class ChromeMixin:
             n.addWidget(b)
 
         self.eng_box = QComboBox(objectName="Engagement")
+        self.eng_box.setAccessibleName("Engagement")
         self.eng_box.setToolTip("Engagement: authorized target scope + isolated session + findings")
         self._shrinkable(self.eng_box, 130, 190)
         self.eng_box.view().setMinimumWidth(280)
@@ -147,6 +150,7 @@ class ChromeMixin:
         self.eng_box.setVisible(not self.ephemeral)  # engagements keep persistent sessions; Tor/private never do
 
         self.urlbar = QLineEdit(objectName="UrlBar")
+        self.urlbar.setAccessibleName("Address and search")
         self.urlbar.setPlaceholderText("Search, or type a URL, CVE-ID or domain")
         self.urlbar.setFixedHeight(38)
         self.urlbar.setTextMargins(28, 0, 0, 0)  # reserve space for the icon inside the pill
@@ -190,6 +194,7 @@ class ChromeMixin:
         n.addSpacing(8)
 
         self.engine_box = QComboBox(objectName="Engine")
+        self.engine_box.setAccessibleName("Search engine")
         self.engine_box.setToolTip("Search engine for plain queries")
         self._shrinkable(self.engine_box, 160, 200)
         self.engine_box.view().setMinimumWidth(320)  # popup shows full names next to the logos
