@@ -81,8 +81,15 @@ class BrowserView(QWebEngineView):
             if looks_url:
                 menu.addAction(f"Go to {short}", lambda u=sel: self.win.open_url(engines.resolve(u), new_tab=True))
             else:
-                menu.addAction(f"Search “{short}”",
-                               lambda q=sel: self.win.open_url(engines.resolve(q), new_tab=True))
+                # two explicit choices: a normal web search, and Wyrm's vulnerability search (not everything
+                # selected is a CVE/host, so don't force the security engine just because it's the default)
+                web = engines.ENGINES.get(self.win.default_engine())
+                if web is None or web.template.startswith("wyrm://"):  # internal engine → use a real web engine
+                    web = engines.ENGINES["ddg"]
+                menu.addAction(f"Search the web for “{short}”",
+                               lambda q=sel, e=web: self.win.open_url(e.url(q), new_tab=True))
+                menu.addAction(f"Search vulnerabilities for “{short}”",
+                               lambda q=sel: self.win.open_url(engines.SECURITY.url(q), new_tab=True))
         # paste without formatting, for editable fields
         if editable:
             menu.addAction("Paste as plain text", lambda: page.triggerAction(WA.PasteAndMatchStyle))
