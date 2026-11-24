@@ -17,6 +17,11 @@ class TorMixin:
     """Tor windows: open, new identity, disconnect. (Mixed into MainWindow.)"""
 
     # ================================================================ Tor / private windows
+    def open_new_window(self):
+        """A second normal browser window (separate process)."""
+        args = ([] if getattr(sys, "frozen", False) else [sys.argv[0]])
+        QProcess.startDetached(sys.executable, args)
+
     def open_private_window(self):
         """Private window (like incognito): separate process with an in-memory profile; nothing is saved."""
         args = (["--private"] if getattr(sys, "frozen", False) else [sys.argv[0], "--private"])
