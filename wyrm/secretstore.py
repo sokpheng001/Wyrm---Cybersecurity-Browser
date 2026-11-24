@@ -48,6 +48,30 @@ def _dpapi(data: bytes, unprotect: bool) -> bytes:
         ctypes.windll.kernel32.LocalFree(blob_out.pbData)
 
 
+_MAGIC = b"WYRMDPAPI1\n"   # marks a DPAPI-protected byte blob on disk (e.g. the MITM CA private key)
+
+
+def protect_bytes(data: bytes) -> bytes:
+    """Return bytes safe to write to disk: DPAPI blob (magic-tagged) on Windows, else the data unchanged."""
+    if data and available():
+        try:
+            return _MAGIC + _dpapi(data, unprotect=False)
+        except OSError:
+            return data
+    return data
+
+
+def unprotect_bytes(blob: bytes) -> bytes:
+    """Inverse of :func:`protect_bytes`. Un-tagged (legacy/plain) data is returned unchanged."""
+    if blob.startswith(_MAGIC):
+        return _dpapi(blob[len(_MAGIC):], unprotect=True)
+    return blob
+
+
+def is_protected_bytes(blob: bytes) -> bool:
+    return blob.startswith(_MAGIC)
+
+
 # --------------------------------------------------------------------- public API
 def encrypt(plaintext: str) -> str:
     """Return a value safe to persist. On Windows this is DPAPI ciphertext; elsewhere the value unchanged."""

@@ -36,21 +36,25 @@ from cryptography.x509.oid import NameOID
 class CertAuthority:
     """A local CA that mints per-host leaf certificates on demand (cached in memory)."""
 
-    def __init__(self, cert_dir: Path):
+    def __init__(self, cert_dir: Path, fresh: bool = False):
         self.dir = cert_dir
         self.dir.mkdir(parents=True, exist_ok=True)
+        _lock_down_dir(self.dir)   # SEC-8: user-only ACLs so the CA key isn't readable by other local users
         self.ca_cert_path = self.dir / "wyrm-ca.pem"
         self.ca_key_path = self.dir / "wyrm-ca.key"
         self._leaf_cache: dict[str, ssl.SSLContext] = {}
+        if fresh:   # short-lived CA regenerated per session (crash-safe): never reuse a stale on-disk CA
+            _wipe_ca_files(self.dir)
         self._ca_cert, self._ca_key = self._load_or_make_ca()
 
     def _load_or_make_ca(self):
         if self.ca_cert_path.exists() and self.ca_key_path.exists():
             try:
                 cert = x509.load_pem_x509_certificate(self.ca_cert_path.read_bytes())
-                key = serialization.load_pem_private_key(self.ca_key_path.read_bytes(), password=None)
-                return cert, key
-            except Exception:  # noqa: BLE001 - regenerate on any problem
+                key = serialization.load_pem_private_key(self._read_ca_key(), password=None)
+                if cert.not_valid_after_utc > _utcnow():   # still valid — reuse it
+                    return cert, key
+            except Exception:  # noqa: BLE001 - regenerate on any problem (corrupt, expired, undecryptable)
                 pass
         key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         name = x509.Name([
@@ -61,7 +65,8 @@ class CertAuthority:
         cert = (x509.CertificateBuilder()
                 .subject_name(name).issuer_name(name).public_key(key.public_key())
                 .serial_number(x509.random_serial_number())
-                .not_valid_before(now - _days(1)).not_valid_after(now + _days(3650))
+                # short-lived (90 days) so a CA that somehow outlives a clean uninstall still expires soon (SEC-8)
+                .not_valid_before(now - _days(1)).not_valid_after(now + _days(90))
                 .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
                 .add_extension(x509.KeyUsage(digital_signature=True, key_cert_sign=True, crl_sign=True,
                                              key_encipherment=False, content_commitment=False,
@@ -70,9 +75,20 @@ class CertAuthority:
                 .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False)
                 .sign(key, hashes.SHA256()))
         self.ca_cert_path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
-        self.ca_key_path.write_bytes(key.private_bytes(serialization.Encoding.PEM,
-                                     serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+        self._write_ca_key(key.private_bytes(serialization.Encoding.PEM,
+                           serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
         return cert, key
+
+    def _write_ca_key(self, pem: bytes) -> None:
+        """Persist the CA private key protected at rest (DPAPI on Windows) with user-only file permissions, so a
+        plain file read no longer yields a usable MITM key (SEC-8)."""
+        from .. import secretstore
+        self.ca_key_path.write_bytes(secretstore.protect_bytes(pem))
+        _lock_down_file(self.ca_key_path)
+
+    def _read_ca_key(self) -> bytes:
+        from .. import secretstore
+        return secretstore.unprotect_bytes(self.ca_key_path.read_bytes())
 
     def context_for(self, host: str, alpn_h2: bool = False) -> ssl.SSLContext:
         """A server-side SSLContext presenting a cert for `host`, signed by our CA (cached per host).
@@ -134,15 +150,57 @@ def _upstream_ctx():
 ACTIVE: "MitmProxy | None" = None  # the running proxy (set at startup), picked up by the window
 
 
+def _lock_down_dir(path: Path) -> None:
+    """Restrict a directory to the current user only (best-effort): icacls on Windows, chmod 700 elsewhere."""
+    _restrict_acl(path, is_dir=True)
+
+
+def _lock_down_file(path: Path) -> None:
+    _restrict_acl(path, is_dir=False)
+
+
+def _restrict_acl(path: Path, is_dir: bool) -> None:
+    import os
+    import sys
+    try:
+        if sys.platform == "win32":
+            import getpass
+            import subprocess
+            # drop inherited ACLs, then grant only the current user full control (no other local users)
+            subprocess.run(["icacls", str(path), "/inheritance:r", "/grant:r", f"{getpass.getuser()}:(OI)(CI)F"]
+                           if is_dir else ["icacls", str(path), "/inheritance:r", "/grant:r", f"{getpass.getuser()}:F"],
+                           capture_output=True, timeout=15, creationflags=0x08000000)
+        else:
+            os.chmod(path, 0o700 if is_dir else 0o600)
+    except Exception:  # noqa: BLE001 - hardening is best-effort; never block startup
+        pass
+
+
+def _wipe_ca_files(mitm_dir: Path) -> None:
+    """Delete any on-disk Wyrm CA cert/key (crash-safe cleanup when the proxy is off)."""
+    for name in ("wyrm-ca.pem", "wyrm-ca.key"):
+        try:
+            (mitm_dir / name).unlink()
+        except OSError:
+            pass
+
+
 def start_if_enabled(data_dir: Path):
     """Called at startup (before QApplication): if the intercepting proxy is on, start it and return the
     Chromium --proxy-server flags to route the browser through it. Returns [] when off."""
     global ACTIVE
     from PySide6.QtCore import QSettings
+    mitm_dir = data_dir / "mitm"
     if not QSettings().value("mitm/enabled", False, type=bool):
+        # Crash-safe cleanup (SEC-8): a previous run may have crashed/been killed while the proxy was on, leaving
+        # the Wyrm CA trusted in the user store and its key on disk. Since the proxy is off now, remove both.
+        uninstall_ca()
+        _wipe_ca_files(mitm_dir)
         return []
     try:
-        ca = CertAuthority(data_dir / "mitm")
+        ca = CertAuthority(mitm_dir, fresh=True)      # short-lived CA, regenerated for this session
+        uninstall_ca()                                # drop any stale CA from a prior session before trusting ours
+        install_ca(ca.ca_cert_path)                   # keep the trusted CA in sync with the fresh on-disk one
         proxy = MitmProxy(ca)
         proxy.http2 = QSettings().value("mitm/http2", False, type=bool)   # experimental; off by default
         port = proxy.start(0)
