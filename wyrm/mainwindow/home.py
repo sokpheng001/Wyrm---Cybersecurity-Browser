@@ -220,6 +220,54 @@ class HomeMixin:
         self.settings.setValue("home/shortcuts", json.dumps(lst))
         self.settings.sync()
         QTimer.singleShot(0, self._refresh_home_pages)
+        QTimer.singleShot(0, self._fetch_shortcut_icons)  # grab favicons for any new shortcuts
+
+    def _shortcuts_with_icons(self) -> list:
+        from .. import pages
+        return [{**s, "icon": self._shortcut_icon(pages._sc_domain(s.get("url", "")))} for s in self._shortcuts()]
+
+    def _shortcut_icon_dir(self):
+        return self.data_dir / "shortcut_icons"
+
+    def _shortcut_icon(self, dom: str) -> str:
+        """A data: URI for a cached shortcut favicon, or '' if we don't have one yet."""
+        import base64
+        p = self._shortcut_icon_dir() / (dom + ".img")
+        try:
+            b = p.read_bytes()
+        except OSError:
+            return ""
+        sig = b[:4]
+        mime = ("image/png" if sig.startswith(b"\x89PNG") else "image/gif" if sig[:3] == b"GIF"
+                else "image/jpeg" if sig[:2] == b"\xff\xd8" else "image/svg+xml" if b[:5] == b"<?xml" or b[:4] == b"<svg"
+                else "image/x-icon")
+        return f"data:{mime};base64," + base64.b64encode(b).decode()
+
+    def _fetch_shortcut_icons(self):
+        """Download favicons for shortcuts we don't have yet, in the background, then refresh the start page."""
+        if self.ephemeral:
+            return
+        from .. import homeinfo, pages
+        want = []
+        for s in self._shortcuts():
+            dom = pages._sc_domain(s.get("url", ""))
+            if dom and not (self._shortcut_icon_dir() / (dom + ".img")).exists():
+                want.append((dom, s["url"]))
+        if not want:
+            return
+        px, verify = self.proxies(), self.verify_tls()
+
+        def work():
+            d = self._shortcut_icon_dir()
+            d.mkdir(parents=True, exist_ok=True)
+            got = 0
+            for dom, url in want:
+                data = homeinfo.fetch_favicon(dom, url, px, verify)
+                if data:
+                    (d / (dom + ".img")).write_bytes(data)
+                    got += 1
+            return got
+        self.runner.run(work, lambda ok, n: self._refresh_home_pages() if ok and n else None)
 
     def _add_shortcut(self):
         from PySide6.QtWidgets import QInputDialog
@@ -315,7 +363,7 @@ class HomeMixin:
                 "saved": self.library.saved(), "kev": self._kev_recent, "mode": self.mode,
                 "background": (not self.tor) and self._bg_settings()["mode"] != "none",
                 "bg": self._bg_settings(), "news": self._news,
-                "shortcuts": None if self.tor else self._shortcuts(),
+                "shortcuts": None if self.tor else self._shortcuts_with_icons(),
                 "weather": getattr(self, "_weather", None),
                 "vid_url": self._bg_video_url(),
                 "tor": bool(self.tor), "private": self.private}

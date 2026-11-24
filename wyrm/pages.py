@@ -285,6 +285,7 @@ form.big{max-width:620px;margin:0 auto;position:relative;display:block}
 .scgrid .sclink,.scgrid .scadd{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 6px;border-radius:12px;color:var(--fg)}
 .scgrid .sclink:hover,.scgrid .scadd:hover{background:var(--hover);text-decoration:none}
 .scgrid .scico{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:600}
+.scgrid img.scico{object-fit:contain;background:#fff;padding:9px}
 .scgrid .scico.add{background:var(--layer2);color:var(--muted);font-weight:300;font-size:26px}
 .scgrid .sct{font-size:12px;max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .scgrid .scdel{position:absolute;top:0;right:4px;width:20px;height:20px;border-radius:50%;background:var(--layer2);color:var(--muted);display:none;align-items:center;justify-content:center;font-size:15px;line-height:1}
@@ -539,10 +540,15 @@ def render_home(ctx: dict) -> str:
             u = s.get("url", "")
             dom = _sc_domain(u)
             title = s.get("title") or dom or u
-            letter = next((c for c in dom if c.isalnum()), "?").upper()
-            hue = sum(ord(c) for c in dom) % 360
+            icon = s.get("icon") or ""
+            if icon:
+                ico_html = f"<img class='scico' src='{escape(icon, quote=True)}' alt=''>"
+            else:
+                letter = next((c for c in dom if c.isalnum()), "?").upper()
+                hue = sum(ord(c) for c in dom) % 360
+                ico_html = f"<span class='scico' style='background:hsl({hue},52%,45%)'>{escape(letter)}</span>"
             sc_tiles += (f"<div class='sc'><a class='sclink' href='{escape(u, quote=True)}' title='{escape(u, quote=True)}'>"
-                         f"<span class='scico' style='background:hsl({hue},52%,45%)'>{escape(letter)}</span>"
+                         f"{ico_html}"
                          f"<span class='sct'>{escape(title)}</span></a>"
                          f"<a class='scdel' href='wyrm://do?a=sc-del&amp;i={i}' title='Remove shortcut'>&times;</a></div>")
         shortcuts_html = ("<div class='scgrid'>" + sc_tiles

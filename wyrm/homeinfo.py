@@ -80,6 +80,40 @@ def geocode(query: str, proxies=None, verify=True) -> dict | None:
         return None
 
 
+def fetch_favicon(domain: str, url: str, proxies=None, verify=True) -> bytes | None:
+    """Fetch a site's favicon for the start-page shortcuts — directly from the site (privacy-respecting: it only
+    contacts the sites you bookmarked, never a third-party icon service). Tries /favicon.ico, then the page's
+    <link rel=icon>. Returns raw image bytes, or None."""
+    import re
+    from urllib.parse import urljoin
+    import requests
+
+    def ok_image(r) -> bytes | None:
+        ct = r.headers.get("content-type", "")
+        if r.ok and r.content and len(r.content) < 600_000 and ("image" in ct or "icon" in ct
+                                                                or "octet-stream" in ct or not ct):
+            return r.content
+        return None
+    for u in (f"https://{domain}/favicon.ico", f"https://www.{domain}/favicon.ico"):
+        try:
+            data = ok_image(requests.get(u, headers=UA, timeout=8, proxies=proxies, verify=verify))
+            if data:
+                return data
+        except requests.RequestException:
+            continue
+    try:  # parse the homepage for a declared icon
+        r = requests.get(url if "://" in url else "https://" + url, headers=UA, timeout=8,
+                         proxies=proxies, verify=verify)
+        m = re.search(r"<link[^>]+rel=[\"'][^\"']*icon[^\"']*[\"'][^>]*href=[\"']([^\"']+)[\"']", r.text, re.I) \
+            or re.search(r"<link[^>]+href=[\"']([^\"']+)[\"'][^>]*rel=[\"'][^\"']*icon", r.text, re.I)
+        if m:
+            ir = requests.get(urljoin(r.url, m.group(1)), headers=UA, timeout=8, proxies=proxies, verify=verify)
+            return ok_image(ir)
+    except requests.RequestException:
+        pass
+    return None
+
+
 def reverse_geocode(lat, lon, proxies=None, verify=True) -> dict | None:
     """Coordinates (from the OS location service) -> {city, region, country, lat, lon}, via BigDataCloud's
     keyless reverse-geocoding. Used to label a precise Wi-Fi/GPS fix with a human place name."""
