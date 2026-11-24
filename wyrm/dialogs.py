@@ -354,7 +354,7 @@ class SettingsDialog(QDialog):
         self.proxy_port.setValue(self.settings.value("proxy/port", 8080, type=int))
         self._row(lay, "Port", self.proxy_port, "proxy port")
         self.proxy_insecure = QCheckBox("Trust the proxy's CA (ignore certificate errors while proxied)")
-        self.proxy_insecure.setChecked(self.settings.value("proxy/insecure", True, type=bool))
+        self.proxy_insecure.setChecked(self.settings.value("proxy/insecure", False, type=bool))
         self._row(lay, "", self.proxy_insecure, "proxy certificate ca insecure")
         lay.addStretch(1)
         return page
@@ -383,7 +383,7 @@ class SettingsDialog(QDialog):
         for key in ("ads", "trackers", "malware", "linkguard", "antifp", "popups", "params", "youtube"):
             s.setValue(f"shields/{key}", getattr(self, f"sh_{key}").isChecked())
         proxy_before = (s.value("proxy/enabled", False, type=bool), s.value("proxy/host", ""), s.value("proxy/port", 0, type=int),
-                        s.value("proxy/insecure", True, type=bool))
+                        s.value("proxy/insecure", False, type=bool))
         s.setValue("proxy/enabled", self.proxy_enabled.isChecked())
         s.setValue("proxy/host", self.proxy_host.text().strip() or "127.0.0.1")
         s.setValue("proxy/port", self.proxy_port.value())

@@ -211,6 +211,8 @@ QMessageBox, QDialog#ClearDataDialog, QDialog#ConfirmDialog { border: 1px solid 
 QLabel#DialogTitle { font-size: 18px; font-weight: 600; color: $text; }
 QLabel#DialogBody { font-size: 14px; color: $text; }
 #WnHead { background: $layer; border-bottom: 1px solid $border; }
+#InsecureBanner { background: #b3261e; }
+#InsecureBanner QLabel { color: #ffffff; }
 QComboBox::drop-down { border: none; width: 24px; }
 QComboBox::down-arrow { image: url("$chevron"); width: 12px; height: 12px; }
 QComboBox QAbstractItemView { background: $layer; border: 1px solid $border; border-radius: 0;

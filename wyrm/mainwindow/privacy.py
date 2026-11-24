@@ -164,4 +164,4 @@ class PrivacyMixin:
 
     def verify_tls(self) -> bool:
         s = self.settings
-        return not (s.value("proxy/enabled", False, type=bool) and s.value("proxy/insecure", True, type=bool))
+        return not (s.value("proxy/enabled", False, type=bool) and s.value("proxy/insecure", False, type=bool))

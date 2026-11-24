@@ -29,7 +29,7 @@ def apply_proxy_flags():
         return
     flags = [f"--proxy-server=http://{s.value('proxy/host', '127.0.0.1')}:{s.value('proxy/port', 8080, type=int)}",
              "--proxy-bypass-list=<-loopback>"]
-    if s.value("proxy/insecure", True, type=bool):
+    if s.value("proxy/insecure", False, type=bool):
         flags.append("--ignore-certificate-errors")
     os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "") + " " + " ".join(flags)).strip()
 

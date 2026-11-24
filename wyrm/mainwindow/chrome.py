@@ -295,6 +295,9 @@ class ChromeMixin:
         col.addWidget(self.offline_banner)
         self.store_banner = InfoBanner()  # "Add to Wyrm Browser" on Chrome Web Store extension pages
         col.addWidget(self.store_banner)
+        self.insecure_banner = InfoBanner()   # persistent red warning while TLS errors are being ignored (H-2)
+        self.insecure_banner.setObjectName("InsecureBanner")
+        col.addWidget(self.insecure_banner)
         # vertical-tabs panel (like Edge/Arc): a readable list of tabs on the left when the user turns it on
         self.vtabs_panel = QWidget(objectName="VTabs")
         self.vtabs_panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
