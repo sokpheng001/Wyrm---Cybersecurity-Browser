@@ -114,8 +114,8 @@ class SettingsDialog(QDialog):
         self.win = win
         self.settings = win.settings
         self.setWindowTitle("Settings")
-        self.setMinimumSize(560, 380)
-        self.resize(680, 460)
+        self.setMinimumSize(620, 460)
+        self.resize(860, 640)
         self._rows: list[tuple] = []       # (page_idx, row_widget, search_text, section_header_or_None)
         self._sections: list[tuple] = []   # (page_idx, header_widget)
         root = QVBoxLayout(self)
@@ -140,6 +140,7 @@ class SettingsDialog(QDialog):
             page = builder()
             sa = QScrollArea()
             sa.setWidgetResizable(True)
+            sa.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)  # never scroll sideways
             sa.setFrameShape(QFrame.Shape.NoFrame)
             sa.setWidget(page)
             self.stack.addWidget(sa)
