@@ -99,7 +99,12 @@ class ChromeMixin:
         self._strip_row = row                      # kept so vertical-tabs mode can move the tab bar out and back
         self._tab_idx = row.indexOf(self.tabbar)
         self._vertical_tabs = False
-        b_new = self._tool("plus", "New tab (Ctrl+T)", self._new_tab_focus, ["Ctrl+T"])
+        b_new = self._tool("plus", "New tab (Ctrl+T)", self._new_tab_focus)
+        # single Ctrl+T action shared by the toolbar button and the menu (two bindings = ambiguous = fires neither)
+        self._act_newtab = QAction("New tab", self)
+        self._act_newtab.setShortcut(QKeySequence("Ctrl+T"))
+        self._act_newtab.triggered.connect(lambda: self._new_tab_focus())
+        self.addAction(self._act_newtab)
         self._shell_buttons = {b_new}
         row.addWidget(b_new)
         row.addStretch(1)
@@ -373,6 +378,21 @@ class ChromeMixin:
             a.setShortcuts([QKeySequence(k) for k in keys])
             a.triggered.connect(fn)
             self.addAction(a)
+        self._check_duplicate_shortcuts()
+
+    def _check_duplicate_shortcuts(self):
+        """Debug aid: warn if any key sequence is bound on two window actions (Qt then fires neither — see H-3)."""
+        from PySide6.QtGui import QAction as _QAction
+        seen: dict = {}
+        for act in self.findChildren(_QAction):
+            for ks in act.shortcuts():
+                s = ks.toString()
+                if s:
+                    seen.setdefault(s, []).append(act.text() or act.objectName() or "?")
+        dupes = {s: names for s, names in seen.items() if len(names) > 1}
+        if dupes:
+            import sys
+            print(f"[Wyrm] duplicate window shortcuts (fix these): {dupes}", file=sys.stderr)
 
     # ---------------------------------------------------------------- address-bar menu ("Paste and go")
     def _urlbar_context_menu(self, pos):

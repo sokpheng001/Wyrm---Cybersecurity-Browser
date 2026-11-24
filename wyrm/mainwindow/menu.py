@@ -22,7 +22,7 @@ class MenuMixin:
 
     def _build_menu(self) -> QMenu:
         m = QMenu(self)
-        m.addAction("New tab", self._new_tab_focus, QKeySequence("Ctrl+T"))
+        m.addAction(self._act_newtab)   # the single Ctrl+T action (bound once on the window — see chrome.py)
         m.addAction("New window", self.open_new_window, QKeySequence("Ctrl+N"))
         a = m.addAction("New Tor window", self.open_tor_window, QKeySequence("Ctrl+Alt+N"))
         a.setEnabled(not self.tor)
