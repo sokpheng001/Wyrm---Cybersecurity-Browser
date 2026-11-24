@@ -1,4 +1,10 @@
-/* Wyrm — in-page API & WebSocket capture. Injected (opt-in) so the Security panel can show fetch/XHR
+/*
+ * Wyrm — wyrm/capture.js
+ * Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+ * Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
+ * Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
+ */
+/* In-page API & WebSocket capture. Injected (opt-in) so the Security panel can show fetch/XHR
    request+response bodies and WebSocket frames without a MITM proxy. Reports via a sentinel console message
    that Wyrm's page object intercepts. Read-only; bodies are capped. */
 (function () {
