@@ -43,6 +43,14 @@ ArchitecturesInstallIn64BitMode=x64compatible
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+; SEC-2: lock down the install tree so non-admins get Read & Execute only — no Write/Modify. This stops DLL
+; planting / exe replacement (local privilege escalation / persistence) when installed to an all-users or a
+; custom directory that would otherwise inherit permissive drive ACLs. The permissions are inherited by
+; _internal (Qt DLLs + QtWebEngineProcess.exe). Applied when the installer runs elevated; a per-user install
+; lands under the user's own profile, which is already private to that user. Verified on upgrade (re-applied).
+[Dirs]
+Name: "{app}"; Permissions: admins-full system-full users-readexec
+
 ; The ProjectDiscovery tools are optional (ticked by default): some antivirus products label security tools
 ; such as naabu/nuclei "HackTool", so users can still install the browser without them. Silent updates keep
 ; whatever the user chose last time (Inno remembers the selected components).
