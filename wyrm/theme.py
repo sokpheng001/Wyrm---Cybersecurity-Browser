@@ -97,10 +97,6 @@ QTabBar#MainTabs::close-button:hover { background: $shell_active; }
 #TabStrip QToolButton:hover { background: $shell_hover; }
 #TabStrip QToolButton#CloseButton:hover { background: #c42b1c; }
 #TabStrip QToolButton#CaptionButton, #TabStrip QToolButton#CloseButton { min-width: 46px; }
-/* ---------- left tool rail (Arc/Vivaldi-style launcher) ---------- */
-#ToolRail { background: $shell; border-right: 1px solid $shell_border; }
-#ToolRail QToolButton { border: none; border-radius: 0; background: transparent; min-width: 40px; min-height: 40px; max-width: 40px; max-height: 40px; }
-#ToolRail QToolButton:hover { background: $shell_hover; }
 #Content { background: $bg; }
 QTabBar#MainTabs { background: transparent; }
 QTabBar#MainTabs::tab {

@@ -273,23 +273,6 @@ class ChromeMixin:
         col.addWidget(self.offline_banner)
         self.store_banner = InfoBanner()  # "Add to Wyrm Browser" on Chrome Web Store extension pages
         col.addWidget(self.store_banner)
-        # left tool rail (like Arc / Vivaldi): quick access to the security panel, papers, history and downloads
-        self.toolrail = QWidget(objectName="ToolRail")
-        self.toolrail.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
-        self.toolrail.setFixedWidth(48)
-        tr = QVBoxLayout(self.toolrail)
-        tr.setContentsMargins(0, 6, 0, 6)
-        tr.setSpacing(2)
-        for icon, tip, fn in (("shield", "Security panel (Ctrl+Shift+S)", lambda: self.security.toggleViewAction().trigger()),
-                              ("book", "Papers panel (Ctrl+B)", lambda: self.panel.toggleViewAction().trigger()),
-                              ("clock", "History", lambda: self.open_history()),
-                              ("download", "Downloads (Ctrl+J)", lambda: self.show_downloads())):
-            rb = self._tool(icon, tip, fn)
-            self._shell_buttons.add(rb)   # sits on the shell background → shell-coloured icon
-            tr.addWidget(rb, 0, Qt.AlignmentFlag.AlignHCenter)
-        tr.addStretch(1)
-        self.toolrail.setVisible(self.settings.value("ui/toolrail", True, type=bool))
-
         # vertical-tabs panel (like Edge/Arc): holds the tab bar on the left when the user turns it on
         self.vtabs_panel = QWidget(objectName="VTabs")
         self.vtabs_panel.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
@@ -305,7 +288,6 @@ class ChromeMixin:
         crow = QHBoxLayout(content)
         crow.setContentsMargins(0, 0, 0, 0)
         crow.setSpacing(0)
-        crow.addWidget(self.toolrail)
         crow.addWidget(self.vtabs_panel)
         crow.addWidget(self.stack, 1)
         col.addWidget(content, 1)
@@ -484,12 +466,7 @@ class ChromeMixin:
             QGuiApplication.clipboard().setText(r["pem"])
             self.toast("Certificate PEM copied to clipboard", 3000)
 
-    # ---------------------------------------------------------------- left sidebars (tool rail + vertical tabs)
-    def _toggle_toolrail(self):
-        vis = self.toolrail.isHidden()   # isHidden() is reliable regardless of whether the window is shown yet
-        self.toolrail.setVisible(vis)
-        self.settings.setValue("ui/toolrail", vis)
-
+    # ---------------------------------------------------------------- vertical tabs (left panel)
     def _apply_tab_orientation(self, vertical: bool):
         """Move the tab bar between the top strip (horizontal) and the left panel (vertical, like Edge/Arc)."""
         self._vertical_tabs = vertical
