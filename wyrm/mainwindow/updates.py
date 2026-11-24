@@ -71,11 +71,14 @@ class UpdatesMixin:
         self.b_update.setToolTip(tip)
         self.b_update.show()
         if kind == "auto" and not manual:
-            # routine update: download quietly in the background now; it still installs on restart. The button is
-            # just the heads-up (no forced dialog), so the user always knows an update is waiting.
+            # routine update: download in the background now; it still installs on restart. Show progress on the
+            # pill so it's clearly working (otherwise clicking it mid-download looked like it did nothing).
             self._auto_update = True
             self._updater = Updater(self, info)
-            if not self._updater.start():
+            if self._updater.start():
+                self.b_update.setText("  Updating 0%")
+                self._updater.progress.connect(self._on_update_progress)
+            else:
                 self._updater = None
                 self._auto_update = False
         else:
@@ -83,16 +86,24 @@ class UpdatesMixin:
             if manual:
                 self.toast(f"Wyrm Browser {info.get('version')} is available — click Update at the top right.", 6000)
 
+    def _on_update_progress(self, pct):
+        self.b_update.setText(f"  Updating {pct}%")
+
     def _open_update(self):
         """Update pill clicked: download (progress on the pill), then ask to restart now or later."""
         if getattr(self, "_pending_update", None):  # already downloaded ("Later" was chosen): ask again
             self._ask_restart()
             return
         if getattr(self, "_updater", None):
-            return  # a download is already in progress
+            # a download is already running (e.g. a routine update downloading quietly). Don't ignore the click —
+            # remember the user wants to update now, and reassure them, so we prompt a restart as soon as it's done.
+            self._update_requested = True
+            self.toast("Downloading the update… it'll be ready in a moment.", 4000)
+            return
         if not self._update_info:
             self._check_updates(manual=True)   # nothing cached yet → check now (so the button always does something)
             return
+        self._update_requested = True
         self._updater = Updater(self, self._update_info)
         if not self._updater.start():
             self._updater = None
@@ -100,10 +111,11 @@ class UpdatesMixin:
             return
         self.b_update.setEnabled(False)
         self.b_update.setText("  Updating 0%")
-        self._updater.progress.connect(lambda pct: self.b_update.setText(f"  Updating {pct}%"))
+        self._updater.progress.connect(self._on_update_progress)
 
     def _update_failed(self, msg: str):
         self._updater = None
+        self._update_requested = False
         if getattr(self, "_auto_update", False):  # routine update download failed: keep the button so they can retry
             self._auto_update = False
             self.b_update.setEnabled(True)
@@ -117,12 +129,15 @@ class UpdatesMixin:
         self.b_update.setText("  Restarting…")
 
     def _update_ready(self, path):
-        """Update downloaded. Silent (auto) updates just wait for the next restart; feature updates ask now."""
+        """Update downloaded. Silent (auto) updates just wait for the next restart; feature updates — and any
+        update the user clicked on while it was downloading — ask to restart now."""
         self._updater = None
         self._pending_update = path
-        if getattr(self, "_auto_update", False):
-            # routine update downloaded: show "Restart to update" so the user can finish now if they want — but
-            # don't force a dialog; it still installs automatically when Wyrm is next closed/restarted.
+        requested = getattr(self, "_update_requested", False)
+        self._update_requested = False
+        if getattr(self, "_auto_update", False) and not requested:
+            # routine update downloaded and the user didn't ask to update now: show "Restart to update" but don't
+            # force a dialog; it still installs automatically when Wyrm is next closed/restarted.
             self.b_update.setEnabled(True)
             self.b_update.setText("  Restart to update")
             self.b_update.setToolTip("Update downloaded — click to restart and finish now, or it installs when you "

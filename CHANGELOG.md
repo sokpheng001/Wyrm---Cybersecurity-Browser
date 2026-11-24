@@ -6,6 +6,8 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.5.0
 
+- Fixed the Update button: it now shows download progress and responds to the first click (no more clicking
+  several times) — clicking while an update is downloading restarts to finish as soon as it's ready.
 - Customize backgrounds: a new Gradients set (vibrant multi-colour and a mesh gradient), and the live-wallpaper
   cards now preview each scene (weather, aurora, matrix, particle network, starfield) instead of one gradient.
 - Most visited: the start page now shows tiles for the sites you visit most (from your local history), like
