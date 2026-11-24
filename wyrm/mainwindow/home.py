@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QImageReader
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWidgets import QFileDialog, QMessageBox
@@ -227,6 +227,8 @@ class HomeMixin:
         QTimer.singleShot(0, self._fetch_shortcut_icons)  # grab favicons for any new shortcuts
         if hasattr(self, "_refresh_bookmarks_bar"):
             QTimer.singleShot(0, self._refresh_bookmarks_bar)
+        if hasattr(self, "_refresh_bm_star"):   # keep the URL-bar star in sync when bookmarks change (L-9)
+            QTimer.singleShot(0, self._refresh_bm_star)
 
     def _shortcuts_with_icons(self) -> list:
         from .. import pages
@@ -409,22 +411,130 @@ class HomeMixin:
                 s["url"] = u if "://" in u else "https://" + u
         self._save_shortcuts(lst, refresh_page=False)
 
-    def _bookmark_current(self):
-        """Ctrl+D — add the current page to the bookmarks bar."""
+    def _current_http_url(self) -> str:
         v = self.current_view()
-        if v is None:
+        u = v.url().toString() if v else ""
+        return u if u.startswith("http") else ""
+
+    def _bookmark_index(self, url: str) -> int:
+        """Index of a top-level bookmark with this URL, or -1 (folders are skipped) — L-9."""
+        if not url:
+            return -1
+        for i, s in enumerate(self._shortcuts()):
+            if not isinstance(s.get("items"), list) and s.get("url") == url:
+                return i
+        return -1
+
+    def _is_bookmarked(self, url: str) -> bool:
+        return self._bookmark_index(url) >= 0
+
+    def _refresh_bm_star(self):
+        """Update the URL-bar star: filled when the current page is bookmarked, hidden for non-web pages (L-9)."""
+        star = getattr(self, "bm_star", None)
+        if star is None:
             return
-        u = v.url().toString()
-        if not u.startswith("http"):
+        from ..ui.common import make_icon
+        from .. import theme
+        u = self._current_http_url()
+        if not u:
+            star.hide()
+            return
+        star.show()
+        p = theme.resolve_palette(self.theme_name, self.mode)
+        on = self._is_bookmarked(u)
+        color = p.get("interactive", "#f5a623") if on else p.get("muted", "#8d8d8d")
+        star.setPixmap(make_icon("star", color, fill=(color if on else "none")).pixmap(18, 18))
+        star.setToolTip("Bookmarked — click to remove" if on else "Bookmark this page (Ctrl+D)")
+
+    def _bookmark_current(self):
+        """Ctrl+D — bookmark the current page (and show a small popover); no-op if it's already saved."""
+        u = self._current_http_url()
+        if not u:
             self.toast("Only web pages can be bookmarked", 3000)
             return
-        lst = self._shortcuts()
-        if any(s.get("url") == u for s in lst if not isinstance(s.get("items"), list)):
-            self.toast("This page is already bookmarked", 3000)
+        idx = self._bookmark_index(u)
+        if idx < 0:
+            v = self.current_view()
+            lst = self._shortcuts()
+            lst.append({"title": (v.title() if v else "") or u, "url": u})
+            self._save_shortcuts(lst)
+            idx = len(lst) - 1
+        self._refresh_bm_star()
+        self._show_bookmark_popover(idx)
+
+    def _toggle_bookmark_current(self):
+        """URL-bar star click — add if new, remove if already bookmarked."""
+        u = self._current_http_url()
+        if not u:
             return
-        lst.append({"title": v.title() or u, "url": u})
-        self._save_shortcuts(lst)
-        self.toast("Added to the bookmarks bar", 3000)
+        idx = self._bookmark_index(u)
+        if idx >= 0:
+            lst = self._shortcuts()
+            del lst[idx]
+            self._save_shortcuts(lst)
+            self._refresh_bm_star()
+            self.toast("Removed from bookmarks", 2500)
+        else:
+            self._bookmark_current()
+
+    def _show_bookmark_popover(self, idx: int):
+        """A small 'Bookmark added' popover under the star: rename or remove, like other browsers (L-9)."""
+        from PySide6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton
+        lst = self._shortcuts()
+        if not (0 <= idx < len(lst)):
+            return
+        entry = lst[idx]
+        from .. import theme
+        p = theme.resolve_palette(self.theme_name, self.mode)
+        pop = QFrame(self, objectName="BmPopover")
+        pop.setWindowFlags(Qt.WindowType.Popup)
+        pop.setFrameShape(QFrame.Shape.StyledPanel)
+        pop.setMinimumWidth(260)
+        pop.setStyleSheet(f"#BmPopover{{background:{p.get('layer', p.get('bg', '#ffffff'))};"
+                          f"border:1px solid {p.get('border', '#cccccc')};border-radius:10px;}} "
+                          f"#BmPopover QLabel{{color:{p.get('text', '#111111')};background:transparent;}}")
+        lay = QVBoxLayout(pop)
+        lay.setContentsMargins(14, 12, 14, 12)
+        lay.setSpacing(8)
+        lay.addWidget(QLabel("<b>Bookmark added</b>"))
+        name = QLineEdit(entry.get("title", ""))
+        name.setPlaceholderText("Name")
+        lay.addWidget(name)
+        lay.addWidget(QLabel("<span style='color:gray'>Saved to the Bookmarks bar</span>"))
+        row = QHBoxLayout()
+        remove = QPushButton("Remove")
+        done = QPushButton("Done")
+        done.setDefault(True)
+        row.addWidget(remove)
+        row.addStretch(1)
+        row.addWidget(done)
+        lay.addLayout(row)
+
+        def _save_and_close():
+            cur = self._shortcuts()
+            if 0 <= idx < len(cur) and cur[idx].get("url") == entry.get("url"):
+                cur[idx]["title"] = name.text().strip() or entry.get("url", "")
+                self._save_shortcuts(cur)
+            self._refresh_bm_star()
+            pop.close()
+
+        def _remove_and_close():
+            cur = self._shortcuts()
+            if 0 <= idx < len(cur) and cur[idx].get("url") == entry.get("url"):
+                del cur[idx]
+                self._save_shortcuts(cur)
+            self._refresh_bm_star()
+            pop.close()
+        done.clicked.connect(_save_and_close)
+        remove.clicked.connect(_remove_and_close)
+        pop.adjustSize()
+        star = getattr(self, "bm_star", None)
+        if star is not None:
+            gp = star.mapToGlobal(star.rect().bottomRight())
+            pop.move(gp.x() - pop.width(), gp.y() + 4)
+        pop.show()
+        name.setFocus()
+        name.selectAll()
 
     def _add_folder(self):
         from PySide6.QtWidgets import QInputDialog

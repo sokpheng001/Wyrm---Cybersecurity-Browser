@@ -184,6 +184,13 @@ class ChromeMixin:
         self.url_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.url_icon.setCursor(Qt.CursorShape.PointingHandCursor)
         self.url_icon.installEventFilter(self)   # click the lock to view the HTTPS certificate
+        # bookmark star inside the pill (right side): filled when the page is bookmarked, click to toggle (L-9)
+        self.bm_star = QLabel(self.urlbar, objectName="BmStar")
+        self.bm_star.setFixedSize(22, 22)
+        self.bm_star.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.bm_star.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.bm_star.installEventFilter(self)
+        self.urlbar.setTextMargins(28, 0, 28, 0)   # reserve room for the lock (left) and the star (right)
         self.urlbar.installEventFilter(self)
         n.addWidget(self.urlbar, 1, Qt.AlignmentFlag.AlignVCenter)
         self.scope_badge = QLabel(objectName="ScopeBadge")
@@ -819,9 +826,16 @@ class ChromeMixin:
     def eventFilter(self, obj, ev):
         if obj is getattr(self, "urlbar", None) and ev.type() == QEvent.Type.Resize:
             self.url_icon.move(11, (self.urlbar.height() - self.url_icon.height()) // 2)
+            star = getattr(self, "bm_star", None)
+            if star is not None:
+                star.move(self.urlbar.width() - star.width() - 7, (self.urlbar.height() - star.height()) // 2)
         elif obj is getattr(self, "url_icon", None) and ev.type() == QEvent.Type.MouseButtonPress \
                 and ev.button() == Qt.MouseButton.LeftButton:
             self._show_certificate()
+            return True
+        elif obj is getattr(self, "bm_star", None) and ev.type() == QEvent.Type.MouseButtonPress \
+                and ev.button() == Qt.MouseButton.LeftButton:
+            self._toggle_bookmark_current()
             return True
         elif obj is getattr(self, "security", None) and ev.type() == QEvent.Type.Resize:
             if not getattr(self, "_window_resizing", False):

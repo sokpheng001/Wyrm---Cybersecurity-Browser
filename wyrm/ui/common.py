@@ -49,11 +49,12 @@ ICONS = {
     "more": "<circle cx='12' cy='5' r='1'/><circle cx='12' cy='12' r='1'/><circle cx='12' cy='19' r='1'/>",
     "monitor": "<rect x='3' y='4' width='18' height='12'/><path d='M8 20h8M12 16v4'/>",
     "onion": "<circle cx='12' cy='13' r='8'/><circle cx='12' cy='13' r='5'/><circle cx='12' cy='13' r='2'/><path d='M12 5V2'/>",
+    "star": "<path d='M12 2.5l2.9 5.9 6.5.95-4.7 4.6 1.1 6.45L12 17.4 6.2 20.4l1.1-6.45-4.7-4.6 6.5-.95z'/>",
 }
 
 
-def make_icon(name: str, color: str, size: int = 40) -> QIcon:
-    svg = (f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='{color}' "
+def make_icon(name: str, color: str, size: int = 40, fill: str = "none") -> QIcon:
+    svg = (f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='{fill}' stroke='{color}' "
            f"stroke-width='1.5' stroke-linecap='square' stroke-linejoin='miter'>{ICONS[name]}</svg>")
     renderer = QSvgRenderer(QByteArray(svg.encode()))
     pm = QPixmap(size, size)

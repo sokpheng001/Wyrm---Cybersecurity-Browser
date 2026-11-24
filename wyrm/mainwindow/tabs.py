@@ -269,6 +269,8 @@ class TabsMixin:
         self.b_back.setEnabled(h.canGoBack())
         self.b_fwd.setEnabled(h.canGoForward())
         self._update_scope_badge()
+        if hasattr(self, "_refresh_bm_star"):   # URL-bar bookmark star reflects the new page (L-9)
+            self._refresh_bm_star()
         self._ext_store_check(url)  # Chrome Web Store page: offer "Add to Wyrm Browser"
 
     # ================================================================ errors / offline
