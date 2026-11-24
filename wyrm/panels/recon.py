@@ -7,6 +7,7 @@
 """Security panel → Recon: crt.sh, Wayback, well-known files and ProjectDiscovery Chaos."""
 from __future__ import annotations
 
+from html import escape
 from urllib.parse import urlparse
 
 from PySide6.QtCore import Qt
@@ -196,8 +197,8 @@ class ReconTab(QWidget):
     def _render(self):
         self.list.clear()
         for text, tip in self._visible():
-            it = QListWidgetItem(text)
-            it.setToolTip(tip)
+            it = QListWidgetItem(text)   # list labels are plain text (inert); tooltips auto-render rich text
+            it.setToolTip(escape(tip))   # tip can carry target/API data (mimetype, program URL) → escape (SEC-6)
             if text in self._chaos_programs:  # clickable Chaos program row
                 f = it.font()
                 f.setBold(True)

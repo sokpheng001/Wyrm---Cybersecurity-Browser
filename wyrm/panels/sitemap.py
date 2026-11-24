@@ -7,6 +7,7 @@
 """Security panel → Site map: host/path tree from browsing plus robots/sitemap discovery."""
 from __future__ import annotations
 
+from html import escape
 from urllib.parse import urlparse
 
 from PySide6.QtCore import Qt
@@ -123,7 +124,7 @@ class SiteMapTab(QWidget):
                 e = paths[path]
                 it = QTreeWidgetItem([path, ",".join(sorted(m for m in e["methods"] if m)), ", ".join(sorted(e["sources"]))])
                 it.setData(0, Qt.ItemDataRole.UserRole, e["url"])
-                it.setToolTip(0, e["url"])
+                it.setToolTip(0, escape(e["url"]))  # tooltips auto-render rich text; keep target URLs inert (SEC-6)
                 top.addChild(it)
                 total += 1
             self.tree.addTopLevelItem(top)

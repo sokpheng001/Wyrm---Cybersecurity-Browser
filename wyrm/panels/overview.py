@@ -199,7 +199,7 @@ class OverviewTab(QWidget):
                 html += "<p>No known vulnerabilities found for this exact version.</p>"
             for c in i["cves"][:25]:
                 sc = f" · CVSS {c['score']}" if c.get("score") else ""
-                html += (f"<p>{sev_badge(c.get('severity') or 'info')} <a href='{c['url']}'>{escape(c['id'])}</a>{sc}"
+                html += (f"<p>{sev_badge(c.get('severity') or 'info')} <a href='{escape(c['url'], quote=True)}'>{escape(c['id'])}</a>{sc}"
                          f"<br><span style='color:gray'>{escape(c['summary'][:240])}</span></p>")
         self.detail.setHtml(html)
 
