@@ -114,7 +114,8 @@ class SettingsDialog(QDialog):
         self.win = win
         self.settings = win.settings
         self.setWindowTitle("Settings")
-        self.setMinimumSize(760, 580)
+        self.setMinimumSize(560, 380)
+        self.resize(680, 460)
         self._rows: list[tuple] = []       # (page_idx, row_widget, search_text, section_header_or_None)
         self._sections: list[tuple] = []   # (page_idx, header_widget)
         root = QVBoxLayout(self)
@@ -126,7 +127,7 @@ class SettingsDialog(QDialog):
         root.addWidget(self.search)
         body = QHBoxLayout()
         self.nav = QListWidget(objectName="SettingsNav")
-        self.nav.setFixedWidth(190)
+        self.nav.setFixedWidth(168)
         self.stack = QStackedWidget()
         self.nav.currentRowChanged.connect(self._nav_changed)
         body.addWidget(self.nav)
@@ -167,13 +168,16 @@ class SettingsDialog(QDialog):
     def _row(self, lay, label, widget, extra=""):
         rw = QWidget()
         h = QHBoxLayout(rw)
-        h.setContentsMargins(0, 1, 0, 1)
+        h.setContentsMargins(0, 2, 0, 2)
         h.setSpacing(10)
         if label:
             lb = QLabel(label)
-            lb.setMinimumWidth(170)
+            lb.setFixedWidth(150)
             lb.setWordWrap(True)
-            h.addWidget(lb, 0, Qt.AlignmentFlag.AlignTop)
+            h.addWidget(lb, 0, Qt.AlignmentFlag.AlignVCenter)
+        # keep simple controls a tidy width instead of stretching across the whole dialog (less empty feel)
+        if isinstance(widget, (QComboBox, QLineEdit, QSpinBox)):
+            widget.setMaximumWidth(360)
         h.addWidget(widget, 1)
         lay.addWidget(rw)
         terms = f"{label} {extra}"
