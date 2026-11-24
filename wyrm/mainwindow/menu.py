@@ -147,6 +147,11 @@ class MenuMixin:
 
     def _about(self):
         tor = f"<br>Tor {self.tor.version()} · SOCKS port {self.tor.socks_port}" if self.tor else ""
+        try:   # surface the engine version so an outdated Chromium is visible at a glance (SEC-1)
+            from PySide6.QtWebEngineCore import qWebEngineChromiumVersion, qWebEngineVersion
+            engine = f"<br>Chromium {qWebEngineChromiumVersion()} · Qt WebEngine {qWebEngineVersion()}"
+        except Exception:  # noqa: BLE001
+            engine = ""
         box = QMessageBox(self)
         box.setWindowTitle("About Wyrm Browser")
         box.setIconPixmap(self.windowIcon().pixmap(64, 64))
@@ -154,7 +159,7 @@ class MenuMixin:
         box.setInformativeText(
                     "A <i>wyrm</i> is a wingless dragon — our mark, and the name of this browser.<br><br>"
                     "Built by <b>ByKh R&amp;D Group</b> · <b>bykh.org</b><br><b>HackPi</b> — Ethical Hackers Group<br>"
-                    f"Copyright © {years()} ByKh R&amp;D Group · HackPi{tor}<br><br>"
+                    f"Copyright © {years()} ByKh R&amp;D Group · HackPi{tor}{engine}<br><br>"
                     "Chromium engine via Qt WebEngine · Ad/tracker blocking via community filter lists · Tor: Tor Project")
         visit = box.addButton("Visit bykh.org", QMessageBox.ButtonRole.ActionRole)
         whatsnew = box.addButton("What's new", QMessageBox.ButtonRole.ActionRole)
