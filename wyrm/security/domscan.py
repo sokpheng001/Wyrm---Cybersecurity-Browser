@@ -108,6 +108,7 @@ def analyze_dom(page: dict, in_scope=None, proxies=None, verify=True, max_files:
                                              "On its own this is not a vulnerability — it matters only if it reaches a sink.",
                                              ctx, where=where, line=line, kind="source"))
                 per_script_sources.setdefault(where, set()).add(name)
+        has_source = bool(per_script_sources.get(where))
         for name, rx, sev in SINKS:
             seen_lines = set()
             for m in rx.finditer(text):
@@ -115,9 +116,15 @@ def analyze_dom(page: dict, in_scope=None, proxies=None, verify=True, max_files:
                 if line in seen_lines:
                     continue
                 seen_lines.add(line)
-                issues.append(analyzer.issue("DOM sinks", f"Sink: {name}", sev,
-                                             f"Dangerous sink in {where} (line {line}). Verify whether any "
-                                             "attacker-controlled source reaches it before reporting.",
+                # L-8: a dangerous sink with no attacker-influenceable source in the same script is not a flow —
+                # report it as low (a dangerous-API note), not high. The intrinsic severity is kept only when a
+                # source co-exists (a potential flow), and the "potential flow" issue below carries the real weight.
+                eff_sev = sev if has_source else "low"
+                note = ("Verify whether any attacker-controlled source reaches it before reporting." if has_source
+                        else "No attacker-influenceable source was found in this script, so there is no data flow "
+                             "to it here — this is a dangerous-API note, not a confirmed DOM-XSS.")
+                issues.append(analyzer.issue("DOM sinks", f"Sink: {name}", eff_sev,
+                                             f"Dangerous sink in {where} (line {line}). {note}",
                                              ctx, where=where, line=line, kind="sink"))
                 per_script_sinks.setdefault(where, []).append((name, sev, line))
                 if len(seen_lines) >= 25:
