@@ -89,10 +89,18 @@ class TabsMixin:
     def _set_tab_text(self, view, title):
         i = self._index_of(view)
         if i >= 0:
-            self.tabbar.setTabText(i, title or "New tab")
+            muted = view.page().isAudioMuted()
+            self.tabbar.setTabText(i, ("🔇 " if muted else "") + (title or "New tab"))
             self.tabbar.setTabToolTip(i, title)
             if view is self.current_view():
                 self._set_window_title(title)
+
+    def _toggle_mute(self, view):
+        if view is None:
+            return
+        p = view.page()
+        p.setAudioMuted(not p.isAudioMuted())
+        self._set_tab_text(view, view.title())
 
     def _set_window_title(self, title: str):
         prefix = f"[{self.engagement.name}] " if self.engagement else ""
@@ -146,6 +154,8 @@ class TabsMixin:
             view = self.tabbar.tabData(i)
             m.addAction("Reload tab", lambda _c=False, v=view: v.reload() if v is not None else None)
             m.addAction("Duplicate tab", lambda _c=False, j=i: self.duplicate_tab(j))
+            muted = view.page().isAudioMuted() if view is not None else False
+            m.addAction("Unmute tab" if muted else "Mute tab", lambda _c=False, v=view: self._toggle_mute(v))
             m.addSeparator()
             m.addAction("Close tab", lambda _c=False, j=i: self.close_tab(j))
             a_other = m.addAction("Close other tabs", lambda _c=False, j=i: self.close_other_tabs(j))

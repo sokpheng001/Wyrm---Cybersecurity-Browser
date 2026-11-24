@@ -102,8 +102,38 @@ class BrowserView(QWebEngineView):
         if link:
             menu.addSeparator()
             menu.addAction("Check this link (Smart Link Check)", lambda u=link: self.win.show_link_check(u))
+        # security actions for the current page (Burp/Caido-style quick hand-off to the panel)
+        page_url = self.url().toString()
+        if page_url.startswith("http"):
+            menu.addSeparator()
+            menu.addAction("Scan this page (security)", self._scan_this_page)
+            menu.addAction("Send page to Repeater", lambda u=page_url: self._send_page_to_repeater(u))
+            menu.addAction("Copy as cURL", lambda u=page_url: self._copy_page_curl(u))
         menu.addSeparator()
         menu.addAction("View page source", lambda: self.win.open_url("view-source:" + self.url().toString(), new_tab=True))
         insp = menu.addAction("Inspect", lambda: self.win.inspect(self))
         insp.setShortcut(QKeySequence("Ctrl+Shift+I"))
         menu.exec(event.globalPos())
+
+    def _scan_this_page(self):
+        from PySide6.QtCore import QTimer
+        try:
+            self.win.security.show_tab("Overview")
+            QTimer.singleShot(50, self.win.security.overview.analyze_current)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _send_page_to_repeater(self, url):
+        try:
+            self.win.security.tools_tab.load_request("GET", url, {})
+            self.win.security.show_tab("Tools")
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _copy_page_curl(self, url):
+        try:
+            from ..security import tools
+            QGuiApplication.clipboard().setText(tools.to_curl("GET", url, {}))
+            self.win.toast("Copied the page request as cURL", 2500)
+        except Exception:  # noqa: BLE001
+            pass
