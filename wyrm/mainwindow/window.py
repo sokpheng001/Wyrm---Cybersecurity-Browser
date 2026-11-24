@@ -79,6 +79,7 @@ class MainWindow(
         self.history_db = None  # browsing history (normal windows only; created once data_dir exists)
         self._set_title(APP + (" (Tor)" if tor else " (Private)" if private else ""))
         self.resize(1440, 900)
+        self.setMinimumSize(640, 420)  # keep the tab strip + toolbar from overlapping when shrunk very small
         if winframe.IS_WINDOWS:
             # Qt draws no frame; winframe.install() restores the native resize/snap/shadow behaviour
             self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
