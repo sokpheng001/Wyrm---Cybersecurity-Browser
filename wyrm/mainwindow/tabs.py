@@ -214,7 +214,9 @@ class TabsMixin:
         elif url.scheme() == "wyrm":
             self.urlbar.setText("")
         else:
-            self.urlbar.setText(u)
+            # hide the http(s):// scheme like modern browsers — the lock/unlock icon already shows security.
+            # Re-typing a bare host still resolves fine (engines.resolve adds the scheme back).
+            self.urlbar.setText(u[8:] if u.startswith("https://") else u[7:] if u.startswith("http://") else u)
         self.urlbar.setCursorPosition(0)
         p = theme.PALETTES[self.theme_name]
         icon = {"https": "lock", "http": "unlock"}.get(url.scheme(), "search")
