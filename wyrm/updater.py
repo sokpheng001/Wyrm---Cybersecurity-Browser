@@ -181,20 +181,61 @@ def _expected_sha256(asset: dict, notes: str) -> str | None:
 
 
 def verify_sha256(path: Path, expected: str | None) -> None:
-    """Raise (and delete the file) if a downloaded update doesn't match the release's checksum."""
+    """Raise (and delete the file) if a downloaded update has no checksum, or doesn't match it (SEC-9: no silent
+    fallback — an update we can't integrity-check is refused rather than installed)."""
     if not expected:
-        return
+        _reject(path, "This update has no published checksum, so it couldn't be verified; it was not installed.")
     import hashlib
     h = hashlib.sha256()
     with open(path, "rb") as fh:
         for chunk in iter(lambda: fh.read(1024 * 1024), b""):
             h.update(chunk)
     if h.hexdigest() != expected:
-        try:
-            path.unlink()
-        except OSError:
-            pass
-        raise ValueError("The downloaded update is damaged or was altered (checksum mismatch); it was not installed.")
+        _reject(path, "The downloaded update is damaged or was altered (checksum mismatch); it was not installed.")
+
+
+# SEC-9: Authenticode authenticity. Once the installer is code-signed, set REQUIRE_SIGNATURE=True so an unsigned
+# update is refused, and set EXPECTED_PUBLISHER to the signing certificate's subject CN to pin the publisher.
+# Until then, a signature that IS present must still verify (tamper detection); unsigned is allowed (checksum-gated).
+REQUIRE_SIGNATURE = False
+EXPECTED_PUBLISHER = ""   # e.g. "ByKh R&D Group" — the Authenticode certificate subject to require
+
+
+def _reject(path: Path, msg: str) -> None:
+    try:
+        path.unlink()
+    except OSError:
+        pass
+    raise ValueError(msg)
+
+
+def verify_authenticode(path: Path) -> None:
+    """Verify the installer's Windows digital signature. No-op off Windows. A present-but-invalid signature is
+    always refused; an unsigned installer is refused only when REQUIRE_SIGNATURE is set (SEC-9)."""
+    if sys.platform != "win32":
+        return
+    import subprocess
+    q = "'" + str(path).replace("'", "''") + "'"
+    try:
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+             f"$s=Get-AuthenticodeSignature -LiteralPath {q}; "
+             "$s.Status.ToString()+'|'+[string]$s.SignerCertificate.Subject"],
+            capture_output=True, text=True, timeout=30, creationflags=0x08000000)
+        status, _, subject = (r.stdout or "").strip().partition("|")
+        status = status.strip()
+    except (OSError, subprocess.SubprocessError):
+        status, subject = "", ""
+    if status == "Valid":
+        if EXPECTED_PUBLISHER and EXPECTED_PUBLISHER.lower() not in subject.lower():
+            _reject(path, "This update is signed by an unexpected publisher; it was not installed.")
+        return
+    if status in ("HashMismatch", "NotTrusted"):   # a signature IS present but tampered/untrusted → always refuse
+        _reject(path, f"This update installer's digital signature is invalid ({status}); it was not installed.")
+    # NotSigned / NotSupportedFileFormat / UnknownError / unreadable: no verifiable signature present
+    if REQUIRE_SIGNATURE:
+        _reject(path, "This update installer is not digitally signed; it was not installed.")
+    # unsigned permitted for now — integrity is still enforced by the mandatory checksum above
 
 
 def download(url: str, dest: Path, proxies=None, verify=True, progress=None) -> Path:

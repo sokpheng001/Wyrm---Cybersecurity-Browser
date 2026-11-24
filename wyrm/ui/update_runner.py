@@ -35,7 +35,8 @@ class Updater(QObject):
 
         def work():
             updater.download(url, dest, px, verify, progress=lambda pct, *_: self.progress.emit(pct))
-            updater.verify_sha256(dest, self.info.get("asset_sha256"))  # never install a damaged/altered file
+            updater.verify_sha256(dest, self.info.get("asset_sha256"))  # mandatory checksum — no silent fallback
+            updater.verify_authenticode(dest)                           # reject a tampered/forged signature (SEC-9)
             return str(dest)
         self.win.runner.run(work, lambda ok, res: self.finished.emit(bool(ok), str(res)))
         return True
