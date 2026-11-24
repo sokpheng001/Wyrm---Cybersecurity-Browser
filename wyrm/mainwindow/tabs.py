@@ -124,6 +124,42 @@ class TabsMixin:
         if self._closed_tabs:
             self.new_tab(QUrl(self._closed_tabs.pop()))
 
+    # ---------------------------------------------------------------- tab right-click menu (like other browsers)
+    def _tab_context_menu(self, pos):
+        from PySide6.QtWidgets import QMenu
+        i = self.tabbar.tabAt(pos)
+        n = self.tabbar.count()
+        m = QMenu(self)
+        m.addAction("New tab", self._new_tab_focus)
+        if i >= 0:
+            view = self.tabbar.tabData(i)
+            m.addAction("Reload tab", lambda _c=False, v=view: v.reload() if v is not None else None)
+            m.addAction("Duplicate tab", lambda _c=False, j=i: self.duplicate_tab(j))
+            m.addSeparator()
+            m.addAction("Close tab", lambda _c=False, j=i: self.close_tab(j))
+            a_other = m.addAction("Close other tabs", lambda _c=False, j=i: self.close_other_tabs(j))
+            a_other.setEnabled(n > 1)
+            a_right = m.addAction("Close tabs to the right", lambda _c=False, j=i: self.close_tabs_to_right(j))
+            a_right.setEnabled(i < n - 1)
+        m.addSeparator()
+        a_reopen = m.addAction("Reopen closed tab", self.reopen_closed_tab)
+        a_reopen.setEnabled(bool(self._closed_tabs))
+        m.exec(self.tabbar.mapToGlobal(pos))
+
+    def duplicate_tab(self, i: int):
+        view = self.tabbar.tabData(i) if i >= 0 else None
+        if view is not None:
+            self.new_tab(QUrl(view.url()))
+
+    def close_other_tabs(self, i: int):
+        for j in range(self.tabbar.count() - 1, -1, -1):   # high → low so indices stay valid; keep tab i
+            if j != i:
+                self.close_tab(j)
+
+    def close_tabs_to_right(self, i: int):
+        for j in range(self.tabbar.count() - 1, i, -1):
+            self.close_tab(j)
+
     def _cycle_tab(self, step: int):
         n = self.tabbar.count()
         if n:

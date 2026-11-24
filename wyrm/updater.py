@@ -122,6 +122,29 @@ def whats_new(notes: str, limit: int = 12) -> list[str]:
     return out
 
 
+def current_changes(limit: int = 20) -> list[str]:
+    """'What's new' bullet lines for the running version, read from the bundled CHANGELOG.md (shown in About)."""
+    from pathlib import Path
+    from . import __version__
+    txt = None
+    for base in (getattr(sys, "_MEIPASS", None), Path(__file__).resolve().parent.parent):
+        if not base:
+            continue
+        try:
+            txt = (Path(base) / "CHANGELOG.md").read_text(encoding="utf-8")
+            break
+        except OSError:
+            continue
+    if not txt:
+        return []
+    m = re.search(r"(?m)^##\s+.*" + re.escape(__version__), txt)   # the "## vX.Y.Z" section for this version
+    if not m:
+        return []
+    rest = txt[m.end():]
+    nxt = re.search(r"(?m)^##\s", rest)
+    return whats_new(rest[:nxt.start()] if nxt else rest, limit)
+
+
 def _expected_sha256(asset: dict, notes: str) -> str | None:
     """SHA-256 the release says this installer has: GitHub's own asset digest, else the checksum list CI writes
     into the release notes. None for old releases that have neither."""

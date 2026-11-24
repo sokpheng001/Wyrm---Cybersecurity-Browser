@@ -136,10 +136,15 @@ class UpdatesMixin:
     def _ask_restart(self):
         from ..ui.dialogs import ask
         from ..ui.update_runner import install_and_quit
-        ver = (self._update_info or {}).get("version", "")
-        now, _ = ask(self, f"Wyrm Browser {ver} is ready to install",
-                     "Restart now to finish updating and get the latest features. Your open tabs will reopen. "
-                     "Choose Later to keep browsing: the update installs when you close Wyrm Browser.",
+        from .. import updater
+        info = self._update_info or {}
+        ver = info.get("version", "")
+        body = ("Restart now to finish updating and get the latest features. Your open tabs will reopen. "
+                "Choose Later to keep browsing: the update installs when you close Wyrm Browser.")
+        changes = updater.whats_new(info.get("notes", ""))
+        if changes:
+            body += f"\n\nWhat's new in {ver}:\n" + "\n".join("•  " + c for c in changes[:12])
+        now, _ = ask(self, f"Wyrm Browser {ver} is ready to install", body,
                      "Restart now", cancel="Later", window_title="Update Wyrm Browser")
         if now:
             path, self._pending_update = self._pending_update, None

@@ -59,6 +59,7 @@ class MenuMixin:
         hk = QKeySequence(self.HISTORY_KEYS[0]).toString(QKeySequence.SequenceFormat.NativeText)
         m.addAction(f"History   {hk}", self.open_history)
         m.addAction("Clear browsing data…", self.clear_browsing_data)
+        m.addAction("Clear search history", self._clear_history_confirm)
         a = m.addAction("Intercept requests…   Ctrl+Alt+I", self.open_intercept)
         a.setEnabled(not self.tor)
         em = m.addMenu("Extensions")
@@ -112,10 +113,25 @@ class MenuMixin:
                     f"Copyright © {years()} ByKh R&amp;D Group · HackPi{tor}<br><br>"
                     "Chromium engine via Qt WebEngine · Ad/tracker blocking via community filter lists · Tor: Tor Project")
         visit = box.addButton("Visit bykh.org", QMessageBox.ButtonRole.ActionRole)
+        whatsnew = box.addButton("What's new", QMessageBox.ButtonRole.ActionRole)
         box.addButton(QMessageBox.StandardButton.Close)
         box.exec()
         if box.clickedButton() is visit:  # open our website in Wyrm itself
             self.open_url("https://bykh.org", new_tab=True)
+        elif box.clickedButton() is whatsnew:
+            self._show_whats_new()
+
+    def _show_whats_new(self):
+        from html import escape
+        from .. import updater
+        changes = updater.current_changes()
+        body = ("<ul style='margin:6px 0 0 -20px'>" + "".join(f"<li>{escape(c)}</li>" for c in changes) + "</ul>") \
+            if changes else "See the Releases page for the full changelog."
+        box = QMessageBox(self)
+        box.setWindowTitle("What's new")
+        box.setText(f"<b>What's new in Wyrm Browser {version_label()}</b>")
+        box.setInformativeText(body)
+        box.exec()
 
     def _open_settings(self):
         SettingsDialog(self).exec()

@@ -93,6 +93,8 @@ class ChromeMixin:
         self.tabbar.setDocumentMode(True)
         self.tabbar.tabCloseRequested.connect(self.close_tab)
         self.tabbar.currentChanged.connect(self._on_tab_changed)
+        self.tabbar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tabbar.customContextMenuRequested.connect(self._tab_context_menu)
         row.addWidget(self.tabbar, 0, Qt.AlignmentFlag.AlignBottom)
         b_new = self._tool("plus", "New tab (Ctrl+T)", self._new_tab_focus, ["Ctrl+T"])
         self._shell_buttons = {b_new}

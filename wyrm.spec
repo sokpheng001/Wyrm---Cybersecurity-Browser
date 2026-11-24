@@ -32,7 +32,7 @@ a = Analysis(
     datas=[("wyrm/citesee.js", "wyrm"), ("wyrm/youtube.js", "wyrm"), ("wyrm/fingerprint.js", "wyrm"),
            ("wyrm/capture.js", "wyrm"),
            ("wyrm/security/pageinfo.js", "wyrm/security"),
-           ("wyrm/assets", "wyrm/assets")]
+           ("wyrm/assets", "wyrm/assets"), ("CHANGELOG.md", ".")]
           # ProjectDiscovery tools (tools/fetch_pdtools.py); skipped if not fetched (e.g. a quick local build)
           + ([("wyrm/bin", "wyrm/bin")] if os.path.isdir("wyrm/bin") else []),
     hiddenimports=["PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtSvg", "PySide6.QtNetwork", "adblock", "stem", "stem.process", "stem.control", "socks", "wyrm.security.triage", "wyrm.security.fuzzer", "wyrm.security.secsearch", "wyrm.security.rewrite", "wyrm.security.mitm", "wyrm.security.har", "wyrm.security.payloads", "wyrm.security.wsframe", "wyrm.security.workflows", "wyrm.security.sessionauth", "wyrm.security.http2", "wyrm.addons", "wyrm.addons.api", "wyrm.addons.loader", "wyrm.panels.addons", "wyrm.panels.audit", "wyrm.security.audit", "wyrm.security.audit.points", "wyrm.security.audit.checks", "wyrm.security.audit.passive", "wyrm.security.audit.engine", "wyrm.security.audit.spider", "wyrm.security.audit.advice", "cryptography", "certifi", "h2", "hpack", "hyperframe"],
