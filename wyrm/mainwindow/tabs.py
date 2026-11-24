@@ -113,7 +113,7 @@ class TabsMixin:
         if view is not None and not self.ephemeral:  # remember it for Ctrl+Shift+T (never in Tor/private)
             u = view.url().toString()
             if u and not u.startswith("wyrm://"):
-                self._closed_tabs.append(u)
+                self._closed_tabs.append({"url": u, "title": view.title() or u})
                 del self._closed_tabs[:-25]
         if self.tabbar.count() <= 1:
             self.current_view().setUrl(QUrl(HOME))
@@ -122,7 +122,18 @@ class TabsMixin:
 
     def reopen_closed_tab(self):
         if self._closed_tabs:
-            self.new_tab(QUrl(self._closed_tabs.pop()))
+            self.new_tab(QUrl(self._closed_tabs.pop()["url"]))
+
+    def reopen_tab_at(self, i: int):
+        """Reopen one recently-closed tab by its position in the History page (0 = most recently closed)."""
+        if 0 <= i < len(self._closed_tabs):
+            rec = self._closed_tabs.pop(len(self._closed_tabs) - 1 - i)  # newest is at the end of the list
+            self.new_tab(QUrl(rec["url"]))
+            for j in range(self.tabbar.count()):  # refresh any open History page so the item drops off
+                view = self.tabbar.tabData(j)
+                u = view.url()
+                if u.scheme() == "wyrm" and u.host() == "history":
+                    view.reload()
 
     # ---------------------------------------------------------------- tab right-click menu (like other browsers)
     def _tab_context_menu(self, pos):

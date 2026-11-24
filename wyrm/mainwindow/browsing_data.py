@@ -25,9 +25,10 @@ class BrowsingDataMixin:
         self.open_url("wyrm://history", new_tab=True)
 
     def _history_page(self, query: str = "") -> str:
+        closed = list(reversed(getattr(self, "_closed_tabs", [])))  # most recently closed first
         if self.history_db is None:
-            return pages.render_history([], query, private=True)
-        return pages.render_history(self.history_db.entries(query, limit=1000), query, private=False)
+            return pages.render_history([], query, private=True, closed=closed)
+        return pages.render_history(self.history_db.entries(query, limit=1000), query, private=False, closed=closed)
 
     def clear_browsing_data(self):
         """Choose what to clear: browsing history, address-bar history, cookies, cached images and files."""

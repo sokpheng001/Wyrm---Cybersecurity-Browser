@@ -115,7 +115,7 @@ class MainWindow(
         self.profiles: dict[str, QWebEngineProfile] = {}
         self._loading_views: set = set()
         self._failed: dict = {}
-        self._closed_tabs: list[str] = []   # URLs of recently closed tabs (Ctrl+Shift+T)
+        self._closed_tabs: list[dict] = []   # recently closed tabs {url, title} (Ctrl+Shift+T / History page)
         self._current_key: str | None = None
         self.block_reasons: dict[str, tuple] = {}  # url -> (category, linkguard verdict) for blocked navigations
         self.http_allowed: set[str] = set()        # hosts the user allowed over plain HTTP this session

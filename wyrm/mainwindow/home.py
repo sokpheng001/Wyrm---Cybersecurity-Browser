@@ -274,6 +274,11 @@ class HomeMixin:
             elif do == "hist-clear" and self.history_db is not None:
                 self.history_db.clear()
                 self.toast("Browsing history cleared")
+            elif do == "reopen-tab":
+                try:
+                    self.reopen_tab_at(int(params.get("i", "-1")))
+                except ValueError:
+                    pass
             elif do == "bg-upload" and not self.tor:
                 QTimer.singleShot(0, self._pick_background_image)  # don't block the scheme request on a dialog
             elif do == "bg-upload-video" and not self.tor:

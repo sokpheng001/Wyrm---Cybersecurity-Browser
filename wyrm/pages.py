@@ -1302,16 +1302,28 @@ main.hist{max-width:900px}
 """
 
 
-def render_history(entries: list[dict], query: str = "", private: bool = False) -> str:
+def render_history(entries: list[dict], query: str = "", private: bool = False, closed: list | None = None) -> str:
     from datetime import date, datetime, timedelta
     head = (f"<h1>History</h1><form action='wyrm://history' method='get'><input type='text' name='q' "
             f"value='{escape(query, quote=True)}' placeholder='Search history' autofocus></form>")
     if private:
         return _page("History", head.replace("autofocus", "disabled") +
                      "<p class='empty'>Private and Tor windows don't keep history.</p>", HISTORY_CSS, "hist")
+    # "Recently closed" (restore a tab, like other browsers) — shown at the top when not searching
+    closed_html = ""
+    if closed and not query:
+        rows = "".join(
+            f"<div class='row'><div class='ti'>"
+            f"<a href='{escape(c['url'], quote=True)}' title='{escape(c['url'], quote=True)}'>"
+            f"{escape(c.get('title') or c['url'])}</a><div class='u'>{escape(c['url'])}</div></div>"
+            f"<a class='del' href='wyrm://do?a=reopen-tab&amp;i={i}' title='Reopen in a new tab'>Reopen</a></div>"
+            for i, c in enumerate(closed))
+        reopen_all = ("<a class='clear' href='wyrm://do?a=reopen-tab&amp;i=0'>Reopen last</a>"
+                      if closed else "")
+        closed_html = (f"<div class='bar'><span class='muted'>Recently closed</span>{reopen_all}</div>" + rows)
     if not entries:
         msg = f"No history matches “{escape(query)}”." if query else "Pages you visit will appear here."
-        return _page("History", head + f"<p class='empty'>{msg}</p>", HISTORY_CSS, "hist")
+        return _page("History", head + closed_html + f"<p class='empty'>{msg}</p>", HISTORY_CSS, "hist")
     today = date.today()
     out, last = [], None
     for e in entries:
@@ -1331,7 +1343,7 @@ def render_history(entries: list[dict], query: str = "", private: bool = False) 
     bar = (f"<div class='bar'><span class='muted'>{len(entries)} page(s){' matching' if query else ''}</span>"
            "<a class='clear' href='wyrm://do?a=hist-clear' onclick=\"return confirm('Clear all browsing history?')\">"
            "Clear all history</a></div>")
-    return _page("History", head + bar + "".join(out), HISTORY_CSS, "hist")
+    return _page("History", head + closed_html + bar + "".join(out), HISTORY_CSS, "hist")
 
 
 # ====================================================================== clickjacking proof-of-concept (wyrm://frametest)
