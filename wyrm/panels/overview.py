@@ -180,8 +180,13 @@ class OverviewTab(QWidget):
     def _show_detail(self, *_):
         i = self._issue()
         self.b_add.setEnabled(bool(i) and bool(self.win.engagement))
-        self.b_add.setToolTip("" if self.win.engagement else "Select an engagement to record findings")
+        # L-6: explain on hover why a disabled action is disabled, instead of a silently greyed-out button
+        self.b_add.setToolTip("Save this check as a finding in the current engagement" if self.win.engagement
+                              else "Add this host to an engagement's scope to save findings")
         self.b_cve.setEnabled(bool(i and i.get("tech") and i["tech"].get("version")))
+        self.b_cve.setToolTip("Look up known CVEs for this component's version"
+                              if (i and i.get("tech") and i["tech"].get("version"))
+                              else "Select a detected technology with a known version to look up its CVEs")
         self.b_copy.setEnabled(bool(i))
         if not i:
             self.detail.setHtml("<p style='color:gray'>Passive checks only: one normal request for headers, a TLS "
