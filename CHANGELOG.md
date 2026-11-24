@@ -4,6 +4,21 @@ What's new in each version of Wyrm Browser. The release workflow publishes the s
 version (from `wyrm/__init__.py`) as the release description and the in-app **Update** tooltip, so keep the
 most important points first. Each build of a version adds an "Also in this build" list automatically.
 
+## v0.5.0
+
+- HTTPS certificate viewer: click the lock in the address bar to see the site's certificate — issuer, validity,
+  alternative names, key, signature, the negotiated TLS version and cipher, and the SHA-256 fingerprint, with a
+  one-click Copy PEM. It shows expired and self-signed certificates too (handy for testing).
+- Cleaner address bar: the https:// scheme is hidden (the lock icon shows security), and right-click adds
+  "Paste and go" plus a choice of searching your selection on the web or for vulnerabilities.
+- Start-page shortcuts: organise them into folders (speed-dial groups) that open a quick list, and each shortcut
+  now shows the site's own logo.
+- Show or hide the start-page weather and location from Customize → Start page.
+- Settings redesigned: a left sidebar with a search box, so you can find any setting fast.
+- History: a "Recently closed" section to restore tabs you closed, like other browsers.
+- A cleaner update notification with the app logo and tidier "What's new".
+- Faster Traffic panel when there are thousands of requests.
+
 ## v0.4.0
 
 - Realistic live weather wallpaper (Customize → Live weather): the start-page background is now drawn to look
@@ -13,13 +28,9 @@ most important points first. Each build of a version adds an "Also in this build
 - Accurate weather location: Wyrm now uses your device's location service (Wi-Fi/GPS, like a phone's weather app)
   for a precise city, falling back to IP if that's unavailable. Wrong place? Click the location on the start page
   to set your city by name — your choice always wins.
-- Start-page shortcuts (speed dial): a grid of your own sites and tools you can add and remove, like other
-  browsers, each showing the site's own logo.
+- Start-page shortcuts (speed dial): a grid of your own sites and tools you can add and remove, like other browsers.
 - Vertical tabs (Layout menu → Vertical tabs): move the tab bar to a left panel, like Edge/Arc — handy with many
   tabs. Off by default.
-- Address bar: the https:// scheme is hidden (the lock icon shows security), click the lock to view the site's
-  certificate, right-click for "Paste and go", and search the selection on the web or for vulnerabilities.
-- History: a "Recently closed" section restores closed tabs, and Settings has a new sidebar with a search box.
 - Clock format: click the start-page clock to switch between 24-hour and AM/PM.
 
 ## v0.3.0
