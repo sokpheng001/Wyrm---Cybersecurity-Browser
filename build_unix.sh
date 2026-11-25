@@ -16,6 +16,8 @@ cd "$(dirname "$0")"
 QT_QPA_PLATFORM=offscreen .venv/bin/python tools/make_icons.py
 .venv/bin/python tools/fetch_filters.py
 .venv/bin/python tools/fetch_pdtools.py   # bundle the ProjectDiscovery tools
+# QA-H1: stamp the exact build (git short SHA + timestamp) so a tester can tell which build they have
+printf 'SHA = "%s"\nBUILD_TIME = "%s"\n' "$(git rev-parse --short HEAD 2>/dev/null || echo '')" "$(date '+%Y-%m-%d %H:%M')" > wyrm/_buildinfo.py
 .venv/bin/python -m PyInstaller --noconfirm --clean wyrm.spec
 
 if [ "$(uname -s)" = "Darwin" ]; then

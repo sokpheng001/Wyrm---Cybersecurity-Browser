@@ -30,6 +30,10 @@ if ($env:CI -or $env:WYRM_OWN_BOOTLOADER) {
 Invoke-Step $py tools\make_icons.py
 Invoke-Step $py tools\fetch_filters.py
 Invoke-Step $py tools\fetch_pdtools.py   # bundle the ProjectDiscovery tools
+# QA-H1: stamp the exact build (git short SHA + timestamp) so a tester can tell which build they have
+$sha = ""; try { $sha = (git rev-parse --short HEAD) 2>$null } catch {}
+$ts = (Get-Date -Format "yyyy-MM-dd HH:mm")
+"SHA = `"$sha`"`nBUILD_TIME = `"$ts`"`n" | Out-File -FilePath wyrm\_buildinfo.py -Encoding utf8
 Invoke-Step $py -m PyInstaller --noconfirm --clean --log-level WARN wyrm.spec
 
 # Optional Authenticode signing. Set SIGN_PFX (path to a code-signing .pfx) and SIGN_PFX_PASSWORD.

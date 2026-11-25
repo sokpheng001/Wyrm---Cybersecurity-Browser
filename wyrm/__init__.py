@@ -12,9 +12,40 @@ __build__ = 0           # set by CI (GitHub Actions run number): orders releases
 START_YEAR = 2023  # development started (first public release: 2026)
 
 
+def _build_meta():
+    """(sha, timestamp) written into wyrm/_buildinfo.py by the build scripts; ('', '') when run from source."""
+    try:
+        from . import _buildinfo  # generated at build time; absent in a source checkout
+        return str(getattr(_buildinfo, "SHA", "")), str(getattr(_buildinfo, "BUILD_TIME", ""))
+    except Exception:  # noqa: BLE001 - never let a missing/broken build stamp crash startup
+        return "", ""
+
+
+def _git_sha() -> str:
+    """Best-effort short commit SHA when running from a git checkout (so 'dev' builds are still identifiable)."""
+    try:
+        import pathlib
+        import subprocess
+        r = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=str(pathlib.Path(__file__).parent.parent),
+                           capture_output=True, text=True, timeout=3)
+        return r.stdout.strip() if r.returncode == 0 else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def version_label() -> str:
-    """'0.0.1 (build 57)' for released builds, '0.0.1 (dev)' when run from source."""
-    return f"{__version__} (build {__build__})" if __build__ else f"{__version__} (dev)"
+    """A version string a tester can pin to an exact build, e.g. '0.5.0 (build 0, 4cc1acd, 2026-11-25 11:17)'
+    for a built app, or '0.5.0 (dev, 4cc1acd)' when run from source (QA-H1)."""
+    sha, when = _build_meta()
+    if sha or when or __build__:
+        parts = [f"build {__build__}"]
+        if sha:
+            parts.append(sha)
+        if when:
+            parts.append(when)
+        return f"{__version__} (" + ", ".join(parts) + ")"
+    sha = _git_sha()
+    return f"{__version__} (dev{', ' + sha if sha else ''})"
 
 
 def years() -> str:
