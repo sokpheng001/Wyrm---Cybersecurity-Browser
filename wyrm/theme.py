@@ -108,10 +108,14 @@ QTabBar#MainTabs { background: transparent; }
 QTabBar#MainTabs::tab {
     background: transparent; color: $shell_muted; padding: 0 8px 0 16px; height: 38px; margin: 3px 2px 0 2px;
     border: none; border-radius: 0;
-    min-width: 140px; max-width: 220px; font-size: 13px;
+    min-width: 72px; max-width: 220px; font-size: 13px;   /* QA-U2: shrink (and elide) before scrolling */
 }
 QTabBar#MainTabs::tab:hover:!selected { background: $shell_hover; color: $shell_text; }
 QTabBar#MainTabs::tab:selected { background: $layer; color: $text; border-top: 3px solid $interactive; }
+/* QA-U2: the tab bar's own scroll arrows — give them a visible style (the generic #TabStrip rule made them
+   blend into the dark strip) so hidden tabs can be reached with the mouse. More specific -> wins. */
+QTabBar#MainTabs QToolButton { background: $shell_active; min-width: 22px; min-height: 36px; margin: 3px 0 0 0; }
+QTabBar#MainTabs QToolButton:hover { background: $shell_hover; }
 /* vertical tabs (left panel, Edge/Arc-style) */
 #VTabs { background: $shell; border-right: 1px solid $shell_border; }
 #VTabList { background: transparent; border: none; outline: none; }
