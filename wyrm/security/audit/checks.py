@@ -90,7 +90,7 @@ class SqlBlindBoolean:
     key, title, severity = "sqli", "SQL injection (blind, boolean-based)", "high"
 
     def run(self, point, build, send, baseline, rand, oob=None):
-        if not baseline or point.get("loc") not in ("query", "body-form", "json"):
+        if not baseline or point.get("loc") not in ("query", "body-form", "json", "path"):
             return None
         base = point.get("value", "")
         pairs = [
@@ -134,7 +134,7 @@ class SqlBlindTime:
         import time
         if not self.time_based:
             return None
-        if point.get("loc") not in ("query", "body-form", "json"):   # bound the cost to the common spots
+        if point.get("loc") not in ("query", "body-form", "json", "path"):   # bound the cost to the common spots
             return None
         n1, n2 = self.probe_secs
         base = point.get("value", "")
@@ -267,7 +267,7 @@ class CommandInjection:
         # 2) time-based fallback (no OOB needed): a sleep payload delays the response; confirm with a longer sleep
         if not self.time_based:
             return None
-        if point.get("loc") not in ("query", "body-form", "json"):   # bound the cost
+        if point.get("loc") not in ("query", "body-form", "json", "path"):   # bound the cost
             return None
         for mk in (lambda n: f"{base}; sleep {n}", lambda n: f"{base}$(sleep {n})"):
             t = time.monotonic()

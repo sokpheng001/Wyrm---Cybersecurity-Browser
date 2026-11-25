@@ -4,13 +4,14 @@
 # Authors: Kim, Oda, Kwan, Naly
 #------------------------------------------------------------------------------
 """Insertion points: parse a request into the places a payload can go, each with a builder that rebuilds the
-request with a given value. Covers URL query params, form and JSON body fields, cookies, and a safe set of
-headers. Each point is (meta, build) where meta = {"loc", "name", "value"} and build(payload) -> (url, headers, body).
+request with a given value. Covers URL query params, dynamic URL path segments, form and JSON body fields,
+cookies, and a safe set of headers. Each point is (meta, build) where meta = {"loc", "name", "value"} and
+build(payload) -> (url, headers, body).
 """
 from __future__ import annotations
 
 import json
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 # headers worth fuzzing (reflected into pages / used by apps); fuzzed only, never structural headers like Host
 SAFE_HEADERS = ("User-Agent", "Referer", "X-Forwarded-For", "X-Forwarded-Host", "Origin")
@@ -47,6 +48,20 @@ def insertion_points(method: str, url: str, headers: dict, body) -> list[tuple]:
             nq[i] = (nq[i][0], payload)
             return urlunsplit(parts._replace(query=urlencode(nq))), dict(headers), body
         points.append(({"loc": "query", "name": k, "value": v}, build))
+
+    # ---- URL path segments (REST-style ids / filenames). Only likely-dynamic segments are fuzzed — one with a
+    # digit, a dot (extension), or the last segment — so static segments like /api/ or /v1/ aren't wasted on.
+    segs = parts.path.split("/")
+    last = max((i for i, s in enumerate(segs) if s), default=-1)
+    for i, seg in enumerate(segs):
+        if not seg or not (any(ch.isdigit() for ch in seg) or "." in seg or i == last):
+            continue
+
+        def build(payload, i=i):
+            ns = list(segs)
+            ns[i] = quote(payload, safe="/")   # keep '/' so path-traversal payloads work; encode the rest
+            return urlunsplit(parts._replace(path="/".join(ns))), dict(headers), body
+        points.append(({"loc": "path", "name": f"segment[{i}]", "value": seg}, build))
 
     # ---- form body
     if _is_form(headers) and body:

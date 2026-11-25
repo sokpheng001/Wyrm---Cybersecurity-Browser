@@ -266,6 +266,24 @@ def test_graphql_check_skips_get_and_non_graphql():
     assert c.run_request("POST", "https://api.test/users", {}, '{"name":"x"}', _gql_send(True), None, "abc") is None
 
 
+def test_insertion_points_include_dynamic_path_segments():
+    from wyrm.security.audit.points import insertion_points
+    pts = insertion_points("GET", "https://t.test/api/users/123/report.pdf?x=1", {}, "")
+    path_vals = [m["value"] for m, b in pts if m["loc"] == "path"]
+    assert "123" in path_vals            # numeric id
+    assert "report.pdf" in path_vals     # filename (dot) / last segment
+    assert "api" not in path_vals        # static segments aren't fuzzed
+    assert "users" not in path_vals
+
+
+def test_path_builder_preserves_traversal_slashes():
+    from wyrm.security.audit.points import insertion_points
+    pts = insertion_points("GET", "https://t.test/files/123", {}, "")
+    build = next(b for m, b in pts if m["loc"] == "path" and m["value"] == "123")
+    url, headers, body = build("../../../../etc/passwd")
+    assert "../../../../etc/passwd" in url   # slashes kept so path-traversal payloads reach the server
+
+
 def test_passive_detects_leaked_secrets_redacted():
     from wyrm.security.audit import passive
     body = (
