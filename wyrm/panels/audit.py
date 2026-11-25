@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QHeaderView, QLabel, QMes
 from .common import SEV_COLOR, sev_badge
 from ..security.audit import engine
 from ..security.audit.advice import advice as _advice
-from ..widgets import BusyOverlay
+from ..widgets import SkeletonOverlay
 
 
 class _OobBridge:
@@ -113,7 +113,7 @@ class AuditTab(QWidget):
         self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.tree.currentItemChanged.connect(self._show)
         split.addWidget(self.tree)
-        self.busy = BusyOverlay(self.tree)
+        self.busy = SkeletonOverlay(self.tree)
         self.detail = QTextBrowser()
         self.detail.setOpenLinks(False)
         self.detail.anchorClicked.connect(lambda u: self.win.open_url(u.toString(), new_tab=True))

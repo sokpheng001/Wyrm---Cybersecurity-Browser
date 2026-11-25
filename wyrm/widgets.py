@@ -10,10 +10,101 @@ from __future__ import annotations
 import math
 
 from PySide6.QtCore import QEasingCurve, QEvent, QPoint, QRect, QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QLinearGradient, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QLinearGradient, QPainter, QPainterPath, QPalette, QPen
 from PySide6.QtWidgets import (
     QApplication, QBoxLayout, QHBoxLayout, QLabel, QLayout, QPushButton, QSizePolicy, QWidget,
 )
+
+
+def _mix(a: QColor, b: QColor, t: float) -> QColor:
+    """Linear blend of two colours (t=0 -> a, t=1 -> b)."""
+    return QColor(int(a.red() + (b.red() - a.red()) * t),
+                  int(a.green() + (b.green() - a.green()) * t),
+                  int(a.blue() + (b.blue() - a.blue()) * t))
+
+
+class SkeletonOverlay(QWidget):
+    """A shimmering skeleton screen overlaid on a result area while data loads: placeholder bars with a highlight
+    that sweeps across them, which reads as 'content is on its way' and feels faster than a bare spinner.
+
+    API-compatible with BusyOverlay (start()/stop()), so it's a drop-in for list / tree / detail result areas.
+    """
+
+    def __init__(self, parent: QWidget, rows: int = 7):
+        super().__init__(parent)
+        self._rows = rows
+        self._sweep = -0.3          # shimmer position: 0..1 across the width (starts just off the left edge)
+        self._timer = QTimer(self)
+        self._timer.setInterval(33)  # ~30 fps is plenty for a shimmer
+        self._timer.timeout.connect(self._tick)
+        parent.installEventFilter(self)
+        self.hide()
+
+    def eventFilter(self, obj, ev):
+        if obj is self.parent() and ev.type() in (QEvent.Type.Resize, QEvent.Type.Move):
+            self.setGeometry(self.parent().rect())
+        return False
+
+    def start(self, label: str | None = None, rows: int | None = None):
+        # `label` is accepted (and ignored) so this is a drop-in for BusyOverlay.start("…").
+        if rows:
+            self._rows = rows
+        self.setGeometry(self.parent().rect())
+        self.show()
+        self.raise_()
+        if not self._timer.isActive():
+            self._timer.start()
+
+    def stop(self):
+        self._timer.stop()
+        self.hide()
+
+    def _tick(self):
+        self._sweep += 0.028
+        if self._sweep > 1.3:
+            self._sweep = -0.3
+        self.update()
+
+    _WIDTHS = (0.45, 0.92, 0.78, 0.86, 0.6, 0.9, 0.7, 0.82, 0.66, 0.88, 0.58)
+
+    def paintEvent(self, _e):
+        with QPainter(self) as p:   # B4: context manager always ends the painter, even if painting raises
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            pal = self.palette()
+            bg = pal.color(self.backgroundRole())
+            if not bg.isValid():
+                bg = QApplication.palette().base().color()
+            p.fillRect(self.rect(), bg)   # mask whatever stale content is underneath
+
+            # collect all placeholder bars into one path, then paint base + a single moving shimmer over them
+            m, row_h, gap = 16, 12, 16
+            x, y = m, m
+            w_full = max(40, self.width() - 2 * m)
+            path = QPainterPath()
+            i = 0
+            while i < self._rows and y < self.height() - m:
+                h = row_h + (6 if i == 0 else 0)          # first bar a touch taller (a "title")
+                bw = int(w_full * self._WIDTHS[i % len(self._WIDTHS)])
+                path.addRoundedRect(QRectF(x, y, bw, h), 4, 4)
+                y += h + gap
+                i += 1
+            if path.isEmpty():
+                return
+            base_bar = _mix(bg, QColor(128, 128, 128), 0.22 if bg.lightness() > 128 else 0.35)
+            p.fillPath(path, base_bar)
+            # shimmer: a bright band swept left→right, clipped to the bars
+            band = max(90, int(self.width() * 0.28))
+            cx = self._sweep * (self.width() + band) - band / 2
+            grad = QLinearGradient(cx - band / 2, 0, cx + band / 2, 0)
+            hi = _mix(base_bar, QColor(255, 255, 255) if bg.lightness() > 128 else QColor(210, 210, 210), 0.55)
+            c0, c1 = QColor(hi), QColor(hi)
+            c0.setAlpha(0)
+            c1.setAlpha(0)
+            grad.setColorAt(0.0, c0)
+            grad.setColorAt(0.5, hi)
+            grad.setColorAt(1.0, c1)
+            p.setClipPath(path)
+            p.fillRect(self.rect(), grad)
 
 
 class BusyOverlay(QWidget):

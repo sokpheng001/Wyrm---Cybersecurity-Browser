@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QHeaderView, QLabel, QPush
 from .common import PAGEINFO_JS, SEV_COLOR, sev_badge
 from .. import theme
 from ..security import analyzer, intel
-from ..widgets import BusyOverlay
+from ..widgets import SkeletonOverlay
 
 
 # =================================================================== Overview
@@ -65,7 +65,7 @@ class OverviewTab(QWidget):
         self.tree.currentItemChanged.connect(self._show_detail)
         self.tree.itemDoubleClicked.connect(self._open_item)
         split.addWidget(self.tree)
-        self.busy = BusyOverlay(self.tree)
+        self.busy = SkeletonOverlay(self.tree)
         self.detail = QTextBrowser()
         self.detail.setOpenLinks(False)
         self.detail.anchorClicked.connect(lambda u: win.open_url(u.toString(), new_tab=True))

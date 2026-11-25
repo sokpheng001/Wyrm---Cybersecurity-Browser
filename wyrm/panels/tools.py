@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEd
 
 from .common import HeaderHighlighter, _format_response, _pane, mono
 from ..security import tools
-from ..widgets import BusyOverlay
+from ..widgets import SkeletonOverlay
 
 
 # =================================================================== Tools
@@ -75,7 +75,7 @@ class ToolsTab(QWidget):
         self.tr_out = QTextBrowser()
         self.tr_out.setOpenLinks(False)
         v.addWidget(self.tr_out, 1)
-        self.tr_busy = BusyOverlay(self.tr_out)
+        self.tr_busy = SkeletonOverlay(self.tr_out)
         return w
 
     def _do_triage(self):
@@ -315,7 +315,7 @@ class ToolsTab(QWidget):
         self.r_preview = None  # web view created on first Preview click (keeps startup fast)
         self.r_resp_stack = QStackedWidget()
         self.r_resp_stack.addWidget(self.r_resp)
-        self.r_busy = BusyOverlay(self.r_resp_stack)
+        self.r_busy = SkeletonOverlay(self.r_resp_stack)
         # Preview: spinner while the HTML (and its images/CSS) renders; a timer stops it if a resource hangs
         self._preview_timeout = QTimer(self, singleShot=True, interval=15000)
         self._preview_timeout.timeout.connect(self._preview_done)

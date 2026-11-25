@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QHBoxLayout, QHeaderView, QLabel, QPushButton, QSp
 
 from .common import PAGEINFO_JS, SEV_COLOR, sev_badge
 from ..security import domscan
-from ..widgets import BusyOverlay
+from ..widgets import SkeletonOverlay
 
 
 # =================================================================== DOM Security Analysis
@@ -53,7 +53,7 @@ class DomTab(QWidget):
         self.tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.tree.currentItemChanged.connect(self._show)
         split.addWidget(self.tree)
-        self.busy = BusyOverlay(self.tree)
+        self.busy = SkeletonOverlay(self.tree)
         self.detail = QTextBrowser()
         self.detail.setOpenLinks(False)
         split.addWidget(self.detail)

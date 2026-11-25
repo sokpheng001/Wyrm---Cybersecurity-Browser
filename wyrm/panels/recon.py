@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QLineEdit, QListWi
 
 from .common import mono
 from ..security import chaos, intel
-from ..widgets import BusyOverlay
+from ..widgets import SkeletonOverlay
 
 
 def _host_from_text(text: str) -> str:
@@ -98,7 +98,7 @@ class ReconTab(QWidget):
         self.list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list.customContextMenuRequested.connect(self._list_menu)
         v.addWidget(self.list, 1)
-        self.busy = BusyOverlay(self.list)
+        self.busy = SkeletonOverlay(self.list)
         self.status = QLabel("Passive sources only: certificate transparency logs, the Internet Archive and "
                              "ProjectDiscovery Chaos.")
         self.status.setObjectName("Muted")
