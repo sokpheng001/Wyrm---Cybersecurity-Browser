@@ -478,6 +478,21 @@ def test_scan_respects_request_budget():
     assert calls[0] <= 20, f"budget not honoured: {calls[0]} requests sent"
 
 
+def test_every_builtin_check_key_has_remediation_advice():
+    from wyrm.security.audit import advice
+    keys = {c.key for c in chk.standard(time_based=True)}
+    keys.add("passive")   # passive response findings share one advice entry
+    for k in sorted(keys):
+        text, refs = advice.advice(k)
+        assert text, f"check key '{k}' has no remediation advice (report would be incomplete)"
+
+
+def test_fast_and_thorough_sets_match_except_time_based_probes():
+    thorough = {type(c).__name__ for c in chk.standard(time_based=True)}
+    fast = {type(c).__name__ for c in chk.standard(time_based=False)}
+    assert thorough == fast   # same checks; the time-based ones just go inert at Fast (run() returns None)
+
+
 def test_engine_end_to_end_finds_multiple_vuln_classes():
     """A deliberately vulnerable fake app: reflects input (XSS), errors on a quote (SQLi), and reflects the
     Origin with credentials (CORS). The full engine (insertion points + all checks + passive + request-level)
