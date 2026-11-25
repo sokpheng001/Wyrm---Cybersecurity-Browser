@@ -82,16 +82,24 @@ cmd_notarize() {
     submit="$(mktemp -d)/$(basename "$target").zip"
     ditto -c -k --keepParent "$target" "$submit"
   fi
-  log "submitting $(basename "$submit") to Apple notary service (waits for the result)"
-  local out; out="$(xcrun notarytool submit "$submit" "${auth[@]}" --wait --output-format json)" || true
+  # Bound the wait: Apple's notary service can queue submissions for a long time, and an unbounded --wait blocks
+  # the whole serialized release (Windows/Linux can't publish until macOS finishes). Cap it and FAIL SOFT — ship
+  # the signed-but-not-notarized build rather than hang/kill the release. Configurable via MACOS_NOTARIZE_TIMEOUT.
+  local to="${MACOS_NOTARIZE_TIMEOUT:-30m}"
+  log "submitting $(basename "$submit") to Apple notary service (waiting up to $to for a result)"
+  local out rc=0
+  out="$(xcrun notarytool submit "$submit" "${auth[@]}" --wait --timeout "$to" --output-format json)" || rc=$?
   echo "$out"
-  if ! echo "$out" | grep -q '"status" *: *"Accepted"'; then
+  if [ "$rc" -ne 0 ] || ! echo "$out" | grep -q '"status" *: *"Accepted"'; then
     local sid; sid="$(echo "$out" | sed -n 's/.*"id" *: *"\([^"]*\)".*/\1/p' | head -1)"
-    [ -n "$sid" ] && xcrun notarytool log "$sid" "${auth[@]}" || true
-    echo "notarization failed" >&2; exit 1
+    [ -n "$sid" ] && xcrun notarytool log "$sid" "${auth[@]}" 2>/dev/null || true
+    warn "notarization did not complete for $(basename "$target") (timed out after $to, or was rejected). Shipping \
+the Developer ID-signed but NOT-notarized build so the release isn't blocked — Gatekeeper may warn on first launch. \
+Set MACOS_NOTARIZE_TIMEOUT or re-run to notarize later."
+    return 0   # fail-soft: a slow/failed notary must never hang the serialized release
   fi
-  xcrun stapler staple "$target"
-  xcrun stapler validate "$target"
+  xcrun stapler staple "$target" || warn "stapling failed for $(basename "$target") (continuing)"
+  xcrun stapler validate "$target" || true
   if [ -d "$target" ]; then spctl -a -vv "$target" || true; fi
 }
 
