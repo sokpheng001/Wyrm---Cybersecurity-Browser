@@ -7,7 +7,16 @@
 version/technology disclosure and verbose errors. Safe to run on any response the proxy already captured."""
 from __future__ import annotations
 
+import base64
+import json
 import re
+
+_JWT_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]*")
+
+
+def _b64url_json(seg: str):
+    seg += "=" * (-len(seg) % 4)
+    return json.loads(base64.urlsafe_b64decode(seg.encode("ascii")))
 
 _ERROR_SIG = re.compile(r"Traceback \(most recent call last\)|Fatal error:|Exception in thread|<b>Warning</b>:|"
                         r"ORA-\d{5}|\.java:\d+\)|org\.apache\.|System\.Web\.|Microsoft \.NET Framework", re.I)
@@ -84,6 +93,22 @@ def check_response(url: str, resp: dict) -> list[dict]:
             add(f"Cookie without HttpOnly flag: {name}", "low", c[:120])
     if _ERROR_SIG.search(text):
         add("Verbose error / stack trace", "low", "The response body contains a stack trace or verbose error.")
+    for m in _JWT_RE.finditer(text):
+        try:
+            hdr = _b64url_json(m.group(0).split(".")[0])
+            payload = _b64url_json(m.group(0).split(".")[1])
+        except Exception:  # noqa: BLE001 - malformed / not actually a JWT; skip
+            continue
+        if str(hdr.get("alg", "")).lower() == "none":
+            add("Unsigned JWT (alg:none) exposed", "high",
+                "A JSON Web Token using alg=none (no signature) was found in the response — if the server accepts "
+                "these, tokens can be forged.")
+            break
+        if isinstance(payload, dict) and "exp" not in payload:
+            add("JWT without an expiry (exp) exposed", "low",
+                f"A JWT (alg={hdr.get('alg')}) has no 'exp' claim — it never expires, so a leaked token stays "
+                "valid indefinitely.")
+            break
     if html:
         for form in re.findall(r"<form\b[^>]*>.*?</form>", text, re.I | re.S)[:40]:
             if not re.search(r"method\s*=\s*['\"]?\s*post", form, re.I):

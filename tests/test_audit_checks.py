@@ -323,6 +323,42 @@ def test_passive_ignores_non_card_digit_runs():
     assert not [f for f in out if "Cardholder data" in f["title"]]
 
 
+def _make_jwt(header: dict, payload: dict) -> str:
+    import base64 as _b, json as _j
+
+    def seg(d):
+        return _b.urlsafe_b64encode(_j.dumps(d).encode()).rstrip(b"=").decode()
+    return f"{seg(header)}.{seg(payload)}.sig"
+
+
+def test_passive_flags_alg_none_jwt():
+    from wyrm.security.audit import passive
+    tok = _make_jwt({"alg": "none", "typ": "JWT"}, {"sub": "admin", "exp": 9999999999})
+    out = passive.check_response("https://api.test/token",
+                                 {"headers": {"content-type": "application/json"}, "status": 200,
+                                  "text": '{"access_token":"' + tok + '"}'})
+    assert any("alg:none" in f["title"] for f in out)
+    assert any(f["severity"] == "high" for f in out if "alg:none" in f["title"])
+
+
+def test_passive_flags_jwt_without_exp_low():
+    from wyrm.security.audit import passive
+    tok = _make_jwt({"alg": "HS256", "typ": "JWT"}, {"sub": "u1"})   # no exp
+    out = passive.check_response("https://api.test/token",
+                                 {"headers": {"content-type": "application/json"}, "status": 200,
+                                  "text": '{"token":"' + tok + '"}'})
+    assert any("without an expiry" in f["title"] for f in out)
+
+
+def test_passive_normal_jwt_with_exp_is_quiet():
+    from wyrm.security.audit import passive
+    tok = _make_jwt({"alg": "RS256", "typ": "JWT"}, {"sub": "u1", "exp": 9999999999})
+    out = passive.check_response("https://api.test/token",
+                                 {"headers": {"content-type": "application/json"}, "status": 200,
+                                  "text": '{"token":"' + tok + '"}'})
+    assert not any("JWT" in f["title"] for f in out)
+
+
 def test_passive_flags_post_form_without_csrf_token():
     from wyrm.security.audit import passive
     body = '<html><body><form method="post" action="/transfer"><input name="amount"><button>Go</button></form></body></html>'
