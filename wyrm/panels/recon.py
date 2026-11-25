@@ -92,6 +92,7 @@ class ReconTab(QWidget):
         row.addWidget(use)
         v.addLayout(row)
         row2 = QHBoxLayout()
+        self._source_btns = []   # QA-L2: disabled while a lookup is running so clicks aren't silently dropped
         for label, fn, tip in (
                 ("Subdomains (crt.sh)", self.subdomains, "Certificate transparency logs"),
                 ("Wayback URLs", self.wayback, "Archived URLs from the Internet Archive"),
@@ -102,6 +103,7 @@ class ReconTab(QWidget):
             b.setToolTip(tip)
             b.clicked.connect(fn)
             row2.addWidget(b)
+            self._source_btns.append(b)
         self._chaos_programs: dict[str, dict] = {}  # result-list text -> Chaos program
         v.addLayout(row2)
         row3 = QHBoxLayout()
@@ -159,9 +161,15 @@ class ReconTab(QWidget):
             return None
         eng = self.win.engagement
         if eng and eng.scope and not eng.in_scope(d):
+            self.items = []           # QA-L2: don't leave the previous lookup's results under a new message
+            self._render()
             QMessageBox.warning(self, "Out of scope", f"{d} is not in the scope of '{eng.name}'.")
             return None
         return d
+
+    def _set_busy(self, on: bool):
+        for b in getattr(self, "_source_btns", []):   # QA-L2: don't let the busy overlay silently swallow clicks
+            b.setEnabled(not on)
 
     def _run(self, label, fn, render):
         d = self._target()
@@ -169,9 +177,11 @@ class ReconTab(QWidget):
             return
         self.status.setText(f"{label} for {d}…")
         self.busy.start(f"{label} for {d}…")
+        self._set_busy(True)
 
         def done(ok, r):
             self.busy.stop()
+            self._set_busy(False)
             render(d, r) if ok else self.status.setText(f"{label} failed: {r}")
         self.win.runner.run(fn, done, d)
 
@@ -180,6 +190,8 @@ class ReconTab(QWidget):
         if not d:
             return
         if _is_ip_or_local(d):                        # BUG-1: crt.sh has no subdomains for an IP/localhost
+            self.items = []                           # QA-L2: clear old results before the guard message
+            self._render()
             self.status.setText(f"{d} is an IP address or localhost — certificate-transparency subdomain "
                                 "search only works for registered domain names.")
             return
@@ -229,9 +241,11 @@ class ReconTab(QWidget):
             self._render()
         self.status.setText(f"Well-known files for {origin}…")
         self.busy.start("Well-known files…")
+        self._set_busy(True)
 
         def done(ok, r):
             self.busy.stop()
+            self._set_busy(False)
             render(origin, r) if ok else self.status.setText(f"Well-known files failed: {r}")
         self.win.runner.run(intel.well_known, done, origin)
 
@@ -247,9 +261,11 @@ class ReconTab(QWidget):
         px, verify = self.win.proxies(), self.win.verify_tls()
         self.status.setText(f"Searching ProjectDiscovery Chaos for “{q}”…")
         self.busy.start("Searching ProjectDiscovery Chaos…")
+        self._set_busy(True)
 
         def done(ok, progs):
             self.busy.stop()
+            self._set_busy(False)
             if not ok:
                 self.status.setText(f"ProjectDiscovery Chaos search failed: {progs}")
                 return
@@ -270,9 +286,11 @@ class ReconTab(QWidget):
         px, verify = self.win.proxies(), self.win.verify_tls()
         self.status.setText(f"Loading {prog['count']:,} subdomains for {prog['name']} from ProjectDiscovery Chaos…")
         self.busy.start(f"Loading {prog['name']} from Chaos…")
+        self._set_busy(True)
 
         def done(ok, hosts):
             self.busy.stop()
+            self._set_busy(False)
             if not ok:
                 self.status.setText(f"Couldn't load {prog['name']}: {hosts}")
                 return
