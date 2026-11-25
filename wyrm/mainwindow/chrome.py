@@ -143,8 +143,9 @@ class ChromeMixin:
             self.addToolBar(Qt.ToolBarArea.TopToolBarArea, tb)
         self.addToolBarBreak()
 
-        nav = QWidget(objectName="NavBar")
+        self.nav = nav = QWidget(objectName="NavBar")
         nav.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        nav.installEventFilter(self)   # QA-U1: re-flow the toolbar when it gets too narrow
         n = QHBoxLayout(nav)
         n.setContentsMargins(0, 0, 0, 0)
         n.setSpacing(1)
@@ -168,6 +169,7 @@ class ChromeMixin:
         self.urlbar.setAccessibleName("Address and search")
         self.urlbar.setPlaceholderText("Search, or type a URL, CVE-ID or domain")
         self.urlbar.setFixedHeight(38)
+        self.urlbar.setMinimumWidth(240)   # QA-U1: keep the address bar usable; other widgets collapse instead
         self.urlbar.setTextMargins(28, 0, 0, 0)  # reserve space for the icon inside the pill
         self.urlbar.returnPressed.connect(lambda: self.navigate(self.urlbar.text()))
         self.urlbar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -245,9 +247,11 @@ class ChromeMixin:
         b.setDefaultAction(a)
         self._dock_actions.append((a, "book"))  # icon lives on the action so toggling keeps it
         n.addWidget(b)
+        self._nav_papers_btn = b
         b_flag = self._tool("flag", "Add finding for this page (Ctrl+Shift+F)", lambda: self.add_finding_dialog(),
                             ["Ctrl+Shift+F"])
         n.addWidget(b_flag)
+        self._nav_flag_btn = b_flag
         # Shields: blocked-count badge; true toggle — opens the Shields view, or closes the panel if it's
         # already showing Shields (so one button both opens and closes the same view — UX-1).
         self.b_shield = self._tool("shields", "Shields & security panel (Ctrl+Shift+S)",
@@ -298,7 +302,25 @@ class ChromeMixin:
         self.b_update.clicked.connect(self._open_update)
         self.b_update.hide()
         n.addWidget(self.b_update, 0, Qt.AlignmentFlag.AlignVCenter)
+        # QA-U1: an overflow menu for lower-priority tools, shown only when the toolbar is too narrow
+        self.b_overflow = QToolButton()
+        self.b_overflow.setText("»")
+        self.b_overflow.setToolTip("More tools")
+        self.b_overflow.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self._overflow_menu = QMenu(self.b_overflow)
+        self.b_overflow.setMenu(self._overflow_menu)
+        self.b_overflow.setStyleSheet("QToolButton::menu-indicator{image:none;width:0}")
+        self.b_overflow.hide()
+        n.addWidget(self.b_overflow)
+        # (widget, menu label, callback) — collapsed into the overflow menu below the width breakpoint
+        self._collapsible = [
+            (self.engine_box, "Search engine…", lambda: self.engine_box.showPopup()),
+            (self._nav_papers_btn, "Papers panel (Ctrl+B)", lambda: self.panel.toggleViewAction().trigger()),
+            (self._nav_flag_btn, "Add finding for this page (Ctrl+Shift+F)", lambda: self.add_finding_dialog()),
+            (self.b_checkupd, "Check for updates", lambda: self._check_updates(True)),
+        ]
         n.addWidget(self.b_menu)
+        QTimer.singleShot(0, self._init_responsive_nav)
         tb = QToolBar(objectName="NavToolBar", movable=False, floatable=False)
         tb.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
         tb.addWidget(nav)
@@ -838,7 +860,34 @@ class ChromeMixin:
         if hasattr(self, "_find_input") and self._find_input.text():
             self._do_find(self._find_input.text(), forward)
 
+    def _init_responsive_nav(self):
+        """QA-U1: measure the collapsed toolbar and pin the window's minimum width to it, so the nav can never be
+        compressed into overlapping widgets. Then lay out for the current width."""
+        if not hasattr(self, "_collapsible"):
+            return
+        for w, _l, _c in self._collapsible:
+            w.hide()
+        self.b_overflow.show()
+        self.nav.layout().activate()
+        self.setMinimumWidth(self.nav.minimumSizeHint().width() + 28)
+        self._responsive_nav()
+
+    def _responsive_nav(self):
+        """Show every tool when there's room; below the breakpoint, move the low-priority ones into the overflow
+        menu so nothing overlaps (QA-U1)."""
+        if not hasattr(self, "_collapsible"):
+            return
+        collapse = self.nav.width() < 1180
+        self._overflow_menu.clear()
+        for widget, label, cb in self._collapsible:
+            widget.setVisible(not collapse)
+            if collapse:
+                self._overflow_menu.addAction(label, cb)
+        self.b_overflow.setVisible(collapse)
+
     def eventFilter(self, obj, ev):
+        if obj is getattr(self, "nav", None) and ev.type() == QEvent.Type.Resize:
+            self._responsive_nav()
         if obj is getattr(self, "urlbar", None) and ev.type() == QEvent.Type.Resize:
             self.url_icon.move(11, (self.urlbar.height() - self.url_icon.height()) // 2)
             star = getattr(self, "bm_star", None)
