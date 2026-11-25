@@ -6,6 +6,11 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.5.0
 
+- Data-fetching panels (Overview, Recon, Scanner, DOM, Audit, Repeater response) now show a shimmering loading
+  skeleton while results load, instead of a bare spinner — the wait reads as "content is on its way".
+- Scanner results: the Severity column now appears only when a tool actually reports severities (tools like
+  technology detection and JS-endpoint discovery no longer show a blank column), and severity text is shown in
+  its own colour, bold.
 - Repeater fixes: sending a request from the Traffic list now includes its full headers and body (pulled from
   the intercepting proxy when it's on) instead of an empty body; sending from Intruder keeps the body too. JSON
   request bodies are shown pretty-printed, there's a "Beautify JSON" button, and an edited body is now sent with

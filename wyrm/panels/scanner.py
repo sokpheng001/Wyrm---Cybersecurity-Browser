@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 
 from .common import SEV_COLOR, sev_badge
 from ..security import jsrecon, pdtools, portscan, techdetect, webchecks
-from ..widgets import BusyOverlay
+from ..widgets import SkeletonOverlay
 
 
 class ScannerTab(QWidget):
@@ -118,10 +118,12 @@ class ScannerTab(QWidget):
         self.tree.setHeaderLabels(["Result", "Severity"])
         self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self._has_sev = False
+        self.tree.setColumnHidden(1, True)   # the Severity column appears only when a tool actually reports one
         self.tree.currentItemChanged.connect(self._show)
         self.tree.itemDoubleClicked.connect(lambda it, _c: QGuiApplication.clipboard().setText(it.text(0)))
         split.addWidget(self.tree)
-        self.busy = BusyOverlay(self.tree)
+        self.busy = SkeletonOverlay(self.tree)
         self.detail = QTextBrowser()
         self.detail.setOpenLinks(False)
         self.detail.anchorClicked.connect(lambda u: self.win.open_url(u.toString(), new_tab=True))
@@ -184,14 +186,34 @@ class ScannerTab(QWidget):
                 self.status.setText(f"{label} failed: {res}")
         self.win.runner.run(fn, done)
 
+    # extra severity aliases some tools emit, mapped onto the standard colour scheme
+    _SEV_ALIAS = {"warning": "medium", "informational": "info", "critical": "critical", "high": "high",
+                  "medium": "medium", "low": "low", "info": "info"}
+
     def _add(self, text, sev, detail_html, data=None):
-        it = QTreeWidgetItem([text, sev.upper() if sev else ""])
-        it.setData(0, Qt.ItemDataRole.UserRole, {"title": text, "severity": sev or "info", "detail": detail_html,
+        raw = (sev or "").lower()
+        norm = self._SEV_ALIAS.get(raw)              # a recognised severity, or None for severity-less results
+        color = SEV_COLOR.get(norm) if norm else None
+        it = QTreeWidgetItem([text, norm.upper() if norm else ""])
+        it.setData(0, Qt.ItemDataRole.UserRole, {"title": text, "severity": norm or "info", "detail": detail_html,
                                                  **(data or {})})
-        if sev in SEV_COLOR:
-            it.setForeground(1, QBrush(QColor(SEV_COLOR[sev])))
+        if color:                                    # colour the severity text in its own style, and reveal the column
+            it.setForeground(1, QBrush(QColor(color)))
+            f = it.font(1)
+            f.setBold(True)
+            it.setFont(1, f)
+            if not self._has_sev:
+                self._has_sev = True
+                self.tree.setColumnHidden(1, False)
         self.tree.addTopLevelItem(it)
         return it
+
+    def _clear_results(self):
+        """Clear the results and collapse the Severity column again — it reappears only if the next tool reports a
+        severity, so tools that don't (technologies, JS endpoints, …) never show a blank column."""
+        self.tree.clear()
+        self._has_sev = False
+        self.tree.setColumnHidden(1, True)
 
     def port_scan(self):
         host = self._host()
@@ -200,7 +222,7 @@ class ScannerTab(QWidget):
         nmap, versions = self.use_nmap.isChecked(), self.versions.isChecked()
 
         def render(r):
-            self.tree.clear()
+            self._clear_results()
             for p in r["open"]:
                 sev = "medium" if p["risky"] else "info"
                 note = " — exposed database/admin service: should it be reachable?" if p["risky"] else ""
@@ -217,7 +239,7 @@ class ScannerTab(QWidget):
         px, verify = self.win.proxies(), self.win.verify_tls()
 
         def render(r):
-            self.tree.clear()
+            self._clear_results()
             for f in r["findings"]:
                 self._add(f"CORS: {f['title']}", f["severity"],
                           f"{sev_badge(f['severity'])} <b>{escape(f['title'])}</b><br>Origin sent: <code>"
@@ -244,7 +266,7 @@ class ScannerTab(QWidget):
             return
         if tool.active and not self._authorized(self._host(), f"{tool.name}"):
             return
-        self.tree.clear()
+        self._clear_results()
         self._pd_running = True
         self.pd_run.setEnabled(False)
         self.pd_stop.setEnabled(True)
@@ -308,7 +330,7 @@ class ScannerTab(QWidget):
         px, verify = self.win.proxies(), self.win.verify_tls()
 
         def render(r):
-            self.tree.clear()
+            self._clear_results()
             self._add(f"Clickjacking: {r['verdict']}", r["severity"],
                       f"{sev_badge(r['severity'])} {escape(r['verdict'])}<br><br>X-Frame-Options: <code>"
                       f"{escape(r['x_frame_options'] or '(none)')}</code><br>CSP frame-ancestors: <code>"
@@ -328,7 +350,7 @@ class ScannerTab(QWidget):
             return
         px = self.win.proxies()
         def render(r):
-            self.tree.clear()
+            self._clear_results()
             blocked = r["status"] in (202, 403, 429, 503) and not [n for n, _ in r["tech"] if n.lower() not in
                                                                     ("cloudflare", "http/3", "hsts")]
             info = (f"<b>{escape(r['final_url'])}</b><br>HTTP {escape(str(r['status']))}"
@@ -503,7 +525,7 @@ class ScannerTab(QWidget):
         view.page().runJavaScript(js, have_scripts)
 
     def _js_render(self, r):
-        self.tree.clear()
+        self._clear_results()
         for name, snippet, sev in r["secrets"]:
             self._add(f"Secret: {name}", sev,
                       f"{sev_badge(sev)} <b>{escape(name)}</b><br><br><code>{escape(snippet)}</code>"
