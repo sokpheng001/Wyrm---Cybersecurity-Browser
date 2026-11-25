@@ -126,13 +126,24 @@ class AuditTab(QWidget):
         self.status.setObjectName("Muted")
         self.status.setWordWrap(True)
         foot.addWidget(self.status, 1)
-        add = QPushButton("Add to findings")
-        add.clicked.connect(self._add_finding)
-        foot.addWidget(add)
-        add_all = QPushButton("Add all")
-        add_all.clicked.connect(self._add_all)
-        foot.addWidget(add_all)
+        self.b_add = QPushButton("Add to findings")
+        self.b_add.clicked.connect(self._add_finding)
+        self.b_add.setEnabled(False)
+        self.b_add.setToolTip("Select a result to record it as a finding")
+        foot.addWidget(self.b_add)
+        self.b_add_all = QPushButton("Add all")
+        self.b_add_all.clicked.connect(self._add_all)
+        self.b_add_all.setEnabled(False)
+        self.b_add_all.setToolTip("Run a scan first — there are no results to add")
+        foot.addWidget(self.b_add_all)
+        self.tree.currentItemChanged.connect(lambda *_: self._update_add_buttons())
         v.addLayout(foot)
+
+    def _update_add_buttons(self):
+        """QA-L3: enable the add buttons only when there are results (and a selection, for 'Add to findings')."""
+        has_rows = self.tree.topLevelItemCount() > 0
+        self.b_add_all.setEnabled(has_rows)
+        self.b_add.setEnabled(has_rows and self.tree.currentItem() is not None)
 
     # ------------------------------------------------------------ load + authorize
     def scan_request(self, method, url, headers: dict, body: str):
@@ -141,6 +152,7 @@ class AuditTab(QWidget):
         self.target.setText(f"<b>{escape(method or 'GET')}</b> {escape(url)}")
         self.b_run.setEnabled(True)
         self.tree.clear()
+        self._update_add_buttons()
         self.detail.clear()
         self.win.security.show()
         self.win.security.show_tab("Audit")
@@ -167,6 +179,7 @@ class AuditTab(QWidget):
             return
         import requests
         self.tree.clear()
+        self._update_add_buttons()
         self.detail.clear()
         self._running = True
         self._stop_flag = False
@@ -254,6 +267,7 @@ class AuditTab(QWidget):
                                    "set an engagement scope, browse the target, then run this.")
             return
         self.tree.clear()
+        self._update_add_buttons()
         self.detail.clear()
         self._running = True
         self._stop_flag = False
@@ -286,6 +300,7 @@ class AuditTab(QWidget):
                                    "Crawl + scan — the spider only follows links on in-scope hosts.")
             return
         self.tree.clear()
+        self._update_add_buttons()
         self.detail.clear()
         self._running = True
         self._stop_flag = False
@@ -366,6 +381,7 @@ class AuditTab(QWidget):
         self.tree.insertTopLevelItem(pos, it)
         if self.tree.topLevelItemCount() == 1:
             self.tree.setCurrentItem(it)
+        self._update_add_buttons()   # QA-L3: results now exist
 
     def _on_done(self, ok, res):
         self._running = False
