@@ -178,6 +178,7 @@ class TabsMixin:
             a_other.setEnabled(n > 1)
             a_right = m.addAction("Close tabs to the right", lambda _c=False, j=i: self.close_tabs_to_right(j))
             a_right.setEnabled(i < n - 1)
+        m.addAction("Close all tabs", self.close_all_tabs)
         m.addSeparator()
         a_reopen = m.addAction("Reopen closed tab", self.reopen_closed_tab)
         a_reopen.setEnabled(bool(self._closed_tabs))
@@ -187,6 +188,11 @@ class TabsMixin:
         view = self.tabbar.tabData(i) if i >= 0 else None
         if view is not None:
             self.new_tab(QUrl(view.url()))
+
+    def close_all_tabs(self):
+        """Close every tab; the last one resets to Home so the window stays open (all are kept for Ctrl+Shift+T)."""
+        for j in range(self.tabbar.count() - 1, -1, -1):   # high → low so indices stay valid
+            self.close_tab(j)
 
     def close_other_tabs(self, i: int):
         for j in range(self.tabbar.count() - 1, -1, -1):   # high → low so indices stay valid; keep tab i

@@ -150,8 +150,15 @@ class ScannerTab(QWidget):
             self.pd_box.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
             self.pd_box.setMinimumContentsLength(18)
             for t in self._pd_tools:
-                self.pd_box.addItem(f"{t.name} — {t.desc}", t.key)
-            self.pd_box.setToolTip("Open-source ProjectDiscovery tools detected on this computer")
+                label = f"{t.name} — {t.desc}"
+                self.pd_box.addItem(label, t.key)
+                # the label is truncated in the box; show the full description on hover (box + each drop-down item)
+                self.pd_box.setItemData(self.pd_box.count() - 1, label, Qt.ItemDataRole.ToolTipRole)
+            self.pd_box.currentIndexChanged.connect(
+                lambda _i: self.pd_box.setToolTip(self.pd_box.currentText()
+                                                  or "Open-source ProjectDiscovery tools detected on this computer"))
+            self.pd_box.setToolTip(self.pd_box.currentText()
+                                   or "Open-source ProjectDiscovery tools detected on this computer")
             pd.addWidget(self.pd_box, 1)
             self.pd_run = QPushButton("Run")
             self.pd_run.setObjectName("Primary")
