@@ -6,6 +6,33 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.5.0
 
+- This build: smoother browsing — the start page now updates in place instead of reloading every time news,
+  weather or the vulnerability feed arrives, and Wyrm's own pages no longer flash white when they open.
+- The start-page weather reads "4°C Clear" again (the temperature and condition no longer run together).
+- No more crash when quitting, including private windows.
+- A web page can no longer forge rows in the API & WebSocket capture view; those rows are now labelled
+  "page-reported", and capture also records URL/Request bodies, request headers and failed requests.
+- Anti-fingerprinting no longer makes you stand out: the WebGL graphics card now matches your real operating
+  system, repeated canvas reads give the same result, every frame of a page sees the same values, and your own
+  drawings on a page are never altered.
+- Your AI Triage API key now lives in the system keychain (macOS Keychain, Windows Credential Manager, Linux
+  Secret Service) and is removed from the settings file; Settings → AI has a Test connection button and errors
+  show the HTTP status and reason.
+- Your browsing history, engagements and findings are now private to your user account on this computer, and
+  history is kept in a single place.
+- The Proxy panel shows when upstream TLS isn't being verified, and that choice is now per engagement.
+- Active scans (nuclei, katana, naabu…) are checked against the engagement scope at the moment they start —
+  IP ranges included — and automatic page analysis stays passive.
+- Page info now finds postMessage handlers added with addEventListener.
+- Faster scans: katana crawls small sites about a third faster and also parses JavaScript for endpoints;
+  nuclei's default scan focuses on exposures, misconfigurations, headers and technologies — the same findings
+  as the full template set in about half the time — with a fastest "automatic" mode and the full set one click
+  away.
+- New "Freeze updates" setting (or WYRM_NO_UPDATE=1) for demos and engagements: no automatic app installs and
+  no daily tool/template refresh.
+- macOS builds are ready for Developer ID signing and notarization (enabled once the signing certificate is
+  added to the release workflow).
+
 - Security hardening: anti-fingerprinting no longer reveals that you're using Wyrm and now uses realistic,
   per-session values, so the feature protects your privacy instead of making you easier to single out.
 - Web pages can no longer open restricted addresses (internal pages, local files, or in-page scripts), and a
