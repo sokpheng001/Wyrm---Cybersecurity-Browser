@@ -86,10 +86,11 @@ class ProxyTab(QWidget):
         self.intercept.toggled.connect(self._set_intercept)
         row.addWidget(self.intercept)
         from PySide6.QtCore import QSettings
-        self.http2_cb = QCheckBox("HTTP/2 (experimental)")
-        self.http2_cb.setToolTip("Negotiate and intercept HTTP/2 (h2) as well as HTTP/1.1. Experimental — applies "
-                                 "after you restart Wyrm.")
-        self.http2_cb.setChecked(QSettings().value("mitm/http2", False, type=bool))
+        self.http2_cb = QCheckBox("HTTP/2 (h2)")
+        self.http2_cb.setToolTip("Negotiate and intercept HTTP/2 (h2) as well as HTTP/1.1, so modern sites are "
+                                 "captured fully. On by default; streams are handled concurrently. Applies after "
+                                 "you restart Wyrm.")
+        self.http2_cb.setChecked(QSettings().value("mitm/http2", True, type=bool))
         self.http2_cb.setEnabled(active)
         self.http2_cb.toggled.connect(self._set_http2)
         row.addWidget(self.http2_cb)

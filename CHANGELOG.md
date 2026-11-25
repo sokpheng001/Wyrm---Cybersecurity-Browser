@@ -6,6 +6,8 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.5.0
 
+- HTTP/2 interception is now on by default in the intercepting proxy and handles a page's many streams at the
+  same time, so modern sites are captured fully without slowing down (it was previously experimental and off).
 - This build: smoother browsing — the start page now updates in place instead of reloading every time news,
   weather or the vulnerability feed arrives, and Wyrm's own pages no longer flash white when they open.
 - The start-page weather reads "4°C Clear" again (the temperature and condition no longer run together).

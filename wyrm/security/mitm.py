@@ -202,7 +202,7 @@ def start_if_enabled(data_dir: Path):
         uninstall_ca()                                # drop any stale CA from a prior session before trusting ours
         install_ca(ca.ca_cert_path)                   # keep the trusted CA in sync with the fresh on-disk one
         proxy = MitmProxy(ca)
-        proxy.http2 = QSettings().value("mitm/http2", False, type=bool)   # experimental; off by default
+        proxy.http2 = QSettings().value("mitm/http2", True, type=bool)   # on by default (concurrent h2 interception)
         port = proxy.start(0)
         ACTIVE = proxy
         return [f"--proxy-server=127.0.0.1:{port}", "--proxy-bypass-list=<-loopback>"]
