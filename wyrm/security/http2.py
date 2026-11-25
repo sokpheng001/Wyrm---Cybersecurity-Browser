@@ -131,7 +131,7 @@ class Http2Handler:
             if not any(k.lower() == "host" for k, _ in req_headers):   # HTTP/1.1 upstream needs a Host header
                 req_headers.insert(0, ("Host", authority))
             req = {"scheme": "https", "host": host, "port": 443, "method": method, "path": path,
-                   "headers": req_headers, "body": bytes(s["data"])}
+                   "headers": req_headers, "body": bytes(s["data"]), "client_proto": "h2"}
             res = self.fetch(req)                     # SLOW: upstream + interception. Deliberately off the lock.
             if self.is_stopped() or sid in self._reset:
                 return

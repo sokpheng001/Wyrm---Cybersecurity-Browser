@@ -604,6 +604,8 @@ class MitmProxy:
         flow = {"time": time.strftime("%H:%M:%S"), "ts": started, "method": method, "scheme": scheme, "host": host,
                 "path": path, "url": f"{scheme}://{host}{path}", "status": status, "reason": reason,
                 "req_headers": headers, "req_body": body, "resp_headers": rheaders, "resp_body": rbody,
+                # protocol the browser used to reach the proxy ('h2' or 'http/1.1'); upstream is HTTP/1.1
+                "client_proto": req.get("client_proto", "http/1.1"),
                 "ms": int((time.time() - started) * 1000)}
         # response rewriting (Workflows match/replace on responses): mutate the flow in place
         for rw in self.response_rewriters:
@@ -638,7 +640,7 @@ class MitmProxy:
     def _transaction(self, scheme, host, port, method, path, headers, body, out_sock) -> bool:
         """Forward one HTTP/1.1 request upstream, relay the response to out_sock, capture the flow. Keep-alive?"""
         req = {"scheme": scheme, "host": host, "port": port, "method": method, "path": path,
-               "headers": list(headers), "body": body}
+               "headers": list(headers), "body": body, "client_proto": "http/1.1"}
         res = self._fetch(req)
         if res.get("dropped"):
             msg = b"Wyrm proxy: request dropped"

@@ -110,11 +110,12 @@ class ProxyTab(QWidget):
 
         split = QSplitter(Qt.Orientation.Vertical)
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabels(["Time", "Method", "Status", "URL"])
+        self.tree.setHeaderLabels(["Time", "Method", "Status", "Proto", "URL"])
         self.tree.setRootIsDecorated(False)
         self.tree.setColumnWidth(0, 70)
         self.tree.setColumnWidth(1, 60)
         self.tree.setColumnWidth(2, 55)
+        self.tree.setColumnWidth(3, 62)   # Proto: 'h2' or 'http/1.1' — shows the intercepted protocol
         self.tree.currentItemChanged.connect(self._show)
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._menu)
@@ -225,7 +226,7 @@ class ProxyTab(QWidget):
     # ------------------------------------------------------------ UI (main thread)
     def _on_flow(self, fl):
         it = QTreeWidgetItem([fl.get("time", ""), fl.get("method", ""), str(fl.get("status", "")),
-                              fl.get("url", "")[:300]])
+                              fl.get("client_proto", ""), fl.get("url", "")[:300]])
         it.setData(0, Qt.ItemDataRole.UserRole, fl)
         self.tree.addTopLevelItem(it)
         self._filter_item(it)
@@ -239,7 +240,8 @@ class ProxyTab(QWidget):
     def _on_hold(self, hid, fl):
         self._held_current = hid
         # select/refresh the detail with an editable response body
-        it = QTreeWidgetItem([fl.get("time", ""), fl.get("method", ""), "HELD", fl.get("url", "")[:300]])
+        it = QTreeWidgetItem([fl.get("time", ""), fl.get("method", ""), "HELD",
+                              fl.get("client_proto", ""), fl.get("url", "")[:300]])
         it.setData(0, Qt.ItemDataRole.UserRole, fl)
         self.tree.addTopLevelItem(it)
         self.tree.setCurrentItem(it)
@@ -434,7 +436,7 @@ class ProxyTab(QWidget):
         if hay is None:
             fl = it.data(0, Qt.ItemDataRole.UserRole) or {}
             parts = [fl.get("url", ""), fl.get("method", ""), str(fl.get("status", "")),
-                     _as_text(fl.get("req_body", b""))]
+                     fl.get("client_proto", ""), _as_text(fl.get("req_body", b""))]
             parts += [f"{k}: {v}" for k, v in fl.get("req_headers", [])]
             parts += [f"{k}: {v}" for k, v in fl.get("resp_headers", [])]
             try:

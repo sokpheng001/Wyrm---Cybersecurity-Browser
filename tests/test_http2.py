@@ -142,6 +142,25 @@ def test_large_body_streams_across_flow_control():
         srv.close(); cli.close()
 
 
+def test_request_is_tagged_as_h2():
+    seen = {}
+
+    def fetch(req):
+        seen.update(req)
+        return {"status": 200, "reason": "OK", "headers": [], "body": b"ok"}
+
+    srv, cli = _pair()
+    h, t, stop = _run_handler(srv, fetch)
+    try:
+        c = _Client(cli)
+        c.request("/p", b"x")
+        c.pump(want=1)
+        assert seen.get("client_proto") == "h2", "h2 streams must be tagged so the Proxy panel shows the protocol"
+    finally:
+        stop["v"] = True
+        srv.close(); cli.close()
+
+
 def test_dropped_request_resets_the_stream():
     def fetch(req):
         return {"dropped": True}
