@@ -21,8 +21,8 @@ from urllib.parse import quote, urlparse
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QGuiApplication
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QSplitter,
-    QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QCheckBox, QComboBox, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton,
+    QSplitter, QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from .common import SEV_COLOR, sev_badge
@@ -119,8 +119,12 @@ class ScannerTab(QWidget):
             opts.addStretch(1)
             v.addLayout(opts)
 
-        btns = QHBoxLayout()
-        for label, fn, tip in (
+        # QA-M3: a 3-column grid so the six action buttons wrap instead of forcing the panel wider than the dock
+        btns = QGridLayout()
+        btns.setSpacing(6)
+        for c in range(3):
+            btns.setColumnStretch(c, 1)
+        for i, (label, fn, tip) in enumerate((
                 ("Technologies", self.technologies, "What the site is built with: CMS, frameworks, servers, analytics "
                  "(Wappalyzer-style, built in). One normal request, like opening the page."),
                 ("JS recon", self.js_recon, "Pull endpoints, API paths and leaked secrets (API keys, tokens) "
@@ -128,12 +132,11 @@ class ScannerTab(QWidget):
                 ("Port scan", self.port_scan, "Top 100 TCP ports (TCP connect, polite timing)"),
                 ("CORS test", self.cors, "Crafted Origin headers — after Chen et al., USENIX Security 2018"),
                 ("Clickjacking test", self.clickjacking, "Frame protection — after Huang et al., USENIX Security 2012"),
-                ("Framing proof-of-concept", self.frame_poc, "Open a local page that frames the target")):
+                ("Framing proof-of-concept", self.frame_poc, "Open a local page that frames the target"))):
             b = QPushButton(label)
             b.setToolTip(tip)
             b.clicked.connect(fn)
-            btns.addWidget(b)
-        btns.addStretch(1)
+            btns.addWidget(b, i // 3, i % 3)
         v.addLayout(btns)
 
         # ProjectDiscovery tools — only the ones installed on this machine are offered (like nmap)
@@ -142,6 +145,10 @@ class ScannerTab(QWidget):
             pd = QHBoxLayout()
             pd.addWidget(QLabel("ProjectDiscovery"))
             self.pd_box = QComboBox()
+            # QA-M3: the tool descriptions are long; cap the combo's minimum width so it doesn't force the whole
+            # panel wider than the dock (the full text still shows in the drop-down).
+            self.pd_box.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            self.pd_box.setMinimumContentsLength(18)
             for t in self._pd_tools:
                 self.pd_box.addItem(f"{t.name} — {t.desc}", t.key)
             self.pd_box.setToolTip("Open-source ProjectDiscovery tools detected on this computer")
