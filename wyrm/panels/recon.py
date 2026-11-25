@@ -40,6 +40,29 @@ def _host_from_text(text: str) -> str:
     return host[4:] if host.startswith("www.") else host
 
 
+def _origin_from(text: str, stored: str = ""):
+    """Derive (origin, host) for a well-known lookup, preserving the real scheme and port (QA-H2):
+      - a full URL keeps its scheme + netloc ('http://127.0.0.1:8765/x' -> 'http://127.0.0.1:8765'),
+      - a host:port keeps the port (non-443 -> http),
+      - a bare hostname defaults to https://,
+      - a `stored` origin (from 'Use current') wins when it's for the same host.
+    Returns (None, None) when there's no host."""
+    text = (text or "").strip()
+    host = _host_from_text(text)
+    if not host:
+        return None, None
+    if stored and _host_from_text(stored) == host:
+        return stored, host
+    if "://" in text:
+        p = urlparse(text)
+        scheme = p.scheme if p.scheme in ("http", "https") else "https"
+        return f"{scheme}://{p.netloc}", host
+    netloc = text.split("/")[0]                       # host or host:port
+    port = netloc.rsplit(":", 1)[1] if ":" in netloc and netloc.rsplit(":", 1)[1].isdigit() else ""
+    scheme = "https" if (not port or port == "443") else "http"
+    return f"{scheme}://{netloc}", host
+
+
 def _is_ip_or_local(host: str) -> bool:
     """True for IP literals and localhost — crt.sh certificate-transparency search doesn't apply to them."""
     h = host.strip("[]")
@@ -112,7 +135,20 @@ class ReconTab(QWidget):
             self.status.setText("Open an http(s) site first, then “Use current”.")
             return
         host = u.host()                               # QUrl.host(): no scheme/port/userinfo/path
+        # QA-H2: remember the full origin (scheme + non-default port) for the well-known lookup, which must not
+        # be forced to https:// on the default port. crt.sh/Wayback/Chaos still use the host alone.
+        port = u.port()
+        self._origin_url = f"{u.scheme()}://{host}" + (f":{port}" if port > 0 and port not in (80, 443) else "")
         self.domain.setText(host[4:] if host.startswith("www.") else host)
+
+    def _origin(self):
+        """(origin, host) for the well-known lookup: the last 'Use current' origin when it matches the box, else
+        derived from the typed text. See _origin_from() (QA-H2)."""
+        text = self.domain.text().strip()
+        if not text:
+            self.use_current()
+            text = self.domain.text().strip()
+        return _origin_from(text, getattr(self, "_origin_url", ""))
 
     def _target(self) -> str | None:
         d = _host_from_text(self.domain.text())
@@ -166,19 +202,38 @@ class ReconTab(QWidget):
         self._run("Wayback", intel.wayback_urls, render)
 
     def well_known(self):
-        def render(d, r):
+        origin, host = self._origin()
+        if not origin:
+            return
+        eng = self.win.engagement
+        if eng and eng.scope and not eng.in_scope(host):
+            self.items = []
+            self._render()
+            QMessageBox.warning(self, "Out of scope", f"{host} is not in the scope of '{eng.name}'.")
+            return
+
+        def render(_d, r):
             self.items = []
             for name in ("security.txt", "robots.txt", "sitemap.xml"):
                 x = r[name]
+                if x["status"] is None:               # QA-H2: a refused/failed connection, not a 404
+                    self.items.append((f"── {name}: request failed ({x.get('error', 'no response')})", ""))
+                    continue
                 self.items.append((f"── {name}: {'found' if x['found'] else 'not found'} (HTTP {x['status']})", ""))
                 if name == "security.txt" and x["found"]:
                     self.items += [(f"   {line}", "disclosure policy") for line in x["text"].splitlines()[:30] if line.strip()]
             self.items += [(u, "Disallow in robots.txt") for u in r["disallowed"]]
             self.items += [(u, "sitemap") for u in r["sitemap_urls"]]
-            self.status.setText(f"{len(r['disallowed'])} disallowed paths · {len(r['sitemap_urls'])} sitemap URLs. "
-                                "security.txt tells you how the owner wants vulnerabilities reported.")
+            self.status.setText(f"{len(r['disallowed'])} disallowed paths · {len(r['sitemap_urls'])} sitemap URLs "
+                                f"for {origin}. security.txt tells you how the owner wants vulnerabilities reported.")
             self._render()
-        self._run("Well-known files", lambda d: intel.well_known(f"https://{d}"), render)
+        self.status.setText(f"Well-known files for {origin}…")
+        self.busy.start("Well-known files…")
+
+        def done(ok, r):
+            self.busy.stop()
+            render(origin, r) if ok else self.status.setText(f"Well-known files failed: {r}")
+        self.win.runner.run(intel.well_known, done, origin)
 
     # ---- ProjectDiscovery Chaos (public bug-bounty recon data) — developer: @oda
     def chaos_search(self):
