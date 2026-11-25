@@ -5,8 +5,10 @@
 #------------------------------------------------------------------------------
 """Security panel → Audit: active vulnerability scan of a single request (from Proxy / Repeater).
 
-Send a request here ("Scan this request"), and Wyrm fuzzes its insertion points for reflected XSS, SQL injection,
-SSTI, path traversal, open redirect and CRLF, plus passive response checks — results stream in and can be added
+Send a request here ("Scan this request"), and Wyrm fuzzes its insertion points (params, path segments, cookies,
+headers) for reflected XSS, SQL injection (error + blind), command injection, SSRF, SSTI, path traversal, XXE,
+CORS, host-header injection, GraphQL introspection, open redirect and CRLF, plus passive response checks
+(exposed secrets/tokens/cards, weak JWTs, mixed content, CSRF) — results stream in and can be added
 to Findings. Active scanning only runs on hosts inside the current engagement scope.
 """
 from __future__ import annotations
@@ -67,8 +69,11 @@ class AuditTab(QWidget):
 
         v = QVBoxLayout(self)
         intro = QLabel("<b>Audit</b> — active vulnerability scan of one request. From the <b>Proxy</b> history or "
-                       "<b>Repeater</b>, right-click → <b>Scan this request</b>. It fuzzes each parameter for reflected "
-                       "XSS, SQLi, SSTI, path traversal, open redirect and CRLF (plus passive checks). "
+                       "<b>Repeater</b>, right-click → <b>Scan this request</b>. It fuzzes each parameter and URL "
+                       "path segment for reflected XSS, SQL injection (error / blind boolean / blind time-based), "
+                       "command injection, SSRF (incl. cloud metadata), SSTI, path traversal, XXE, CORS and "
+                       "host-header injection, GraphQL introspection, open redirect and CRLF — plus passive checks "
+                       "for exposed secrets, tokens, cards, weak JWTs, mixed content and missing CSRF tokens. "
                        "Active scanning only runs on hosts in your engagement scope.")
         intro.setObjectName("Muted")
         intro.setWordWrap(True)
