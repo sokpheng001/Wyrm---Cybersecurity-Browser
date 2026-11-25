@@ -47,19 +47,27 @@ class RateLimiter:
 
 
 def scan(request: dict, send, checks=None, should_stop=None, on_finding=None, passive=True, oob=None,
-         seen=None, lock=None) -> list[dict]:
+         seen=None, lock=None, max_requests: int = 2500) -> list[dict]:
     """Audit one request. `send(method, url, headers, body)` performs a request (scope is the caller's job).
-    Pass a shared `seen` set (and `lock`) to de-duplicate findings across several concurrent requests (scan_site)."""
+    Pass a shared `seen` set (and `lock`) to de-duplicate findings across several concurrent requests (scan_site).
+    `max_requests` caps how many probe requests this scan may send to the target (safety / politeness); the scan
+    stops gracefully once it's reached."""
     checks = checks if checks is not None else ALL_CHECKS
-    should_stop = should_stop or (lambda: False)
+    _user_stop = should_stop or (lambda: False)
     rand = _rand()
     method = request.get("method", "GET")
     url = request["url"]
     headers = dict(request.get("headers") or {})
     body = request.get("body", "") or ""
 
+    sent = [0]
+
     def bound(u, h, b):   # bind this request's method so checks call send(url, headers, body)
+        sent[0] += 1
         return send(method, u, h, b)
+
+    def should_stop():    # stop on the caller's request OR once the per-scan request budget is spent
+        return _user_stop() or sent[0] >= max_requests
 
     baseline = bound(url, headers, body)
     findings: list[dict] = []

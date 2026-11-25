@@ -439,6 +439,20 @@ def test_passive_clean_response_has_no_secret_findings():
     assert not [f for f in out if f["title"].startswith("Secret exposed")]
 
 
+def test_scan_respects_request_budget():
+    from wyrm.security.audit import engine
+    calls = [0]
+
+    def send(method, url, headers, body):
+        calls[0] += 1
+        return {"status": 200, "headers": {}, "text": "ok", "location": "", "url": url}
+
+    req = {"method": "GET", "url": "https://t.test/p?a=1&b=2&c=3&d=4", "headers": {}, "body": ""}
+    # a tiny budget must stop the scan early (unbounded this would be hundreds of requests for 4 params x N checks)
+    engine.scan(req, send, checks=chk.standard(time_based=False), passive=False, max_requests=5)
+    assert calls[0] <= 20, f"budget not honoured: {calls[0]} requests sent"
+
+
 def test_engine_end_to_end_finds_multiple_vuln_classes():
     """A deliberately vulnerable fake app: reflects input (XSS), errors on a quote (SQLi), and reflects the
     Origin with credentials (CORS). The full engine (insertion points + all checks + passive + request-level)
