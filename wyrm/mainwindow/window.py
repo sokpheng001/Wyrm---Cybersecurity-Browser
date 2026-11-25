@@ -95,6 +95,11 @@ class MainWindow(
             # draw right up to the top edge (the tab strip *is* the title bar) instead of below it
             self.setAttribute(Qt.WidgetAttribute.WA_ContentsMarginsRespectsSafeArea, False)
         self.settings = QSettings()
+        # F4/F5: move a plain-text AI key out of QSettings into the OS keyring; drop an invalid placeholder model
+        from .. import secretstore
+        from ..security import triage
+        secretstore.migrate(self.settings)
+        triage.migrate_model_setting(self.settings)
         self.theme_mode = self.settings.value("theme", "system")
         if self.theme_mode not in ("dark", "light", "hacker", "system"):
             self.theme_mode = "system"

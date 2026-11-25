@@ -264,12 +264,31 @@ class SettingsDialog(QDialog):
         from . import secretstore
         self.ai_key = QLineEdit(secretstore.get(self.settings, "ai/api_key"))
         self.ai_key.setEchoMode(QLineEdit.EchoMode.Password)
-        self.ai_key.setPlaceholderText("API key (encrypted on this device)" if secretstore.available()
-                                       else "API key (kept only on this device)")
+        kr_ok, kr_text = secretstore.keyring_status()   # F4: OS keyring, never plain text on disk
+        self.ai_key.setPlaceholderText("API key (stored in your system keyring)" if kr_ok
+                                       else "API key (kept for this session only)")
         self._row(lay, "API key", self.ai_key, "ai triage llm key")
+        if kr_ok:
+            self._note(lay, kr_text + ".")
+        else:
+            warn = QLabel("⚠ " + kr_text)
+            warn.setWordWrap(True)
+            warn.setStyleSheet("color:#da1e28")
+            lay.addWidget(warn)
+        from .security import triage as _triage
         self.ai_model = QLineEdit(self.settings.value("ai/model", "", type=str))
-        self.ai_model.setPlaceholderText("Model name (e.g. your provider's model id)")
+        self.ai_model.setPlaceholderText(f"Model id (blank = {_triage.DEFAULT_MODEL})")
         self._row(lay, "Model", self.ai_model, "ai triage llm model")
+        test_row = QWidget()   # F5: Test connection
+        th = QHBoxLayout(test_row)
+        th.setContentsMargins(0, 0, 0, 0)
+        self.ai_test = QPushButton("Test connection")
+        self.ai_test.clicked.connect(self._test_ai)
+        self.ai_test_result = QLabel("")
+        self.ai_test_result.setWordWrap(True)
+        th.addWidget(self.ai_test)
+        th.addWidget(self.ai_test_result, 1)
+        self._row(lay, "", test_row, "ai triage test connection")
         self._note(lay, "Powers the human-in-the-loop AI Triage tool (Tools → AI Triage). Non-destructive, "
                         "scope-gated. Leave blank to disable.")
         lay.addStretch(1)
@@ -370,6 +389,19 @@ class SettingsDialog(QDialog):
         if d:
             self.dl_folder.setText(d)
 
+    def _test_ai(self):
+        from .security import triage
+        key, model = self.ai_key.text().strip(), self.ai_model.text().strip() or triage.DEFAULT_MODEL
+        self.ai_test.setEnabled(False)
+        self.ai_test_result.setStyleSheet("")
+        self.ai_test_result.setText("Testing…")
+
+        def done(ok, r):
+            self.ai_test.setEnabled(True)
+            self.ai_test_result.setStyleSheet("color:#24a148" if ok else "color:#da1e28")
+            self.ai_test_result.setText(str(r) if ok else f"Failed — {r}")
+        self.win.runner.run(lambda: triage.test_connection(key, model), done)
+
     def _save(self):
         s = self.settings
         s.setValue("search/engine", self.engine.currentData())
@@ -378,7 +410,7 @@ class SettingsDialog(QDialog):
         s.setValue("general/restore_tabs", self.restore_tabs.isChecked())
         s.setValue("sec/auto", self.autoanalyze.isChecked())
         from . import secretstore
-        secretstore.set(s, "ai/api_key", self.ai_key.text())   # encrypted at rest (DPAPI on Windows) — SEC-7
+        secretstore.set(s, "ai/api_key", self.ai_key.text())   # OS keyring (F4); never plain text in QSettings
         s.setValue("ai/model", self.ai_model.text().strip())
         s.setValue("privacy/https_only", self.https_only.isChecked())
         s.setValue("privacy/geo_mode", self.geo_mode.currentData())

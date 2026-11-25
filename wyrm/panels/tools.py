@@ -2,7 +2,7 @@
 # Wyrm — wyrm/panels/tools.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: Kim, Oda, Kwan, Naly
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """Security panel → Tools: Decoder, JWT, Hash, Repeater, Match & Replace, Comparer, Sequencer, AI Triage."""
 from __future__ import annotations
@@ -101,7 +101,12 @@ class ToolsTab(QWidget):
             if ok:
                 self.tr_out.setHtml("<pre style='white-space:pre-wrap'>" + escape(r) + "</pre>")
             else:
-                self.tr_out.setHtml(f"<p style='color:#da1e28'>Triage failed: {escape(str(r))}</p>")
+                status = getattr(r, "status", None)
+                head = (f"HTTP {status}" if status else "Couldn't reach the AI endpoint") if status is not None \
+                    else "Triage failed"
+                reason = getattr(r, "reason", None) or str(r) or type(r).__name__
+                self.tr_out.setHtml(f"<p style='color:#da1e28'><b>{escape(head)}</b> — {escape(reason)}</p>"
+                                    "<p style='color:#8d8d8d'>Check Settings → AI (Test connection).</p>")
         self.win.runner.run(lambda: triage.triage(content, scope, key, model), done)
 
     # ---------------------------------------------------------------- Comparer

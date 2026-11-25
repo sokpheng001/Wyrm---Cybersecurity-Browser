@@ -2,7 +2,7 @@
 # Wyrm — wyrm.spec
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 # PyInstaller spec - works on Windows, macOS and Linux (build on each OS; no cross-compiling).
 #   pyinstaller --noconfirm wyrm.spec
@@ -35,7 +35,7 @@ a = Analysis(
            ("wyrm/assets", "wyrm/assets"), ("CHANGELOG.md", ".")]
           # ProjectDiscovery tools (tools/fetch_pdtools.py); skipped if not fetched (e.g. a quick local build)
           + ([("wyrm/bin", "wyrm/bin")] if os.path.isdir("wyrm/bin") else []),
-    hiddenimports=["PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtSvg", "PySide6.QtNetwork", "PySide6.QtPositioning", "adblock", "stem", "stem.process", "stem.control", "socks", "wyrm.security.triage", "wyrm.security.fuzzer", "wyrm.security.secsearch", "wyrm.security.rewrite", "wyrm.security.mitm", "wyrm.security.har", "wyrm.security.payloads", "wyrm.security.wsframe", "wyrm.security.workflows", "wyrm.security.sessionauth", "wyrm.security.http2", "wyrm.addons", "wyrm.addons.api", "wyrm.addons.loader", "wyrm.panels.addons", "wyrm.panels.audit", "wyrm.security.audit", "wyrm.security.audit.points", "wyrm.security.audit.checks", "wyrm.security.audit.passive", "wyrm.security.audit.engine", "wyrm.security.audit.spider", "wyrm.security.audit.advice", "cryptography", "certifi", "h2", "hpack", "hyperframe"],
+    hiddenimports=["PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtSvg", "PySide6.QtNetwork", "PySide6.QtPositioning", "adblock", "stem", "stem.process", "stem.control", "socks", "wyrm.security.triage", "wyrm.security.fuzzer", "wyrm.security.secsearch", "wyrm.security.rewrite", "wyrm.security.mitm", "wyrm.security.har", "wyrm.security.payloads", "wyrm.security.wsframe", "wyrm.security.workflows", "wyrm.security.sessionauth", "wyrm.security.http2", "wyrm.addons", "wyrm.addons.api", "wyrm.addons.loader", "wyrm.panels.addons", "wyrm.panels.audit", "wyrm.security.audit", "wyrm.security.audit.points", "wyrm.security.audit.checks", "wyrm.security.audit.passive", "wyrm.security.audit.engine", "wyrm.security.audit.spider", "wyrm.security.audit.advice", "cryptography", "certifi", "h2", "hpack", "hyperframe", "keyring", "keyring.backends", "keyring.backends.macOS", "keyring.backends.Windows", "keyring.backends.SecretService", "keyring.backends.kwallet", "keyring.backends.chainer", "keyring.backends.fail", "keyring.backends.null"],
     # trim Qt modules we never use (keeps the bundle smaller)
     excludes=["PySide6.Qt3DCore", "PySide6.QtQuick3D", "PySide6.QtCharts", "PySide6.QtDataVisualization",
               "PySide6.QtMultimedia", "PySide6.QtBluetooth", "PySide6.QtSensors", "PySide6.QtSerialPort",
