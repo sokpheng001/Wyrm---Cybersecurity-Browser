@@ -81,6 +81,35 @@ def test_blind_sqli_is_in_the_standard_thorough_set_only():
     assert sb and sb[0].time_based is False
 
 
+def test_passive_detects_leaked_secrets_redacted():
+    from wyrm.security.audit import passive
+    body = (
+        "var cfg = {region:'us-east-1'};\n"
+        "const AWS_KEY = 'AKIAIOSFODNN7EXAMPLE';\n"
+        "apiKey: 'sk_live_abcdef....redactme....0123456789';\n"
+        "-----BEGIN RSA PRIVATE KEY-----\nMIIExxxx\n-----END RSA PRIVATE KEY-----\n"
+    )
+    out = passive.check_response("https://app.test/main.js",
+                                 {"headers": {"content-type": "application/javascript"}, "status": 200, "text": body})
+    titles = [f["title"] for f in out]
+    assert any("AWS access key id" in t for t in titles)
+    assert any("Private key block" in t for t in titles)
+    assert any(f["severity"] == "high" for f in out if f["title"].startswith("Secret exposed"))
+    # evidence must be redacted — the full AWS key must not appear in any finding
+    assert all("AKIAIOSFODNN7EXAMPLE" not in f["evidence"] for f in out)
+
+
+def test_passive_clean_response_has_no_secret_findings():
+    from wyrm.security.audit import passive
+    out = passive.check_response("https://app.test/clean.js",
+                                 {"headers": {"content-type": "application/javascript",
+                                              "content-security-policy": "default-src 'self'",
+                                              "x-content-type-options": "nosniff",
+                                              "strict-transport-security": "max-age=1"},
+                                  "status": 200, "text": "console.log('hello world');"})
+    assert not [f for f in out if f["title"].startswith("Secret exposed")]
+
+
 if __name__ == "__main__":
     import traceback
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

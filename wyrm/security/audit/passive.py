@@ -12,6 +12,27 @@ import re
 _ERROR_SIG = re.compile(r"Traceback \(most recent call last\)|Fatal error:|Exception in thread|<b>Warning</b>:|"
                         r"ORA-\d{5}|\.java:\d+\)|org\.apache\.|System\.Web\.|Microsoft \.NET Framework", re.I)
 
+# High-signal secret/credential patterns that should never appear in a response body. Kept specific to keep
+# false positives low; evidence is always redacted so the finding itself doesn't store the full secret.
+_SECRETS = [
+    ("AWS access key id", re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "high"),
+    ("Google API key", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b"), "medium"),
+    ("Slack token", re.compile(r"\bxox[baprs]-[0-9A-Za-z-]{10,48}\b"), "high"),
+    ("GitHub token", re.compile(r"\bgh[pousr]_[0-9A-Za-z]{36,}\b"), "high"),
+    ("Stripe secret key", re.compile(r"\bsk_live_[0-9A-Za-z]{24,}\b"), "high"),
+    ("Google OAuth client secret", re.compile(r"\bGOCSPX-[0-9A-Za-z_\-]{20,}\b"), "high"),
+    ("Private key block", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----"), "high"),
+    ("Hard-coded secret assignment",
+     re.compile(r"""(?i)(?:api[_-]?key|secret|token|passwd|password)["']?\s*[:=]\s*["']([0-9A-Za-z/\+\-_]{16,})["']"""),
+     "medium"),
+]
+
+
+def _redact(s: str) -> str:
+    """Show just enough to recognise a secret without storing it in full."""
+    s = s.strip()
+    return (s[:4] + "…(" + str(len(s)) + " chars)") if len(s) > 8 else "(redacted)"
+
 
 def check_response(url: str, resp: dict) -> list[dict]:
     out = []
@@ -49,4 +70,14 @@ def check_response(url: str, resp: dict) -> list[dict]:
             add(f"Cookie without HttpOnly flag: {name}", "low", c[:120])
     if _ERROR_SIG.search(text):
         add("Verbose error / stack trace", "low", "The response body contains a stack trace or verbose error.")
+    seen_secrets = set()
+    for name, rx, sev in _SECRETS:
+        if name in seen_secrets:
+            continue
+        m = rx.search(text)
+        if m:
+            seen_secrets.add(name)
+            hit = m.group(1) if (m.groups() and m.group(1)) else (m.group(0) if "PRIVATE KEY" not in m.group(0) else "")
+            ev = f"{name} exposed in the response body" + (f": {_redact(hit)}" if hit else ".")
+            add(f"Secret exposed: {name}", sev, ev)
     return out
