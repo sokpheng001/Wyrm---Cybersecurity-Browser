@@ -73,6 +73,36 @@ def test_per_point_addon_check_also_runs():
     assert any(f["title"] == "Point add-on finding" for f in findings)
 
 
+def _load_example(rel):
+    import importlib.util
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples", "addons", rel)
+    spec = importlib.util.spec_from_file_location("wyrm_example_addon", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_example_permissions_policy_addon():
+    mod = _load_example(os.path.join("permissions-policy-check", "main.py"))
+    ctx, win = _ctx()
+    mod.register(ctx)
+    assert len(win._addon_scan_checks) == 1
+
+    def send_missing(method, url, headers, body):
+        return {"status": 200, "headers": {"content-type": "text/html"}, "text": "<h1>hi</h1>",
+                "location": "", "url": url}
+
+    def send_present(method, url, headers, body):
+        return {"status": 200, "headers": {"content-type": "text/html", "permissions-policy": "geolocation=()"},
+                "text": "<h1>hi</h1>", "location": "", "url": url}
+
+    req = {"method": "GET", "url": "http://t.test/", "headers": {}, "body": ""}
+    flagged = engine.scan(req, send_missing, checks=win._addon_scan_checks, passive=False)
+    assert any(f["check"] == "addon-permissions-policy" for f in flagged)
+    clean = engine.scan(req, send_present, checks=win._addon_scan_checks, passive=False)
+    assert not any(f["check"] == "addon-permissions-policy" for f in clean)
+
+
 if __name__ == "__main__":
     import traceback
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

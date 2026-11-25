@@ -1,0 +1,8 @@
+{
+  "name": "Permissions-Policy checker",
+  "version": "1.0.0",
+  "entry": "main.py",
+  "author": "Wyrm examples",
+  "description": "Example add-on: registers a scanner check that flags responses with no Permissions-Policy header.",
+  "permissions": ["scanner"]
+}
