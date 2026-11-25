@@ -285,7 +285,7 @@ form.big{max-width:620px;margin:0 auto;position:relative;display:block}
   border:1px solid var(--border);border-radius:0;background:var(--field);color:var(--fg);transition:border-color .15s}
 .big input:focus{outline:none;border:2px solid var(--focus)}
 .big input::placeholder{color:var(--helper)}
-.big .mag{position:absolute;left:18px;top:0;height:54px;display:flex;align-items:center;color:var(--muted)}
+.big .mag{position:absolute;left:18px;top:0;height:54px;display:flex;align-items:center;color:var(--muted);z-index:1}
 .big button{position:absolute;right:0;top:0;height:54px;width:100px;padding:0;text-align:center;border-radius:0}
 .ex{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:16px 0 0}
 .ex a{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:5px 12px;border-radius:16px;background:var(--layer);color:var(--fg)}
@@ -473,11 +473,11 @@ body.hasbg .credit b,body.hasbg .modeline b{color:#ffffff}
 body.hasbg .tile,body.hasbg .feed a.cve,body.hasbg .news a.it{
   backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);
   box-shadow:0 8px 30px rgba(0,0,0,.18)}
-body.hasbg .big input{background:rgba(255,255,255,.60);border:1px solid rgba(255,255,255,.55);
+body.hasbg .big input{background:rgba(255,255,255,.88);border:1px solid rgba(255,255,255,.65);
   backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);
-  box-shadow:0 8px 30px rgba(0,0,0,.18);color:#161616}
-body.hasbg .big input::placeholder{color:rgba(0,0,0,.5)}
-body.hasbg .big .mag{color:rgba(0,0,0,.55)}
+  box-shadow:0 8px 30px rgba(0,0,0,.18);color:#161616}   /* QA-U7: WCAG-AA contrast in Light theme */
+body.hasbg .big input::placeholder{color:rgba(0,0,0,.62)}
+body.hasbg .big .mag{color:rgba(0,0,0,.62);z-index:1}   /* QA-U7: keep the magnifier above the input's backdrop */
 body.hasbg .pill,body.hasbg .ex a{backdrop-filter:blur(12px) saturate(160%);
   -webkit-backdrop-filter:blur(12px) saturate(160%);border:1px solid rgba(255,255,255,.35)}
 :root[data-theme=dark] body.hasbg .big input{background:rgba(20,20,28,.55);border:1px solid rgba(255,255,255,.18);
