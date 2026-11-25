@@ -274,6 +274,7 @@ main.home{max-width:760px;padding-top:7vh;text-align:center}
 .infobar .sep{width:1px;height:26px;background:var(--line)}
 .infobar .wx{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--fg)}
 .infobar .wx .emoji{font-size:22px;line-height:1}
+.infobar .wx .wxcond{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
 .infobar .wx .temp{font-weight:600}
 .infobar .wx .loc{color:var(--muted);font-size:13px;text-decoration:none;cursor:pointer}
 .infobar .wx .loc:hover{text-decoration:underline}
@@ -665,9 +666,11 @@ def render_home(ctx: dict) -> str:
         temp = f"{round(wx['temp_c'])}°C" if wx.get("temp_c") is not None else ""
         cond = ""
         if wx_on:
-            inner = ((f"<span class='emoji'>{escape(wx.get('emoji', ''))}</span>" if wx.get("emoji") else "")
-                     + (f"<span class='temp'>{escape(temp)}</span>" if temp else "")
-                     + (f"<span>{escape(wx.get('desc', ''))}</span>" if wx.get("desc") else ""))
+            # W1: separate parts with real spaces too (not just CSS gap), so "4°C Clear" never runs together
+            inner = " ".join(p for p in (
+                (f"<span class='emoji'>{escape(wx.get('emoji', ''))}</span>" if wx.get("emoji") else ""),
+                (f"<span class='temp'>{escape(temp)}</span>" if temp else ""),
+                (f"<span class='desc'>{escape(wx.get('desc', ''))}</span>" if wx.get("desc") else "")) if p)
             cond = f"<span class='wxcond'>{inner}</span>" if inner else ""
         place = ""
         if loc_on:
