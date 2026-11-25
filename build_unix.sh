@@ -3,7 +3,7 @@
 # Wyrm — build_unix.sh
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 # Build Wyrm Browser on macOS or Linux.
 #   macOS -> "dist/Wyrm Browser.app" + dist/Wyrm-macos-<arm64|intel>.dmg (drag-to-Applications installer)
@@ -19,12 +19,11 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python tools/make_icons.py
 .venv/bin/python -m PyInstaller --noconfirm --clean wyrm.spec
 
 if [ "$(uname -s)" = "Darwin" ]; then
-  # Re-seal the bundle with a consistent ad-hoc signature (no Apple Developer ID here). A broken or
-  # partial signature is what makes macOS report a downloaded app as "damaged".
+  # F3: sign every Mach-O inside-out with the hardened runtime (Developer ID when MACOS_SIGN_IDENTITY is set,
+  # otherwise a clearly logged ad-hoc signature), then notarize + staple the app when notary credentials exist.
   APP="dist/Wyrm Browser.app"
-  xattr -cr "$APP"
-  codesign --force --deep --sign - "$APP"
-  codesign --verify --deep --strict "$APP"
+  tools/macos_sign.sh sign "$APP"
+  tools/macos_sign.sh notarize "$APP"
   case "$(uname -m)" in arm64) ARCH=arm64 ;; *) ARCH=intel ;; esac
   rm -rf dist/dmg && mkdir -p dist/dmg
   cp -R "$APP" dist/dmg/
@@ -36,6 +35,10 @@ if [ "$(uname -s)" = "Darwin" ]; then
     [ "$attempt" = 3 ] && exit 1
     echo "hdiutil failed (attempt $attempt), retrying in 20s..."; sleep 20
   done
+  if [ -n "${MACOS_SIGN_IDENTITY:-}" ]; then   # sign + notarize + staple the disk image too
+    codesign --force --timestamp --sign "$MACOS_SIGN_IDENTITY" "dist/Wyrm-macos-$ARCH.dmg"
+    tools/macos_sign.sh notarize "dist/Wyrm-macos-$ARCH.dmg"
+  fi
 else
   cp installer/wyrm.desktop dist/Wyrm/
   cp wyrm/assets/icon.png dist/Wyrm/wyrm.png

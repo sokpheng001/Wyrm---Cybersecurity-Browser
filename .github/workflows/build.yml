@@ -2,7 +2,7 @@
 # Wyrm — .github/workflows/build.yml
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: @oda, @sopi, @kwan
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 # Automatic releases: every push to wyrm-browser builds Windows (.exe setup), macOS Apple Silicon + Intel
 # (.dmg) and Linux (.tar.gz). Only if ALL builds succeed is it released. The version shown to users comes from
@@ -74,9 +74,43 @@ jobs:
         run: |
           if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
           ./build_windows.ps1
+      # F3: macOS Developer ID signing + notarization. Optional: skipped (with a warning, ad-hoc signature) until
+      # the repo has the secrets MACOS_CERT_P12 (base64 .p12 of a "Developer ID Application" certificate),
+      # MACOS_CERT_PASSWORD and MACOS_SIGN_IDENTITY, plus APPLE_ID / APPLE_TEAM_ID / APPLE_APP_PASSWORD
+      # (app-specific password) for notarization. Nothing is hard-coded.
+      - name: Import the Developer ID certificate (macOS)
+        if: runner.os == 'macOS'
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          if [ -z "$MACOS_CERT_P12" ]; then
+            echo "::warning::MACOS_CERT_P12 not set: the macOS app will be ad-hoc signed and Gatekeeper will reject it"
+            exit 0
+          fi
+          KC="$RUNNER_TEMP/wyrm-sign.keychain-db"; KP="$(openssl rand -hex 16)"
+          echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KP" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KP" "$KC"
+          security import "$RUNNER_TEMP/cert.p12" -P "$MACOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KC"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KP" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security find-identity -v -p codesigning "$KC"
       - if: runner.os != 'Windows'
-        env: { GITHUB_TOKEN: "${{ github.token }}" }
+        env:
+          GITHUB_TOKEN: "${{ github.token }}"
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_CERT_P12 != '' && secrets.MACOS_SIGN_IDENTITY || '' }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: bash build_unix.sh
+      - name: Gatekeeper assessment (macOS, informational)
+        if: runner.os == 'macOS'
+        run: |
+          codesign -dv "dist/Wyrm Browser.app" 2>&1 | grep -E "^(Authority|TeamIdentifier|Signature)" || true
+          spctl -a -vv "dist/Wyrm Browser.app" || echo "::warning::Gatekeeper rejects this build (not Developer ID signed + notarized)"
       - name: Verify required data files are bundled (guards against a missing datas entry crashing startup)
         shell: bash
         run: |
