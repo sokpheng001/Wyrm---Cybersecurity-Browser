@@ -84,6 +84,14 @@ def check_response(url: str, resp: dict) -> list[dict]:
             add(f"Cookie without HttpOnly flag: {name}", "low", c[:120])
     if _ERROR_SIG.search(text):
         add("Verbose error / stack trace", "low", "The response body contains a stack trace or verbose error.")
+    if https and html:
+        active = re.findall(r"<(?:script|iframe|link|object|embed)\b[^>]*\b(?:src|href|data)\s*=\s*['\"]http://[^'\"]+",
+                            text, re.I)
+        if active:
+            ex = re.search(r"http://[^'\"]+", active[0])
+            add("Mixed content (active HTTP resource on an HTTPS page)", "medium",
+                f"{len(active)} active resource(s) (script/iframe/…) loaded over http:// — "
+                f"e.g. {ex.group(0)[:120] if ex else ''}. These can be tampered with in transit.")
     for m in _CC_RE.finditer(text):
         pan = m.group(0)
         if _luhn(pan):

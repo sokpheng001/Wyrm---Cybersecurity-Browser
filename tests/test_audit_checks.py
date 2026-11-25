@@ -305,6 +305,24 @@ def test_passive_ignores_non_card_digit_runs():
     assert not [f for f in out if "Cardholder data" in f["title"]]
 
 
+def test_passive_detects_active_mixed_content():
+    from wyrm.security.audit import passive
+    body = '<html><head><script src="http://cdn.evil/x.js"></script></head><body>hi</body></html>'
+    out = passive.check_response("https://secure.test/",
+                                 {"headers": {"content-type": "text/html"}, "status": 200, "text": body})
+    mc = [f for f in out if "Mixed content" in f["title"]]
+    assert mc and mc[0]["severity"] == "medium"
+
+
+def test_passive_https_only_resources_no_mixed_content():
+    from wyrm.security.audit import passive
+    body = '<html><head><script src="https://cdn.ok/x.js"></script><img src="http://cdn/x.png"></head></html>'
+    out = passive.check_response("https://secure.test/",
+                                 {"headers": {"content-type": "text/html"}, "status": 200, "text": body})
+    # an http img is passive mixed content (not flagged by this active-resource check); the https script is fine
+    assert not [f for f in out if "Mixed content" in f["title"]]
+
+
 def test_passive_clean_response_has_no_secret_findings():
     from wyrm.security.audit import passive
     out = passive.check_response("https://app.test/clean.js",
