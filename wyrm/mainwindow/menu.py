@@ -163,7 +163,9 @@ class MenuMixin:
                     "Chromium engine via Qt WebEngine · Ad/tracker blocking via community filter lists · Tor: Tor Project")
         visit = box.addButton("Visit bykh.org", QMessageBox.ButtonRole.ActionRole)
         whatsnew = box.addButton("What's new", QMessageBox.ButtonRole.ActionRole)
-        box.addButton(QMessageBox.StandardButton.Close)
+        close = box.addButton(QMessageBox.StandardButton.Close)
+        box.setDefaultButton(close)   # QA-U4: Enter closes the dialog, not "Visit bykh.org"
+        box.setEscapeButton(close)
         box.exec()
         if box.clickedButton() is visit:  # open our website in Wyrm itself
             self.open_url("https://bykh.org", new_tab=True)
