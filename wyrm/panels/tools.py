@@ -333,8 +333,17 @@ class ToolsTab(QWidget):
                 self.r_seg[key] = b
             self.r_seg["raw"].setChecked(True)
 
+        def body_tools(head):
+            b = QPushButton("Beautify JSON")
+            b.setObjectName("Segment")
+            b.setFixedHeight(24)
+            b.setMaximumWidth(110)
+            b.setToolTip("Pretty-print the request body if it's JSON")
+            b.clicked.connect(self._r_beautify_body)
+            head.addWidget(b)
+
         split.addWidget(pane("Request headers", self.r_headers))
-        split.addWidget(pane("Request body", self.r_body))
+        split.addWidget(pane("Request body", self.r_body, body_tools))
         split.addWidget(pane("Response", self.r_resp_stack, resp_toggle))
         split.setSizes([120, 80, 340])
         v.addWidget(split, 1)
@@ -519,10 +528,33 @@ class ToolsTab(QWidget):
         else:
             self.cmp_b.setPlainText(text)
 
+    @staticmethod
+    def _pretty_json(body: str) -> str:
+        """Pretty-print a JSON body so it's readable in the editor; unchanged if it isn't JSON."""
+        t = (body or "").strip()
+        if not t or t[0] not in "{[":
+            return body or ""
+        import json
+        try:
+            return json.dumps(json.loads(t), indent=2, ensure_ascii=False)
+        except ValueError:
+            return body or ""
+
+    def _r_beautify_body(self):
+        t = self.r_body.toPlainText().strip()
+        if not t:
+            return
+        pretty = self._pretty_json(t)
+        if pretty.strip() == t:
+            self.win.toast("Request body isn't valid JSON — nothing to format.", 3000)
+            return
+        self.r_body.setPlainText(pretty)
+
     def load_request(self, method, url, headers: dict, body: str = ""):
         self._select_tool("Repeater")
-        # open each sent request in its own tab so earlier ones are never lost
-        self._r_new_session(method or "GET", url, "\n".join(f"{k}: {v}" for k, v in headers.items()), body or "")
+        # open each sent request in its own tab so earlier ones are never lost; show JSON bodies pretty-printed
+        self._r_new_session(method or "GET", url, "\n".join(f"{k}: {v}" for k, v in headers.items()),
+                            self._pretty_json(body or ""))
         self._r_relabel()
 
     def _send(self):

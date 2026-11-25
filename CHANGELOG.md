@@ -6,6 +6,10 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.5.0
 
+- Repeater fixes: sending a request from the Traffic list now includes its full headers and body (pulled from
+  the intercepting proxy when it's on) instead of an empty body; sending from Intruder keeps the body too. JSON
+  request bodies are shown pretty-printed, there's a "Beautify JSON" button, and an edited body is now sent with
+  the correct length (a stale Content-Length no longer overrides it). A hint shows when a body needs the proxy.
 - The active scanner now detects blind SQL injection — boolean-based (a TRUE vs FALSE condition that changes the
   page) and time-based (MySQL/PostgreSQL/SQL Server), catching injectable parameters that don't leak a database
   error. Time-based confirms by timing with a guard so naturally slow pages aren't flagged, and runs at

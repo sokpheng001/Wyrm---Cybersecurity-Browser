@@ -238,16 +238,51 @@ class TrafficTab(QWidget):
             tools.to_curl(r["method"], r["url"], r.get("headers"))))
         m.exec(self.table.viewport().mapToGlobal(pos))
 
+    def _full_request(self, r):
+        """Best-effort full request (method, url, headers dict, body). The Traffic list comes from Chromium's
+        request interceptor, which can't see request bodies and only some headers — so when the intercepting
+        proxy is on, pull the matching flow (full headers + body) from it. Returns (method, url, headers, body,
+        from_proxy)."""
+        method, url = r["method"], r["url"]
+        headers = dict(r.get("headers") or {})
+        body, from_proxy = "", False
+        try:
+            from ..security import mitm
+            if mitm.ACTIVE is not None:
+                for fl in reversed(mitm.ACTIVE.flows):   # most recent matching request wins
+                    if fl.get("method") == method and fl.get("url") == url:
+                        fh = dict(fl.get("req_headers") or [])
+                        if fh:
+                            headers = fh
+                        rb = fl.get("req_body", b"")
+                        body = rb.decode("utf-8", "replace") if isinstance(rb, (bytes, bytearray)) else str(rb or "")
+                        from_proxy = True
+                        break
+        except Exception:  # noqa: BLE001 - enrichment is best-effort
+            pass
+        return method, url, headers, body, from_proxy
+
+    def _body_hint(self, method, body, from_proxy):
+        """Warn once when a body-bearing method is sent on without its body (proxy off / no matching flow)."""
+        if not from_proxy and not body and method.upper() in ("POST", "PUT", "PATCH", "DELETE"):
+            self.win.toast("Request body isn't captured from the Traffic list — turn on the intercepting proxy "
+                           "(Proxy tab) to capture and replay full request bodies.", 6000)
+
     def _send_to_comparer(self, r):
-        hdrs = "".join(f"{k}: {v}\n" for k, v in (r.get("headers") or {}).items())
-        text = f"{r['method']} {r['url']}\n" + hdrs
+        method, url, headers, body, _ = self._full_request(r)
+        hdrs = "".join(f"{k}: {v}\n" for k, v in headers.items())
+        text = f"{method} {url}\n" + hdrs + (f"\n{body}" if body else "")
         self.win.security.tools_tab.compare_add(text)
         self.win.security.show_tab("Tools")
 
     def _send_to_intruder(self, r):
-        self.win.security.intruder.load_request(r["method"], r["url"], r.get("headers") or {})
+        method, url, headers, body, from_proxy = self._full_request(r)
+        self.win.security.intruder.load_request(method, url, headers, body)
+        self._body_hint(method, body, from_proxy)
         self.win.security.show_tab("Intruder")
 
     def _send_to_repeater(self, r):
-        self.win.security.tools_tab.load_request(r["method"], r["url"], r.get("headers") or {})
+        method, url, headers, body, from_proxy = self._full_request(r)
+        self.win.security.tools_tab.load_request(method, url, headers, body)
+        self._body_hint(method, body, from_proxy)
         self.win.security.show_tab("Tools")

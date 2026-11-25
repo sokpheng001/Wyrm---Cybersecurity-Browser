@@ -154,7 +154,10 @@ def parse_headers(text: str) -> dict[str, str]:
 def send_request(method: str, url: str, headers_text: str, body: str, proxies=None, verify=True,
                  follow_redirects=False) -> dict:
     t = time.perf_counter()
-    r = requests.request(method, url, headers=parse_headers(headers_text), data=body.encode() if body else None,
+    # Drop a stale Content-Length: the body may have been edited/reformatted in the Repeater, so let requests
+    # recompute it from the actual data (otherwise the server reads the wrong number of bytes).
+    hdrs = {k: v for k, v in parse_headers(headers_text).items() if k.lower() != "content-length"}
+    r = requests.request(method, url, headers=hdrs, data=body.encode() if body else None,
                          timeout=30, proxies=proxies, verify=verify, allow_redirects=follow_redirects)
     ms = int((time.perf_counter() - t) * 1000)
     ctype = r.headers.get("content-type", "")

@@ -383,8 +383,8 @@ class IntruderTab(QWidget):
         r = self._current()
         if not r:
             return
-        u, h, _b = self._concrete(r)
-        self.win.security.tools_tab.load_request(self.method.currentText(), u, tools.parse_headers(h))
+        u, h, b = self._concrete(r)
+        self.win.security.tools_tab.load_request(self.method.currentText(), u, tools.parse_headers(h), b or "")
         self.win.security.show_tab("Tools")
 
     def _menu(self, pos):
