@@ -15,6 +15,7 @@ on any page you are viewing.
 from __future__ import annotations
 
 from html import escape
+from html.parser import HTMLParser
 from urllib.parse import quote, urlparse
 
 from PySide6.QtCore import Qt, Signal
@@ -27,6 +28,48 @@ from PySide6.QtWidgets import (
 from .common import SEV_COLOR, sev_badge
 from ..security import jsrecon, pdtools, portscan, techdetect, webchecks
 from ..widgets import SkeletonOverlay
+
+
+def _same_origin(a: str, b: str) -> bool:
+    pa, pb = urlparse(a), urlparse(b)
+    return (pa.scheme, pa.hostname, pa.port) == (pb.scheme, pb.hostname, pb.port)
+
+
+def _js_plan(target: str, cur_url: str, in_scope: bool) -> str:
+    """Decide how JS recon runs (QA-H3). 'dom' reads the live same-origin tab; 'fetch' downloads the target
+    page; 'dom_inline' reads only the current tab's inline scripts (read-only, allowed out of scope); 'refuse'
+    sends nothing. A network fetch ('fetch'/external scripts) is only ever chosen when the host is in scope."""
+    same = bool(cur_url) and _same_origin(cur_url, target)
+    if in_scope:
+        return "dom" if same else "fetch"
+    return "dom_inline" if same else "refuse"
+
+
+class _ScriptExtract(HTMLParser):
+    """Pull <script src> and inline script text out of a fetched HTML page."""
+    def __init__(self):
+        super().__init__()
+        self.src: list[str] = []
+        self.inline: list[str] = []
+        self._in = False
+        self._buf: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() == "script":
+            d = dict(attrs)
+            if d.get("src"):
+                self.src.append(d["src"])
+            else:
+                self._in, self._buf = True, []
+
+    def handle_data(self, data):
+        if self._in:
+            self._buf.append(data)
+
+    def handle_endtag(self, tag):
+        if tag.lower() == "script" and self._in:
+            self.inline.append("".join(self._buf))
+            self._in = False
 
 
 class ScannerTab(QWidget):
@@ -472,13 +515,44 @@ class ScannerTab(QWidget):
 
     # ---------------------------------------------------------------- JS recon (endpoints + secrets)
     def js_recon(self):
-        """Pull endpoints and leaked secrets from the open page's scripts (inline + same-scope external)."""
+        """Pull endpoints and leaked secrets from the target's scripts. Uses the Target field (not just the open
+        tab) and is scope-gated: no network request is sent for an out-of-scope host (QA-H3)."""
+        base = self._url()
+        host = self._host()
+        if not base or not host:
+            QMessageBox.information(self, "JS recon",
+                                    "Enter a target URL in the Target field (or open the page), then run JS recon.")
+            return
         view = self.win.current_view()
         cur = view.url() if view else None
-        if cur is None or cur.scheme() not in ("http", "https"):
-            self.status.setText("Open the page you want to scan in a tab first, then run JS recon.")
+        cur_url = cur.toString() if (cur and cur.scheme() in ("http", "https")) else ""
+        eng = self.win.engagement
+        in_scope = bool(eng and eng.scope and eng.in_scope(host) is True)
+        plan = _js_plan(base, cur_url, in_scope)
+        if plan == "refuse":
+            self._authorized(host, "JS recon")   # modal refusal; nothing is sent
             return
-        base = cur.toString()
+        if plan == "fetch":
+            self._js_from_fetch(base)
+        else:   # "dom" (in scope) or "dom_inline" (out of scope: inline only, no external fetch)
+            self._js_from_dom(view, base, fetch_external=(plan == "dom"))
+
+    def _analyze_blobs(self, blobs, inline_count, external_count, base) -> dict:
+        endpoints, secrets = set(), []
+        for b in blobs:
+            endpoints.update(jsrecon.find_endpoints(b, base))
+            for name, snippet, sev in jsrecon.find_secrets(b):
+                secrets.append((name, snippet, sev))
+        uniq, seen = [], set()
+        for s in secrets:
+            if s not in seen:
+                seen.add(s)
+                uniq.append(s)
+        return {"endpoints": jsrecon.rank_endpoints(endpoints, base), "secrets": uniq,
+                "inline": inline_count, "external": external_count, "base": base}
+
+    def _js_from_dom(self, view, base, fetch_external: bool):
+        """Read scripts from the live same-origin tab. External scripts are fetched only when in scope."""
         px, verify = self.win.proxies(), self.win.verify_tls()
         self.busy.start("Reading page scripts…")
         self.status.setText("JS recon: reading the page's scripts…")
@@ -494,13 +568,12 @@ class ScannerTab(QWidget):
             except ValueError:
                 data = {}
             inline = data.get("inline") or []
-            srcs = jsrecon.scripts_to_fetch(data.get("src") or [], base)
+            srcs = jsrecon.scripts_to_fetch(data.get("src") or [], base) if fetch_external else []
 
             def work():
                 import requests
-                endpoints, secrets, scanned = set(), [], 0
-                blobs = list(inline)
-                for u in srcs[:40]:  # cap so a huge app can't run forever
+                blobs, scanned = list(inline), 0
+                for u in srcs[:40]:   # cap so a huge app can't run forever
                     try:
                         r = requests.get(u, timeout=20, proxies=px, verify=verify,
                                          headers={"User-Agent": "Mozilla/5.0 Wyrm JS recon"})
@@ -509,20 +582,35 @@ class ScannerTab(QWidget):
                             scanned += 1
                     except requests.RequestException:
                         pass
-                for b in blobs:
-                    endpoints.update(jsrecon.find_endpoints(b, base))
-                    for name, snippet, sev in jsrecon.find_secrets(b):
-                        secrets.append((name, snippet, sev))
-                uniq, seen = [], set()
-                for s in secrets:
-                    if s not in seen:
-                        seen.add(s)
-                        uniq.append(s)
-                return {"endpoints": jsrecon.rank_endpoints(endpoints, base), "secrets": uniq,
-                        "inline": len(inline), "external": scanned, "base": base}
+                return self._analyze_blobs(blobs, len(inline), scanned, base)
             self.status.setText(f"JS recon: scanning {len(inline)} inline + {len(srcs)} external script(s)…")
             self._run("JS recon", work, self._js_render)
         view.page().runJavaScript(js, have_scripts)
+
+    def _js_from_fetch(self, base):
+        """Download the target page (a different origin than the open tab) and scan its scripts — in scope only."""
+        px, verify = self.win.proxies(), self.win.verify_tls()
+        self.busy.start("Fetching target scripts…")
+        self.status.setText("JS recon: fetching the target page…")
+
+        def work():
+            import requests
+            ua = {"User-Agent": "Mozilla/5.0 Wyrm JS recon"}
+            page = requests.get(base, timeout=20, proxies=px, verify=verify, headers=ua)
+            ext = _ScriptExtract()
+            ext.feed(page.text if page.status_code == 200 else "")
+            srcs = jsrecon.scripts_to_fetch(ext.src, base)
+            blobs, scanned = list(ext.inline), 0
+            for u in srcs[:40]:
+                try:
+                    r = requests.get(u, timeout=20, proxies=px, verify=verify, headers=ua)
+                    if r.status_code == 200 and len(r.content) < 8_000_000:
+                        blobs.append(r.text)
+                        scanned += 1
+                except requests.RequestException:
+                    pass
+            return self._analyze_blobs(blobs, len(ext.inline), scanned, base)
+        self._run("JS recon", work, self._js_render)
 
     def _js_render(self, r):
         self._clear_results()
