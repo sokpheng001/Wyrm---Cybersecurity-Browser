@@ -18,7 +18,7 @@ from urllib.parse import parse_qsl, urlparse, urlsplit
 
 import requests
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QHeaderView, QLabel, QMessageBox, QPushButton, QSplitter,
                                QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
@@ -66,6 +66,10 @@ class AuditTab(QWidget):
         self._finding.connect(self._on_finding)
         self._done.connect(self._on_done)
         self._progress.connect(self._on_progress)
+        # coalesce the footer/button refresh so a burst of findings doesn't starve the UI thread (which would make
+        # the app sluggish and could crash a new tab trying to start QtWebEngine mid-scan)
+        self._ui_refresh = QTimer(self, singleShot=True, interval=120)
+        self._ui_refresh.timeout.connect(self._flush_ui_refresh)
 
         v = QVBoxLayout(self)
         intro = QLabel("<b>Audit</b> — active vulnerability scan of one request. From the <b>Proxy</b> history or "
@@ -213,20 +217,28 @@ class AuditTab(QWidget):
 
         def send(method, url, headers, body):
             try:
+                # stream so we can cap how much we pull into memory — a scan runs several of these at once, and
+                # multi-MB responses would otherwise spike memory/CPU (and could crash the app, especially while
+                # new tabs are loading). 2 MB is plenty for reflection/secret/error checks.
                 r = requests.request(method, url, headers=headers, data=(body or None), proxies=px, verify=verify,
-                                     allow_redirects=False, timeout=15)
+                                     allow_redirects=False, timeout=15, stream=True)
+                raw_bytes = r.raw.read(2_000_000, decode_content=True) or b""
+                r._content = raw_bytes          # so r.text decodes the capped body with the right charset
+                r._content_consumed = True
+                text = r.text
             except requests.RequestException:
                 return None
+            except Exception:  # noqa: BLE001 - a malformed/oversized body must never crash the scan
+                return None
+            finally:
+                try:
+                    r.close()
+                except Exception:  # noqa: BLE001
+                    pass
             H = {k.lower(): v for k, v in r.headers.items()}
-            raw = getattr(r, "raw", None)
-            try:
-                sc = raw.headers.get_all("Set-Cookie") if raw is not None and hasattr(raw.headers, "get_all") else []
-            except Exception:  # noqa: BLE001
-                sc = []
-            if not sc and "set-cookie" in H:
-                sc = [H["set-cookie"]]
-            return {"status": r.status_code, "headers": H, "text": r.text, "location": H.get("location", ""),
-                    "url": url, "set_cookie": sc or []}
+            sc = [H["set-cookie"]] if "set-cookie" in H else []
+            return {"status": r.status_code, "headers": H, "text": text, "location": H.get("location", ""),
+                    "url": url, "set_cookie": sc}
         return send
 
     def _oob_bridge(self):
@@ -362,9 +374,12 @@ class AuditTab(QWidget):
 
     _SEV_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
+    def _flush_ui_refresh(self):
+        self._render_progress()        # QA-M2: live 'N issue(s) so far' counter
+        self._update_add_buttons()     # QA-L3: results now exist
+
     def _on_finding(self, f):
         self._count = getattr(self, "_count", 0) + 1
-        self._render_progress()   # QA-M2: refresh the live 'N issue(s) so far' counter
         sev = f.get("severity", "info")
         it = QTreeWidgetItem([f.get("title", ""), sev_title(sev), f.get("param", ""), f.get("confidence", "")])
         if sev in SEV_COLOR:
@@ -381,7 +396,7 @@ class AuditTab(QWidget):
         self.tree.insertTopLevelItem(pos, it)
         if self.tree.topLevelItemCount() == 1:
             self.tree.setCurrentItem(it)
-        self._update_add_buttons()   # QA-L3: results now exist
+        self._ui_refresh.start()   # coalesced footer/button refresh (keeps the UI responsive under a burst)
 
     def _on_done(self, ok, res):
         self._running = False
@@ -390,6 +405,7 @@ class AuditTab(QWidget):
         self.b_site.setEnabled(True)
         self.b_crawl.setEnabled(True)
         self.b_stop.setEnabled(False)
+        self._update_add_buttons()   # flush the final state in case the coalesced refresh was still pending
         n = getattr(self, "_count", 0)
         if not ok:
             self.status.setText(f"Audit failed: {res}")
