@@ -57,36 +57,35 @@ class BusyOverlay(QWidget):
         self.update()
 
     def paintEvent(self, _e):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        # faint scrim so the spinner reads over any content
-        scrim = self.palette().color(self.backgroundRole())
-        scrim.setAlpha(150)
-        p.fillRect(self.rect(), scrim)
-        accent = QApplication.palette().highlight().color()  # matches blue/red mode
-        cx, cy = self.width() / 2, self.height() / 2 - 10
-        pulse = 0.5 + 0.5 * math.sin(self._phase)      # 0..1 pulse
-        r = 16 + 3 * pulse                              # ring gently pulses in size
-        # pulsing halo
-        halo = QColor(accent)
-        halo.setAlpha(int(40 * (1 - pulse)))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(halo)
-        p.drawEllipse(QRectF(cx - r - 8, cy - r - 8, 2 * (r + 8), 2 * (r + 8)))
-        # track + spinning arc
-        track = QColor(accent)
-        track.setAlpha(45)
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.setPen(QPen(track, 3))
-        p.drawEllipse(QRectF(cx - r, cy - r, 2 * r, 2 * r))
-        arc = QColor(accent)
-        arc.setAlpha(int(160 + 95 * pulse))            # arc opacity pulses too
-        pen = QPen(arc, 3)  # (QPen(..., cap=...) keyword is not supported by PySide6: set it explicitly)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        p.setPen(pen)
-        p.drawArc(QRectF(cx - r, cy - r, 2 * r, 2 * r), -self._angle * 16, 110 * 16)
-        # spinner only — no text label (clean, like modern loaders)
-        p.end()
+        with QPainter(self) as p:   # B4: always ended, even if painting raises
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            # faint scrim so the spinner reads over any content
+            scrim = self.palette().color(self.backgroundRole())
+            scrim.setAlpha(150)
+            p.fillRect(self.rect(), scrim)
+            accent = QApplication.palette().highlight().color()  # matches blue/red mode
+            cx, cy = self.width() / 2, self.height() / 2 - 10
+            pulse = 0.5 + 0.5 * math.sin(self._phase)      # 0..1 pulse
+            r = 16 + 3 * pulse                              # ring gently pulses in size
+            # pulsing halo
+            halo = QColor(accent)
+            halo.setAlpha(int(40 * (1 - pulse)))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(halo)
+            p.drawEllipse(QRectF(cx - r - 8, cy - r - 8, 2 * (r + 8), 2 * (r + 8)))
+            # track + spinning arc
+            track = QColor(accent)
+            track.setAlpha(45)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.setPen(QPen(track, 3))
+            p.drawEllipse(QRectF(cx - r, cy - r, 2 * r, 2 * r))
+            arc = QColor(accent)
+            arc.setAlpha(int(160 + 95 * pulse))            # arc opacity pulses too
+            pen = QPen(arc, 3)  # (QPen(..., cap=...) keyword is not supported by PySide6: set it explicitly)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            p.setPen(pen)
+            p.drawArc(QRectF(cx - r, cy - r, 2 * r, 2 * r), -self._angle * 16, 110 * 16)
+            # spinner only — no text label (clean, like modern loaders)
 
 
 class LoadingBar(QWidget):
@@ -189,24 +188,23 @@ class LoadingBar(QWidget):
     def paintEvent(self, _e):
         if self._opacity <= 0 or self._value <= 0:
             return
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setOpacity(self._opacity)
-        w = self.width() * self._value
-        rect = QRectF(0, 0, w, self.height())
-        p.fillRect(rect, self.COLOR)
-        # moving highlight
-        x = (self._phase - 0.2) * self.width()
-        g = QLinearGradient(x, 0, x + self.width() * 0.2, 0)
-        g.setColorAt(0.0, QColor(255, 255, 255, 0))
-        g.setColorAt(0.5, QColor(255, 255, 255, 140))
-        g.setColorAt(1.0, QColor(255, 255, 255, 0))
-        p.fillRect(rect, g)
-        # glowing head
-        head = QColor(self.COLOR)
-        head.setAlpha(120)
-        p.fillRect(QRectF(max(0, w - 40), 0, 40, self.height()), head)
-        p.end()
+        with QPainter(self) as p:   # B4: always ended, even if painting raises
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            p.setOpacity(self._opacity)
+            w = self.width() * self._value
+            rect = QRectF(0, 0, w, self.height())
+            p.fillRect(rect, self.COLOR)
+            # moving highlight
+            x = (self._phase - 0.2) * self.width()
+            g = QLinearGradient(x, 0, x + self.width() * 0.2, 0)
+            g.setColorAt(0.0, QColor(255, 255, 255, 0))
+            g.setColorAt(0.5, QColor(255, 255, 255, 140))
+            g.setColorAt(1.0, QColor(255, 255, 255, 0))
+            p.fillRect(rect, g)
+            # glowing head
+            head = QColor(self.COLOR)
+            head.setAlpha(120)
+            p.fillRect(QRectF(max(0, w - 40), 0, 40, self.height()), head)
 
 
 class OfflineBanner(QWidget):
@@ -492,43 +490,42 @@ class ModeChip(QWidget):
             super().keyPressEvent(e)
 
     def paintEvent(self, _e):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        g = self.GLOW
-        r = QRectF(self.rect()).adjusted(g, g, -g, -g)
-        rad = r.height() / 2
-        pulse = 0.5 - 0.5 * math.cos(2 * math.pi * self._t)          # 0..1..0 breathing
-        boost = 1.5 if self._hover else 1.0
-        p.setPen(Qt.PenStyle.NoPen)
-        for grow, alpha in ((g, 0.07), (g * 0.6, 0.13), (g * 0.25, 0.22)):  # soft halo
-            c = QColor(self._color)
-            c.setAlphaF(min(1.0, alpha * (0.35 + 0.65 * pulse) * boost))
-            p.setBrush(c)
-            p.drawRoundedRect(r.adjusted(-grow, -grow, grow, grow), rad + grow, rad + grow)
-        fill = QColor(self._color)
-        fill = fill.darker(115) if self._down else (fill.lighter(112) if self._hover else fill)
-        p.setBrush(fill)
-        p.drawRoundedRect(r, rad, rad)
-        # light sheen sweeping across the pill during the first part of each cycle
-        if self._t < 0.45:
-            path = QPainterPath()
-            path.addRoundedRect(r, rad, rad)
-            p.save()
-            p.setClipPath(path)
-            x = r.left() - 30 + (r.width() + 60) * (self._t / 0.45)
-            grad = QLinearGradient(x - 22, 0, x + 22, 0)
-            for stop, a in ((0.0, 0.0), (0.5, 0.38), (1.0, 0.0)):
-                c = QColor(255, 255, 255)
-                c.setAlphaF(a)
-                grad.setColorAt(stop, c)
-            p.fillRect(QRectF(x - 22, r.top(), 44, r.height()), grad)
-            p.restore()
-        if self.hasFocus():
-            p.setPen(QPen(QColor(255, 255, 255, 200), 1.5))
-            p.setBrush(Qt.BrushStyle.NoBrush)
-            p.drawRoundedRect(r.adjusted(1, 1, -1, -1), rad - 1, rad - 1)
-        p.setPen(QColor("#ffffff"))
-        p.setFont(self._font)
-        p.drawText(r, Qt.AlignmentFlag.AlignCenter, self._text)
-        p.end()
+        with QPainter(self) as p:   # B4: always ended, even if painting raises
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            g = self.GLOW
+            r = QRectF(self.rect()).adjusted(g, g, -g, -g)
+            rad = r.height() / 2
+            pulse = 0.5 - 0.5 * math.cos(2 * math.pi * self._t)          # 0..1..0 breathing
+            boost = 1.5 if self._hover else 1.0
+            p.setPen(Qt.PenStyle.NoPen)
+            for grow, alpha in ((g, 0.07), (g * 0.6, 0.13), (g * 0.25, 0.22)):  # soft halo
+                c = QColor(self._color)
+                c.setAlphaF(min(1.0, alpha * (0.35 + 0.65 * pulse) * boost))
+                p.setBrush(c)
+                p.drawRoundedRect(r.adjusted(-grow, -grow, grow, grow), rad + grow, rad + grow)
+            fill = QColor(self._color)
+            fill = fill.darker(115) if self._down else (fill.lighter(112) if self._hover else fill)
+            p.setBrush(fill)
+            p.drawRoundedRect(r, rad, rad)
+            # light sheen sweeping across the pill during the first part of each cycle
+            if self._t < 0.45:
+                path = QPainterPath()
+                path.addRoundedRect(r, rad, rad)
+                p.save()
+                p.setClipPath(path)
+                x = r.left() - 30 + (r.width() + 60) * (self._t / 0.45)
+                grad = QLinearGradient(x - 22, 0, x + 22, 0)
+                for stop, a in ((0.0, 0.0), (0.5, 0.38), (1.0, 0.0)):
+                    c = QColor(255, 255, 255)
+                    c.setAlphaF(a)
+                    grad.setColorAt(stop, c)
+                p.fillRect(QRectF(x - 22, r.top(), 44, r.height()), grad)
+                p.restore()
+            if self.hasFocus():
+                p.setPen(QPen(QColor(255, 255, 255, 200), 1.5))
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                p.drawRoundedRect(r.adjusted(1, 1, -1, -1), rad - 1, rad - 1)
+            p.setPen(QColor("#ffffff"))
+            p.setFont(self._font)
+            p.drawText(r, Qt.AlignmentFlag.AlignCenter, self._text)
 

@@ -213,7 +213,50 @@ def main():
                 nw.current_view().setUrl(QUrl(engines.resolve(url)))
         single_server.newConnection.connect(_on_second_launch)
         app._wyrm_single_server = single_server   # keep a reference for the app's lifetime
-    sys.exit(app.exec())
+    app.aboutToQuit.connect(_before_quit)
+    code = app.exec()
+    _after_qt(app)
+    os._exit(code)   # B4: Qt is torn down; skip Py_FinalizeEx, which destroyed leftover Qt objects out of order
+
+
+def _before_quit():
+    """B4: stop every timer and background worker while Qt is still fully alive."""
+    from PySide6.QtCore import QTimer
+    for w in QApplication.topLevelWidgets():
+        try:
+            for t in w.findChildren(QTimer):
+                t.stop()
+            runner = getattr(w, "runner", None)
+            if runner is not None:
+                runner.shutdown()
+        except RuntimeError:   # already deleted on the C++ side
+            pass
+
+
+def _after_qt(app):
+    """B4: release Python references to Qt objects in an orderly way before the process exits. A QPainter (or any
+    Qt object) kept alive by a stored exception/traceback used to be destroyed during Python's own shutdown —
+    after Qt — and crashed in QPainter::end(). Settings are flushed; nothing else needs Python's finalizer."""
+    import gc
+    from PySide6.QtCore import QCoreApplication, QEvent, QSettings
+    for attr in ("last_type", "last_value", "last_traceback", "last_exc"):
+        if hasattr(sys, attr):
+            try:
+                setattr(sys, attr, None)
+            except Exception:  # noqa: BLE001
+                pass
+    try:
+        QSettings().sync()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        QCoreApplication.processEvents()
+    except Exception:  # noqa: BLE001
+        pass
+    gc.collect()
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    except Exception:  # noqa: BLE001
+        pass
 
 
 if __name__ == "__main__":

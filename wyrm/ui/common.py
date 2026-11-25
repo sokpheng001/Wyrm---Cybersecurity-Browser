@@ -59,7 +59,6 @@ def make_icon(name: str, color: str, size: int = 40, fill: str = "none") -> QIco
     renderer = QSvgRenderer(QByteArray(svg.encode()))
     pm = QPixmap(size, size)
     pm.fill(Qt.GlobalColor.transparent)
-    p = QPainter(pm)
-    renderer.render(p)
-    p.end()
+    with QPainter(pm) as p:   # B4: always ended, even if painting raises
+        renderer.render(p)
     return QIcon(pm)
