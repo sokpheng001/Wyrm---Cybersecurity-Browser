@@ -6,9 +6,10 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.5.0
 
-- The active scanner now detects blind, time-based SQL injection (MySQL/PostgreSQL/SQL Server), catching
-  injectable parameters that don't leak a database error — it confirms by timing, with a guard so naturally slow
-  pages aren't flagged. Runs at "Thorough" intensity.
+- The active scanner now detects blind SQL injection — boolean-based (a TRUE vs FALSE condition that changes the
+  page) and time-based (MySQL/PostgreSQL/SQL Server), catching injectable parameters that don't leak a database
+  error. Time-based confirms by timing with a guard so naturally slow pages aren't flagged, and runs at
+  "Thorough" intensity; the boolean check is fast and runs at every intensity.
 - The scanner also flags secrets exposed in a response — AWS/Google/Stripe/Slack/GitHub keys and private-key
   blocks — with the value redacted in the finding.
 - HTTP/2 interception is now on by default in the intercepting proxy and handles a page's many streams at the

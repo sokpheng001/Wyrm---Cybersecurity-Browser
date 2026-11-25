@@ -73,6 +73,44 @@ class SqlError:
         return None
 
 
+def _similar(a: dict, b: dict) -> bool:
+    """Two responses look 'the same page': same status and body length within a small tolerance (absorbs minor
+    dynamic variance like timestamps/tokens). Used to tell a TRUE condition (page unchanged) from FALSE."""
+    if not a or not b or a.get("status") != b.get("status"):
+        return False
+    la, lb = len(a.get("text", "") or ""), len(b.get("text", "") or "")
+    return abs(la - lb) <= max(48, int(0.02 * max(la, lb, 1)))
+
+
+class SqlBlindBoolean:
+    """Boolean-based blind SQL injection: with no error or timing, inject a condition that is always TRUE and one
+    that is always FALSE. If the TRUE page matches the original and the FALSE page differs, the input is reaching
+    SQL whose logic we control. Fast (no sleeps), so it runs at every intensity."""
+
+    key, title, severity = "sqli", "SQL injection (blind, boolean-based)", "high"
+
+    def run(self, point, build, send, baseline, rand, oob=None):
+        if not baseline or point.get("loc") not in ("query", "body-form", "json"):
+            return None
+        base = point.get("value", "")
+        pairs = [
+            (f"{base}' AND '1'='1'-- -", f"{base}' AND '1'='2'-- -"),   # string context
+            (f"{base} AND 1=1", f"{base} AND 1=2"),                      # numeric context
+            (f"{base}') AND ('1'='1", f"{base}') AND ('1'='2"),         # bracketed string context
+        ]
+        for tp, fp in pairs:
+            rt = send(*build(tp))
+            rf = send(*build(fp))
+            if not rt or not rf:
+                continue
+            # TRUE ~ original page, FALSE clearly different from both the original and the TRUE response
+            if _similar(rt, baseline) and not _similar(rf, baseline) and not _similar(rt, rf):
+                return _finding(self, point, tp,
+                                "A TRUE condition returned the original page while a FALSE condition changed it — "
+                                "boolean-based blind SQL injection.", "firm", rt)
+        return None
+
+
 class SqlBlindTime:
     """Blind, time-based SQL injection: when no error leaks, confirm injection by making the DB sleep. A payload
     that delays the response ~N seconds, and ~2N when doubled, proves the input reaches SQL that we can control
@@ -246,8 +284,8 @@ class CommandInjection:
 
 def standard(time_based: bool = True) -> list:
     """The full active check set. time_based=False drops the slow sleep-based probes (blind SQLi, command inj.)."""
-    return [ReflectedXSS(), SqlError(), SqlBlindTime(time_based=time_based), Ssti(), PathTraversal(),
-            OpenRedirect(), CrlfInjection(), Ssrf(), CommandInjection(time_based=time_based)]
+    return [ReflectedXSS(), SqlError(), SqlBlindBoolean(), SqlBlindTime(time_based=time_based), Ssti(),
+            PathTraversal(), OpenRedirect(), CrlfInjection(), Ssrf(), CommandInjection(time_based=time_based)]
 
 
 ALL_CHECKS = standard(True)

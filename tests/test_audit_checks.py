@@ -81,6 +81,40 @@ def test_blind_sqli_is_in_the_standard_thorough_set_only():
     assert sb and sb[0].time_based is False
 
 
+def _bool_send(injectable=True):
+    """Fake endpoint: a boolean-injectable query returns the full list for a TRUE/original request and an empty
+    page for a FALSE one. A non-injectable endpoint always returns the same page."""
+    rows = "".join(f"<tr><td>{i}</td><td>product-{i}</td><td>$9.{i:02d}</td></tr>" for i in range(40))
+    full = {"status": 200, "text": f"<table>{rows}</table>", "headers": {}, "location": "", "url": "http://t/"}
+    empty = {"status": 200, "text": "<table></table><p>No products matched.</p>", "headers": {},
+             "location": "", "url": "http://t/"}
+
+    def send(url, headers, body):
+        if not injectable:
+            return dict(full)
+        if re.search(r"1'='2|1=2|'1'='2", url):   # FALSE condition
+            return dict(empty)
+        return dict(full)                          # original or TRUE condition
+    return send
+
+
+def test_boolean_blind_sqli_detected():
+    c = chk.SqlBlindBoolean()
+    send = _bool_send(injectable=True)
+    baseline = send("http://target/items?id=1", {}, None)   # the original (TRUE-like) page
+    f = c.run(_point(), _build, send, baseline=baseline, rand="abc")
+    assert f is not None and f["check"] == "sqli" and f["severity"] == "high"
+    assert "boolean" in f["title"].lower()
+
+
+def test_boolean_blind_sqli_no_false_positive_on_static_page():
+    c = chk.SqlBlindBoolean()
+    send = _bool_send(injectable=False)
+    baseline = send("http://target/items?id=1", {}, None)
+    f = c.run(_point(), _build, send, baseline=baseline, rand="abc")
+    assert f is None
+
+
 def test_passive_detects_leaked_secrets_redacted():
     from wyrm.security.audit import passive
     body = (
