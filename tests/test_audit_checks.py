@@ -115,6 +115,49 @@ def test_boolean_blind_sqli_no_false_positive_on_static_page():
     assert f is None
 
 
+def _cors_send(acao_mode):
+    """Fake endpoint whose ACAO behaviour depends on the request Origin header."""
+    def send(url, headers, body):
+        origin = headers.get("Origin", "")
+        H = {}
+        if acao_mode == "reflect":
+            H["access-control-allow-origin"] = origin
+        elif acao_mode == "reflect-creds":
+            H["access-control-allow-origin"] = origin
+            H["access-control-allow-credentials"] = "true"
+        elif acao_mode == "null":
+            H["access-control-allow-origin"] = "null"
+        elif acao_mode == "same-origin":
+            H["access-control-allow-origin"] = "https://trusted.example"
+        return {"status": 200, "headers": H, "text": "{}", "location": "", "url": url}
+    return send
+
+
+def test_cors_reflected_origin_with_credentials_is_high():
+    c = chk.CorsMisconfig()
+    f = c.run_request("GET", "https://api.test/me", {}, "", _cors_send("reflect-creds"), baseline=None, rand="abc")
+    assert f is not None and f["check"] == "cors" and f["severity"] == "high"
+    assert "credential" in f["evidence"].lower()
+
+
+def test_cors_reflected_origin_without_credentials_is_medium():
+    c = chk.CorsMisconfig()
+    f = c.run_request("GET", "https://api.test/data", {}, "", _cors_send("reflect"), baseline=None, rand="abc")
+    assert f is not None and f["severity"] == "medium"
+
+
+def test_cors_null_origin_flagged():
+    c = chk.CorsMisconfig()
+    f = c.run_request("GET", "https://api.test/x", {}, "", _cors_send("null"), baseline=None, rand="abc")
+    assert f is not None and "null" in f["evidence"].lower()
+
+
+def test_cors_fixed_allowlist_is_clean():
+    c = chk.CorsMisconfig()
+    f = c.run_request("GET", "https://api.test/x", {}, "", _cors_send("same-origin"), baseline=None, rand="abc")
+    assert f is None
+
+
 def test_passive_detects_leaked_secrets_redacted():
     from wyrm.security.audit import passive
     body = (

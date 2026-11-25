@@ -32,6 +32,11 @@ ADVICE = {
     "cmdi": ("Avoid invoking a shell. Call programs with an argument array (no shell string), and strictly "
              "validate/allow-list any user input that reaches a command.",
              ["https://owasp.org/www-community/attacks/Command_Injection"]),
+    "cors": ("Don't reflect the request Origin. Validate it against a strict allow-list of trusted origins, never "
+             "echo an arbitrary Origin or 'null', and only send Access-Control-Allow-Credentials: true for exact, "
+             "explicitly allowed origins.",
+             ["https://cheatsheetseries.owasp.org/cheatsheets/HTML5_Security_Cheat_Sheet.html#cross-origin-resource-sharing",
+              "https://portswigger.net/web-security/cors"]),
     "passive": ("Harden the response: set the missing security headers, mark cookies Secure/HttpOnly, and avoid "
                 "returning verbose errors or stack traces to clients.",
                 ["https://owasp.org/www-project-secure-headers/"]),

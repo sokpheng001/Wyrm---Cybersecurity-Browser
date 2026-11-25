@@ -282,10 +282,49 @@ class CommandInjection:
         return None
 
 
+class CorsMisconfig:
+    """CORS misconfiguration (request-level): send an attacker Origin and see whether the app trusts it. Reflecting
+    an arbitrary Origin in Access-Control-Allow-Origin lets any site make cross-origin reads; doing so with
+    Allow-Credentials: true exposes authenticated responses to any origin (critical). 'null' is also commonly
+    exploitable (sandboxed iframes, redirects)."""
+
+    key, title, severity = "cors", "CORS misconfiguration", "medium"
+
+    def run_request(self, method, url, headers, body, send, baseline, rand, oob=None):
+        evil = f"https://wyrm{rand}.attacker.example"
+        r = send(url, {**headers, "Origin": evil}, body)
+        if not r:
+            return None
+        H = r.get("headers", {})     # lower-cased keys
+        acao = str(H.get("access-control-allow-origin", "")).strip()
+        creds = str(H.get("access-control-allow-credentials", "")).strip().lower() == "true"
+
+        def finding(sev, evidence):
+            return {"check": self.key, "title": self.title, "severity": sev, "confidence": "firm",
+                    "loc": "request", "param": "Origin", "payload": f"Origin: {evil}",
+                    "evidence": evidence, "status": r.get("status"), "url": url}
+
+        if acao == evil:
+            if creds:
+                return finding("high", f"The app reflected our Origin ({evil}) in Access-Control-Allow-Origin AND "
+                                       "sent Allow-Credentials: true — any website can read this user's "
+                                       "authenticated responses.")
+            return finding("medium", f"The app reflected our arbitrary Origin ({evil}) in "
+                                     "Access-Control-Allow-Origin — any website can read these responses.")
+        if acao.lower() == "null":
+            return finding("medium", "Access-Control-Allow-Origin is 'null', which attacker-controlled sandboxed "
+                                     "contexts can also present — cross-origin reads may be possible.")
+        if acao == "*" and creds:
+            return finding("medium", "Access-Control-Allow-Origin: * with Allow-Credentials: true is an invalid "
+                                     "but risky combination — review the CORS policy.")
+        return None
+
+
 def standard(time_based: bool = True) -> list:
     """The full active check set. time_based=False drops the slow sleep-based probes (blind SQLi, command inj.)."""
     return [ReflectedXSS(), SqlError(), SqlBlindBoolean(), SqlBlindTime(time_based=time_based), Ssti(),
-            PathTraversal(), OpenRedirect(), CrlfInjection(), Ssrf(), CommandInjection(time_based=time_based)]
+            PathTraversal(), OpenRedirect(), CrlfInjection(), CorsMisconfig(), Ssrf(),
+            CommandInjection(time_based=time_based)]
 
 
 ALL_CHECKS = standard(True)

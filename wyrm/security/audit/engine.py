@@ -83,14 +83,31 @@ def scan(request: dict, send, checks=None, should_stop=None, on_finding=None, pa
         for f in passive_mod.check_response(url, baseline):
             emit(f)
 
+    # request-level checks (run once per request, not per insertion point) — e.g. CORS misconfiguration
+    for chk in checks:
+        if should_stop():
+            break
+        runner = getattr(chk, "run_request", None)
+        if runner is None:
+            continue
+        try:
+            f = runner(method, url, headers, body, bound, baseline, rand, oob)
+        except Exception:  # noqa: BLE001 - one check failing must not stop the scan
+            f = None
+        if f:
+            emit(f)
+
     for point, build in points_mod.insertion_points(method, url, headers, body):
         if should_stop():
             break
         for chk in checks:
             if should_stop():
                 break
+            runner = getattr(chk, "run", None)   # some checks are request-level only (no per-point run)
+            if runner is None:
+                continue
             try:
-                f = chk.run(point, build, bound, baseline, rand, oob)
+                f = runner(point, build, bound, baseline, rand, oob)
             except Exception:  # noqa: BLE001 - one check failing must not stop the scan
                 f = None
             if f:

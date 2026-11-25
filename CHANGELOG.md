@@ -12,6 +12,8 @@ most important points first. Each build of a version adds an "Also in this build
   "Thorough" intensity; the boolean check is fast and runs at every intensity.
 - The scanner also flags secrets exposed in a response — AWS/Google/Stripe/Slack/GitHub keys and private-key
   blocks — with the value redacted in the finding.
+- New CORS misconfiguration check: flags apps that reflect an arbitrary Origin (critical when combined with
+  Allow-Credentials) or trust a 'null' origin, with remediation guidance.
 - HTTP/2 interception is now on by default in the intercepting proxy and handles a page's many streams at the
   same time, so modern sites are captured fully without slowing down (it was previously experimental and off).
 - This build: smoother browsing — the start page now updates in place instead of reloading every time news,
