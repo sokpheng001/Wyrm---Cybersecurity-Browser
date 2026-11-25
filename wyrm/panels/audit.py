@@ -313,7 +313,9 @@ class AuditTab(QWidget):
         def work():
             from ..security.audit import spider
             reqs = spider.crawl([cur], fetch, in_scope, should_stop=lambda: self._stop_flag)
-            self._progress.emit(0, len(reqs), f"crawled {len(reqs)} request(s) — auditing…")
+            # total=0 marks this as a status message, not per-request progress (QA-M2: otherwise it was
+            # formatted as a URL -> 'Auditing 0/11 · crawled 11 request(s)…')
+            self._progress.emit(0, 0, f"crawled {len(reqs)} request(s) — auditing…")
             if not reqs or self._stop_flag:
                 return []
             return engine.scan_site(reqs, send, should_stop=lambda: self._stop_flag,
@@ -322,10 +324,18 @@ class AuditTab(QWidget):
         self.win.runner.run(work, lambda ok, res: self._done.emit(bool(ok), res))
 
     def _on_progress(self, done, total, url):
-        if total == 0:
-            self.status.setText(url or "Working…")
+        self._last_prog = (done, total, url)
+        self._render_progress()
+
+    def _render_progress(self):
+        """Render the footer from the last progress + the live finding count (QA-M2: the counter now updates as
+        findings stream in, not only once per completed request)."""
+        done, total, url = getattr(self, "_last_prog", (0, 0, ""))
+        n = getattr(self, "_count", 0)
+        if total == 0:   # a status message (e.g. the post-crawl line), not per-request progress
+            self.status.setText((url or "Working…") + (f" · {n} issue(s) so far" if n else ""))
         else:
-            self.status.setText(f"Auditing {done}/{total} · {url[:70]} · {getattr(self, '_count', 0)} issue(s) so far")
+            self.status.setText(f"Auditing {done}/{total} · {url[:70]} · {n} issue(s) so far")
 
     def _stop(self):
         self._stop_flag = True
@@ -339,6 +349,7 @@ class AuditTab(QWidget):
 
     def _on_finding(self, f):
         self._count = getattr(self, "_count", 0) + 1
+        self._render_progress()   # QA-M2: refresh the live 'N issue(s) so far' counter
         sev = f.get("severity", "info")
         it = QTreeWidgetItem([f.get("title", ""), sev_title(sev), f.get("param", ""), f.get("confidence", "")])
         if sev in SEV_COLOR:
