@@ -253,8 +253,15 @@ def check_page(page: dict) -> list[dict]:
         if f.get("method") == "post" and not f.get("csrf"):
             out.append(issue(P, "POST form without a visible CSRF token", "low",
                              "Verify manually: the app may rely on SameSite cookies or a header-based token.", action))
+    from . import secrets as _secrets
     for c in page.get("comments", []):
-        if INTERESTING_COMMENT.search(c):
+        hits = _secrets.find_secrets(c)   # QA-H5: a credential in a comment is a real leak, not just "interesting"
+        if hits:
+            for name, matched, sev, _s, _e in hits:
+                out.append(issue("Information disclosure", f"{name} in HTML comment", sev,
+                                 "A credential appears in an HTML comment — remove it from the delivered page.",
+                                 c.replace(matched, mask(matched))))
+        elif INTERESTING_COMMENT.search(c):
             out.append(issue("Information disclosure", "Interesting HTML comment", "info", evidence=c))
     tokens = [k for k in page.get("localStorage", []) + page.get("sessionStorage", []) if SESSIONY.search(k)]
     if tokens:
