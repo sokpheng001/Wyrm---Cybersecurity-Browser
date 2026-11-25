@@ -259,7 +259,8 @@ class DownloadsMixin:
                         "time": time.strftime("%Y-%m-%d %H:%M")})
         del hist[500:]
         try:
-            f.write_text(json.dumps(hist), encoding="utf-8")
+            from ..fileperms import write_text
+            write_text(f, json.dumps(hist))   # 0600 (B5)
         except OSError:
             pass
 

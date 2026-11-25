@@ -18,7 +18,8 @@ from datetime import datetime
 
 class Library:
     def __init__(self, path: str):
-        self.db = sqlite3.connect(path)
+        from .fileperms import connect
+        self.db = connect(path)   # 0600 (B5)
         self.db.row_factory = sqlite3.Row
         self.db.execute(
             """CREATE TABLE IF NOT EXISTS papers (

@@ -12,7 +12,6 @@ instead of adding duplicates.
 """
 from __future__ import annotations
 
-import sqlite3
 import time
 
 MERGE_SECONDS = 30 * 60
@@ -21,7 +20,8 @@ MAX_ROWS = 50_000
 
 class History:
     def __init__(self, path: str):
-        self.db = sqlite3.connect(path)
+        from .fileperms import connect
+        self.db = connect(path)   # 0600 (B5)
         self.db.execute("CREATE TABLE IF NOT EXISTS visits (id INTEGER PRIMARY KEY, url TEXT NOT NULL, "
                         "title TEXT NOT NULL DEFAULT '', ts REAL NOT NULL)")
         self.db.execute("CREATE INDEX IF NOT EXISTS visits_ts ON visits (ts)")

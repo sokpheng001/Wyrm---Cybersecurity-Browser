@@ -2,7 +2,7 @@
 # Wyrm — wyrm/security/store.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: Kim, Oda, Kwan, Naly
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """Engagements (authorized targets + scope) and findings, stored in SQLite."""
 from __future__ import annotations
@@ -67,7 +67,8 @@ def host_in_scope(host: str, scope: list[str]) -> bool:
 
 class Store:
     def __init__(self, path: str):
-        self.db = sqlite3.connect(path)
+        from ..fileperms import connect
+        self.db = connect(path)   # engagements + findings: owner-only (B5)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(
             """

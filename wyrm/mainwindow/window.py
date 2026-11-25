@@ -110,6 +110,8 @@ class MainWindow(
 
         self.data_dir = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))
         self.data_dir.mkdir(parents=True, exist_ok=True)
+        from .. import fileperms
+        fileperms.harden(self.data_dir)   # B5: data dir 0700, existing databases/JSON 0600
         if not self.ephemeral:
             from ..history import History
             self.history_db = History(str(self.data_dir / "history.db"))

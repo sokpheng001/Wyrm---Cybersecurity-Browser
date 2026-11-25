@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------
 # Wyrm — wyrm/addons/api.py
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: Kim, Oda, Kwan, Naly
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """The Add-on API: an AddonContext is passed to each add-on's register(ctx).
 
@@ -78,8 +78,9 @@ class AddonContext:
 
     def save(self):
         try:
-            self._store_path.parent.mkdir(parents=True, exist_ok=True)
-            self._store_path.write_text(json.dumps(self.storage), encoding="utf-8")
+            from ..fileperms import private_dir, write_text
+            private_dir(self._store_path.parent)
+            write_text(self._store_path, json.dumps(self.storage))   # 0600 (B5)
         except OSError:
             pass
 

@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------
 # Wyrm — wyrm/security/workflows.py
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: Kim, Oda, Kwan, Naly
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """Workflows — Caido-style automation pipelines that run on live proxy traffic.
 
@@ -67,8 +67,9 @@ class WorkflowEngine:
         if self.path is None:
             return
         try:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            self.path.write_text(json.dumps(self.workflows, indent=2), encoding="utf-8")
+            from ..fileperms import private_dir, write_text
+            private_dir(self.path.parent)
+            write_text(self.path, json.dumps(self.workflows, indent=2))   # 0600 (B5)
         except OSError:
             pass
 
