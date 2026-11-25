@@ -19,27 +19,7 @@ import re
 from urllib.parse import urljoin, urlparse
 
 # Secret patterns (name, regex, severity). Shapes are specific so false positives stay low.
-SECRETS: list[tuple[str, str, str]] = [
-    ("AWS access key ID", r"\bAKIA[0-9A-Z]{16}\b", "high"),
-    ("AWS secret access key", r"(?i)aws.{0,20}['\"][0-9a-zA-Z/+]{40}['\"]", "high"),
-    ("Google API key", r"\bAIza[0-9A-Za-z\-_]{35}\b", "high"),
-    ("Google OAuth client ID", r"\b[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com\b", "medium"),
-    ("GitHub token", r"\bgh[pousr]_[0-9A-Za-z]{36}\b", "high"),
-    ("GitHub fine-grained token", r"\bgithub_pat_[0-9A-Za-z_]{22,}\b", "high"),
-    ("Slack token", r"\bxox[baprs]-[0-9A-Za-z-]{10,}\b", "high"),
-    ("Slack webhook", r"https://hooks\.slack\.com/services/T[0-9A-Z]+/B[0-9A-Z]+/[0-9A-Za-z]+", "medium"),
-    ("Stripe secret key", r"\bsk_live_[0-9A-Za-z]{24,}\b", "high"),
-    ("Stripe publishable key", r"\bpk_live_[0-9A-Za-z]{24,}\b", "low"),
-    ("Twilio API key", r"\bSK[0-9a-fA-F]{32}\b", "high"),
-    ("SendGrid API key", r"\bSG\.[0-9A-Za-z\-_]{22}\.[0-9A-Za-z\-_]{43}\b", "high"),
-    ("Mailgun API key", r"\bkey-[0-9a-f]{32}\b", "medium"),
-    ("Firebase cloud messaging key", r"\bAAAA[A-Za-z0-9_-]{7}:[A-Za-z0-9_-]{140}\b", "high"),
-    ("Private key block", r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----", "high"),
-    ("JSON Web Token (JWT)", r"\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b", "medium"),
-    ("Authorization: Bearer", r"(?i)bearer\s+[a-z0-9._\-]{20,}", "low"),
-    ("Generic api key / secret", r"(?i)(?:api[_-]?key|secret|access[_-]?token|client[_-]?secret)"
-                                 r"['\"]?\s*[:=]\s*['\"][0-9a-zA-Z\-_.]{16,45}['\"]", "low"),
-]
+# Secret detection lives in the shared wyrm/security/secrets.py (QA-H4); find_secrets() below delegates to it.
 
 # Endpoints: full URLs, and quoted paths / API routes. Deliberately close to LinkFinder's regex.
 _LINK_RE = re.compile(r"""
@@ -76,17 +56,16 @@ def _same_scope(url: str, base_host: str) -> bool:
 
 
 def find_secrets(text: str) -> list[tuple[str, str, str]]:
-    """[(name, matched snippet, severity)] for secrets in one blob of script text."""
-    out = []
-    seen = set()
-    for name, pat, sev in SECRETS:
-        for m in re.finditer(pat, text):
-            snippet = m.group(0)
-            key = (name, snippet)
-            if key in seen:
-                continue
+    """[(name, matched snippet, severity)] for secrets in one blob of script text. Delegates to the shared
+    detector (QA-H4) so every tool agrees on names and severities."""
+    from . import secrets as _secrets
+    out, seen = [], set()
+    for name, matched, sev, _s, _e in _secrets.find_secrets(text):
+        snippet = matched if len(matched) < 120 else matched[:117] + "…"
+        key = (name, snippet)
+        if key not in seen:
             seen.add(key)
-            out.append((name, snippet if len(snippet) < 120 else snippet[:117] + "…", sev))
+            out.append((name, snippet, sev))
     return out
 
 

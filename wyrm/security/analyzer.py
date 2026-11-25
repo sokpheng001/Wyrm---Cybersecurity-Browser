@@ -307,16 +307,7 @@ def detect_tech(page: dict, headers: dict) -> list[dict]:
 
 
 # ------------------------------------------------------------------ JavaScript endpoints + secrets
-SECRET_PATTERNS = [
-    ("AWS access key id", r"\b(AKIA|ASIA)[0-9A-Z]{16}\b", "high"),
-    ("Google API key", r"\bAIza[0-9A-Za-z\-_]{35}\b", "medium"),
-    ("GitHub token", r"\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}\b", "high"),
-    ("Slack token", r"\bxox[baprs]-[0-9A-Za-z\-]{10,}\b", "high"),
-    ("Stripe live secret key", r"\bsk_live_[0-9a-zA-Z]{20,}\b", "critical"),
-    ("Private key block", r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----", "critical"),
-    ("JSON Web Token", r"\beyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\b", "medium"),
-    ("Generic secret assignment", r"(?i)\b(?:api[_-]?key|secret|passwd|password|access[_-]?token)\b\s*[:=]\s*['\"][^'\"\s]{8,}['\"]", "low"),
-]
+# Secret detection lives in the shared wyrm/security/secrets.py (QA-H4). scan_js / check_page call find_secrets().
 ENDPOINT_RE = re.compile(r"""["'`]((?:https?:)?//[^"'`\s<>]{4,300}|/[A-Za-z0-9_\-./{}:?=&%~]{2,200})["'`]""")
 STATIC_EXT = re.compile(r"\.(png|jpe?g|gif|svg|webp|ico|css|woff2?|ttf|eot|mp4|webm|mp3|map)(\?|$)", re.I)
 INTERESTING_EP = re.compile(r"api|graphql|v\d+/|admin|auth|login|token|internal|debug|upload|user|account|config|\.json", re.I)
@@ -351,17 +342,16 @@ def scan_js(page: dict, in_scope, proxies=None, verify=True, max_files=25) -> li
             if STATIC_EXT.search(ep) or ep.startswith("//www.w3.org") or len(ep) < 3 or ep.count("/") > 15:
                 continue
             endpoints.setdefault(ep, where)
-        for label, pat, sev in SECRET_PATTERNS:
-            for m in re.finditer(pat, text):
-                val = m.group(0)
-                if (label, val) in seen:
-                    continue
-                seen.add((label, val))
-                ctx = text[max(0, m.start() - 60): m.end() + 40].replace("\n", " ")
-                secrets.append(issue("JavaScript: possible secrets", f"{label}: {mask(val)}", sev,
-                                     f"Found in {where}. Verify whether it is a real credential and if it is meant to be public "
-                                     "(e.g. restricted browser keys) before reporting.",
-                                     ctx.replace(val, mask(val))))
+        from . import secrets as _secrets
+        for label, val, sev, mstart, mend in _secrets.find_secrets(text):   # QA-H4: one shared detector
+            if (label, val) in seen:
+                continue
+            seen.add((label, val))
+            ctx = text[max(0, mstart - 60): mend + 40].replace("\n", " ")
+            secrets.append(issue("JavaScript: possible secrets", f"{label}: {mask(val)}", sev,
+                                 f"Found in {where}. Verify whether it is a real credential and if it is meant to be public "
+                                 "(e.g. restricted browser keys) before reporting.",
+                                 ctx.replace(val, mask(val))))
     eps = sorted(endpoints.items(), key=lambda kv: (not INTERESTING_EP.search(kv[0]), kv[0]))
     out = secrets
     for ep, where in eps[:300]:
