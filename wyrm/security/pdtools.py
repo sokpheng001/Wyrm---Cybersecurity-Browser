@@ -3,7 +3,7 @@
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
 # Developer: Kwan (ProjectDiscovery tool integration)
-# Authors: Kim, Oda, Kwan, Naly
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """Run ProjectDiscovery's open-source recon/scanning tools (https://github.com/projectdiscovery) when they are
 installed on the machine, and stream their results into the Scanner panel.
@@ -208,13 +208,65 @@ def summarize(tool: Tool, obj: dict) -> str:
     return "  ".join(bits) if bits else json.dumps(obj, separators=(",", ":"))[:200]
 
 
-def run(tool: Tool, target: str, on_line, proxies=None, timeout: int = 600, should_stop=None) -> dict:
+class OutOfScope(PermissionError):
+    """An active tool was asked to touch a host outside the current engagement scope (B8)."""
+
+
+MAX_SCOPE_RANGE = 65_536   # a CIDR target is expanded and every address checked; bigger ranges are refused
+
+
+def target_hosts(target: str) -> list[str]:
+    """Every host an active tool would contact for `target` (as produced by target_for()). A CIDR expands to
+    its addresses (refused when larger than MAX_SCOPE_RANGE)."""
+    import ipaddress
+    from urllib.parse import urlsplit
+    t = (target or "").strip()
+    if t.startswith("?//"):
+        t = t[1:]
+    if "/" in t and "://" not in t and not t.startswith("//"):
+        try:
+            net = ipaddress.ip_network(t, strict=False)
+        except ValueError:
+            net = None
+        if net is not None:
+            if net.num_addresses > MAX_SCOPE_RANGE:
+                raise OutOfScope(f"{net} has {net.num_addresses:,} addresses; scan at most {MAX_SCOPE_RANGE:,} "
+                                 "(a /16) at a time.")
+            return [str(a) for a in net]
+    parts = urlsplit(t if ("://" in t or t.startswith("//")) else "//" + t)
+    host = (parts.hostname or "").rstrip(".").lower()
+    return [host] if host else []
+
+
+def check_scope(tool: Tool, target: str, scope) -> None:
+    """B8 — the single gate in front of every ProjectDiscovery launch: an active tool (contacts the target) runs
+    only when an engagement scope is set and EVERY host it would touch is inside it. Passive/offline tools pass.
+    Raises OutOfScope otherwise."""
+    if not tool.active:
+        return
+    from .store import host_in_scope
+    scope = [str(x) for x in (scope or []) if str(x).strip()]
+    if not scope:
+        raise OutOfScope(f"{tool.name} contacts the target, so it only runs inside an engagement scope. "
+                         "Select or create an engagement whose scope includes this target.")
+    hosts = target_hosts(target)
+    if not hosts:
+        raise OutOfScope(f"No host found in “{target}”.")
+    for h in hosts:
+        if not host_in_scope(h, scope):
+            raise OutOfScope(f"{h} is outside the engagement scope; {tool.name} was not started.")
+
+
+def run(tool: Tool, target: str, on_line, proxies=None, timeout: int = 600, should_stop=None,
+        scope=None) -> dict:
     """Run one tool against `target`, calling on_line(text, obj|None) per output line. Returns a summary.
 
     `on_line` is called from this worker thread; the caller marshals to the UI. `should_stop`, if given, is
     polled per line and kills the process when it returns True. Plain stdin tools (mapcidr, alterx) are fed the
-    target on stdin; the rest take it as an argument.
+    target on stdin; the rest take it as an argument. Active tools require `scope` (the engagement's scope list)
+    to cover every host in `target` — see check_scope().
     """
+    check_scope(tool, target, scope)
     exe = find(tool.key)
     if not exe:
         raise RuntimeError(f"{tool.key} is not installed")

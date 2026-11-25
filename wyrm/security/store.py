@@ -38,7 +38,10 @@ def _match(host: str, pattern: str) -> bool:
     for prefix in ("https://", "http://"):
         if pattern.startswith(prefix):
             pattern = pattern[len(prefix):]
-    pattern = pattern.split("/", 1)[0]
+    try:   # a CIDR entry (10.0.0.0/24) keeps its prefix — only a URL path after a hostname is dropped
+        ipaddress.ip_network(pattern, strict=False)
+    except ValueError:
+        pattern = pattern.split("/", 1)[0]
     if not pattern:
         return False
     try:  # IP or CIDR

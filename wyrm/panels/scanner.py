@@ -3,7 +3,7 @@
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
 # Developer: Kwan (Scanner: port scan, CORS and clickjacking tests)
-# Authors: Kim, Oda, Kwan, Naly
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """Security panel → Scanner: port scan (nmap or built-in), CORS misconfiguration test, clickjacking test, and
 the ProjectDiscovery tools installed on this machine (subfinder, httpx, katana, nuclei, naabu, dnsx, …).
@@ -254,13 +254,24 @@ class ScannerTab(QWidget):
         self._pd_count = 0
         self._pd_stop_flag = False
         px = self.win.proxies()
+        eng = self.win.engagement
+        scope = list(eng.scope) if eng and eng.scope else []
+        try:   # B8: enforced again in pdtools.run(); checked here too so a CIDR range is judged as a whole
+            pdtools.check_scope(tool, target, scope)
+        except pdtools.OutOfScope as e:
+            self._pd_running = False
+            self.pd_run.setEnabled(True)
+            self.pd_stop.setEnabled(False)
+            self.busy.stop()
+            self.status.setText(str(e))
+            return
 
         def work():
             t = pdtools.probe_scheme(target, px)  # no http(s):// typed: use https if the site answers, else http
             if t != target:
                 self._pd_status.emit(f"Running {tool.name} on {t} …")
             return pdtools.run(tool, t, lambda text, obj: self._pd_line.emit(text, obj), proxies=px,
-                               should_stop=lambda: self._pd_stop_flag)
+                               should_stop=lambda: self._pd_stop_flag, scope=scope)
         self.win.runner.run(work, lambda ok, res: self._pd_done.emit(bool(ok), res))
 
     def _on_pd_line(self, text, obj):
