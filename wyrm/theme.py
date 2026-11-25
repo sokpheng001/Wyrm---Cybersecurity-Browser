@@ -208,6 +208,9 @@ QLineEdit, QPlainTextEdit, QTextBrowser, QSpinBox, QComboBox {
     color: $text; selection-background-color: $interactive; selection-color: #ffffff;
 }
 QLineEdit:focus, QPlainTextEdit:focus, QSpinBox:focus, QComboBox:focus { border: 1px solid $focus; }
+/* QA-U6: give the spin box +/- buttons a usable size (they were tiny) */
+QSpinBox::up-button, QSpinBox::down-button { width: 22px; border-left: 1px solid $border; background: $layer2; }
+QSpinBox::up-button:hover, QSpinBox::down-button:hover { background: $hover; }
 /* combobox-popup: 0 = plain drop-down list BELOW the box on every OS (macOS otherwise pops the list over
    the box, centred on the current item, covering the input) */
 QComboBox { combobox-popup: 0; }

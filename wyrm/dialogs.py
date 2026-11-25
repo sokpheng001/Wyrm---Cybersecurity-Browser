@@ -246,14 +246,14 @@ class SettingsDialog(QDialog):
         self.restore_tabs.setChecked(self.settings.value("general/restore_tabs", False, type=bool))
         self._row(lay, "", self.restore_tabs, "startup session restore")
         from . import updater as _upd
-        self.freeze_updates = QCheckBox("Freeze updates — no automatic app installs and no daily tool/template "
-                                        "refresh (for demos and engagements)")
+        self.freeze_updates = QCheckBox("Freeze updates")   # QA-U6: short label + a note below (was clipped)
         self.freeze_updates.setChecked(self.settings.value("updates/freeze", False, type=bool))
         if _upd.updates_frozen(None):
             self.freeze_updates.setChecked(True)
             self.freeze_updates.setEnabled(False)
             self.freeze_updates.setToolTip("Frozen by the WYRM_NO_UPDATE environment variable.")
         self._row(lay, "", self.freeze_updates, "freeze updates demo engagement pdtools templates")
+        self._note(lay, "No automatic app installs and no daily tool/template refresh (for demos and engagements).")
         self.autoanalyze = QCheckBox("Auto-analyze in-scope pages (security grade)")
         self.autoanalyze.setChecked(self.settings.value("sec/auto", True, type=bool))
         self._row(lay, "", self.autoanalyze, "analysis grade")
@@ -264,7 +264,8 @@ class SettingsDialog(QDialog):
         self._row(lay, "", self.dl_ask, "download save prompt")
         default_dir = self.settings.value("downloads/folder", "", type=str) \
             or QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DownloadLocation)
-        self.dl_folder = QLineEdit(default_dir)
+        from PySide6.QtCore import QDir
+        self.dl_folder = QLineEdit(QDir.toNativeSeparators(default_dir))   # QA-U6: native path separators
         self.dl_folder.setReadOnly(True)
         browse = QPushButton("Change…")
         browse.clicked.connect(self._pick_download_folder)
@@ -392,6 +393,13 @@ class SettingsDialog(QDialog):
         self.proxy_port.setMinimumHeight(30)   # L-10: bigger, usable step buttons (the default arrows were tiny)
         self.proxy_port.setButtonSymbols(QSpinBox.ButtonSymbols.PlusMinus)
         self._row(lay, "Port", self.proxy_port, "proxy port")
+        # QA-U6: Host/Port are only meaningful when an upstream proxy is enabled
+        def _sync_proxy_fields(on=None):
+            on = self.proxy_enabled.isChecked()
+            self.proxy_host.setEnabled(on)
+            self.proxy_port.setEnabled(on)
+        self.proxy_enabled.toggled.connect(_sync_proxy_fields)
+        _sync_proxy_fields()
         from . import proxycfg
         _eng = getattr(self.win, "engagement", None)
         self._tls_eng_id = _eng.id if _eng else 0
