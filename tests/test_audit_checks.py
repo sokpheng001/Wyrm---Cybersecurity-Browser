@@ -284,6 +284,27 @@ def test_passive_detects_leaked_secrets_redacted():
     assert all("AKIAIOSFODNN7EXAMPLE" not in f["evidence"] for f in out)
 
 
+def test_passive_detects_cardholder_data_luhn_valid_masked():
+    from wyrm.security.audit import passive
+    # 4111111111111111 is the canonical Luhn-valid Visa test PAN
+    body = '{"user":"jo","card":"4111111111111111","exp":"12/29"}'
+    out = passive.check_response("https://shop.test/account",
+                                 {"headers": {"content-type": "application/json"}, "status": 200, "text": body})
+    pan = [f for f in out if "Cardholder data" in f["title"]]
+    assert pan and pan[0]["severity"] == "high"
+    assert "4111111111111111" not in pan[0]["evidence"]          # masked
+    assert "411111" in pan[0]["evidence"] and "1111" in pan[0]["evidence"]
+
+
+def test_passive_ignores_non_card_digit_runs():
+    from wyrm.security.audit import passive
+    # a 16-digit order id that is NOT Luhn-valid must not be flagged
+    body = '{"orderId":"1234567812345670000"}'   # too long / invalid prefix
+    out = passive.check_response("https://shop.test/o",
+                                 {"headers": {"content-type": "application/json"}, "status": 200, "text": body})
+    assert not [f for f in out if "Cardholder data" in f["title"]]
+
+
 def test_passive_clean_response_has_no_secret_findings():
     from wyrm.security.audit import passive
     out = passive.check_response("https://app.test/clean.js",

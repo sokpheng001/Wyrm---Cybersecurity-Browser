@@ -34,6 +34,20 @@ def _redact(s: str) -> str:
     return (s[:4] + "…(" + str(len(s)) + " chars)") if len(s) > 8 else "(redacted)"
 
 
+# Brand-prefixed card patterns (Visa/Mastercard/Amex/Discover) keep false positives low; Luhn confirms.
+_CC_RE = re.compile(r"(?<!\d)(?:4\d{12}(?:\d{3})?|5[1-5]\d{14}|3[47]\d{13}|6(?:011|5\d{2})\d{12})(?!\d)")
+
+
+def _luhn(num: str) -> bool:
+    digits = [int(c) for c in num]
+    checksum = sum(digits[-1::-2]) + sum(sum(divmod(d * 2, 10)) for d in digits[-2::-2])
+    return checksum % 10 == 0
+
+
+def _mask_pan(pan: str) -> str:
+    return pan[:6] + "*" * (len(pan) - 10) + pan[-4:] if len(pan) >= 10 else "****"
+
+
 def check_response(url: str, resp: dict) -> list[dict]:
     out = []
     H = resp.get("headers", {})     # lower-cased keys
@@ -70,6 +84,12 @@ def check_response(url: str, resp: dict) -> list[dict]:
             add(f"Cookie without HttpOnly flag: {name}", "low", c[:120])
     if _ERROR_SIG.search(text):
         add("Verbose error / stack trace", "low", "The response body contains a stack trace or verbose error.")
+    for m in _CC_RE.finditer(text):
+        pan = m.group(0)
+        if _luhn(pan):
+            add("Cardholder data (PAN) in response", "high",
+                f"A Luhn-valid payment card number appears in the response: {_mask_pan(pan)} (PCI-DSS).")
+            break   # one is enough to flag
     seen_secrets = set()
     for name, rx, sev in _SECRETS:
         if name in seen_secrets:
