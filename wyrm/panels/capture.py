@@ -33,7 +33,7 @@ class CaptureTab(QWidget):
         v.addWidget(intro)
 
         row = QHBoxLayout()
-        self.enable = QCheckBox("Capture API & WebSocket traffic")
+        self.enable = QCheckBox("Capture API && WebSocket traffic")
         self.enable.setChecked(self.win.capture_enabled())
         self.enable.toggled.connect(self.win.set_capture_enabled)
         row.addWidget(self.enable)

@@ -68,7 +68,7 @@ class SessionAuthTab(QWidget):
         mg.addWidget(self.body)
         v.addWidget(macro)
 
-        rule = QGroupBox("When to re-login & where to apply")
+        rule = QGroupBox("When to re-login && where to apply")
         rg = QVBoxLayout(rule)
         r2 = QHBoxLayout()
         r2.addWidget(QLabel("Apply to hosts containing"))

@@ -94,7 +94,7 @@ class SecurityPanel(QDockWidget):
             cap.setContentsMargins(16, 16 if gi else 10, 12, 4)  # space above each group (header gap handled by NavBody margin)
             nb.addWidget(cap)
             for name, widget in items:
-                btn = QPushButton(name, objectName="NavItem")
+                btn = QPushButton(name.replace("&", "&&"), objectName="NavItem")  # QA-M4: '&' isn't a mnemonic here
                 btn.setCheckable(True)
                 btn.setAutoExclusive(True)
                 btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -152,7 +152,7 @@ class SecurityPanel(QDockWidget):
         if lay is not None:
             lay.setContentsMargins(16, 14, 16, 12)
             lay.setSpacing(10)
-        btn = QPushButton(name, objectName="NavItem")
+        btn = QPushButton(name.replace("&", "&&"), objectName="NavItem")   # QA-M4: escape any '&' in add-on names
         btn.setCheckable(True)
         btn.setAutoExclusive(True)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)

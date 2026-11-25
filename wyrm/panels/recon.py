@@ -332,7 +332,7 @@ class ReconTab(QWidget):
             m = QMenu(self)
             m.addAction("Load subdomains", lambda: self._chaos_load(prog))
             if prog["program_url"]:
-                m.addAction("Open program page (scope & rules)", lambda: self.win.open_url(prog["program_url"], new_tab=True))
+                m.addAction("Open program page (scope && rules)", lambda: self.win.open_url(prog["program_url"], new_tab=True))
             m.exec(self.list.viewport().mapToGlobal(pos))
             return
         if not it or it.text().strip().startswith("──"):
