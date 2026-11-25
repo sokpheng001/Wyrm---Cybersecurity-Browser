@@ -2,7 +2,7 @@
 # Wyrm — wyrm/panels/common.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: Kim, Oda, Kwan, Naly
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """Shared helpers for the Security panel tabs (highlighting, badges, panes, sorting)."""
 from __future__ import annotations
@@ -20,10 +20,8 @@ from .. import theme
 SEV_COLOR = theme.SEVERITY
 
 
-try:  # degrade gracefully if a build is missing the file, rather than crash the browser at startup
-    PAGEINFO_JS = (Path(__file__).parent.parent / "security" / "pageinfo.js").read_text(encoding="utf-8")
-except OSError:
-    PAGEINFO_JS = ""
+# pageinfo.js with the per-session hook token filled in (B2); empty if a build is missing the file
+from ..browser.scripts import PAGEINFO_JS  # noqa: E402
 
 
 def mono(widget):

@@ -2,7 +2,7 @@
 # Wyrm — wyrm/security/domscan.py
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: Kim, Oda, Kwan, Naly
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """Passive DOM security analysis — a static source/sink scanner inspired by DOM Invader.
 
@@ -129,6 +129,17 @@ def analyze_dom(page: dict, in_scope=None, proxies=None, verify=True, max_files:
                 per_script_sinks.setdefault(where, []).append((name, sev, line))
                 if len(seen_lines) >= 25:
                     break
+
+    # B2: postMessage handlers registered at runtime (counted by the document-start hook) — scripts loaded from
+    # other origins or built dynamically often don't show the addEventListener("message") call in their source.
+    n_pm = page.get("postMessageListeners")
+    if (isinstance(n_pm, (int, float)) and n_pm > 0) or page.get("postMessageOnmessage"):
+        n = int(n_pm or 0) + (1 if page.get("postMessageOnmessage") else 0)
+        issues.append(analyzer.issue(
+            "DOM sources", "postMessage listener (runtime)", "info",
+            f"The page has {n} postMessage handler{'s' if n != 1 else ''} on window. Check that each one verifies "
+            "event.origin before using event.data — a handler that doesn't accepts messages from any site.",
+            "", where="runtime", kind="source"))
 
     # data-flow heuristic: a script holding BOTH a source and a dangerous sink is worth manual review
     for where, srcs in per_script_sources.items():

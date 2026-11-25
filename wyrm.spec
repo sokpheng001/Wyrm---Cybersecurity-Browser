@@ -31,7 +31,7 @@ a = Analysis(
     pathex=["."],
     datas=[("wyrm/citesee.js", "wyrm"), ("wyrm/youtube.js", "wyrm"), ("wyrm/fingerprint.js", "wyrm"),
            ("wyrm/capture.js", "wyrm"),
-           ("wyrm/security/pageinfo.js", "wyrm/security"),
+           ("wyrm/security/pageinfo.js", "wyrm/security"), ("wyrm/security/pagehook.js", "wyrm/security"),
            ("wyrm/assets", "wyrm/assets"), ("CHANGELOG.md", ".")]
           # ProjectDiscovery tools (tools/fetch_pdtools.py); skipped if not fetched (e.g. a quick local build)
           + ([("wyrm/bin", "wyrm/bin")] if os.path.isdir("wyrm/bin") else []),

@@ -116,7 +116,7 @@ jobs:
         run: |
           set -e
           for f in wyrm/capture.js wyrm/citesee.js wyrm/youtube.js wyrm/fingerprint.js \
-                   wyrm/security/pageinfo.js wyrm/assets/tech/fingerprints.json wyrm/assets/icon.png; do
+                   wyrm/security/pageinfo.js wyrm/security/pagehook.js wyrm/assets/tech/fingerprints.json wyrm/assets/icon.png; do
             if ! find dist -path "*/$f" | grep -q .; then
               echo "::error::missing from the frozen build: $f"; exit 1
             fi

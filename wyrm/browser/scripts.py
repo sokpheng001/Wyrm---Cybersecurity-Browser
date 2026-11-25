@@ -82,6 +82,11 @@ CAP_TOKEN = secrets.token_hex(16)
 CAP_PREFIX = "[[WYRMCAP:" + CAP_TOKEN + "]]"
 CAPTURE_JS = _load("capture.js").replace("__WYRM_CAP_TOKEN__", CAP_TOKEN)
 
+# B2: document-start hook that counts postMessage listeners; pageinfo.js reads it via this secret event type.
+HOOK_TOKEN = "wyrm-" + secrets.token_hex(12)
+PAGEHOOK_JS = _load("security/pagehook.js").replace("__WYRM_HOOK_TOKEN__", HOOK_TOKEN)
+PAGEINFO_JS = _load("security/pageinfo.js").replace("__WYRM_HOOK_TOKEN__", HOOK_TOKEN)
+
 
 COLLECT_JS = """JSON.stringify((function(){const c=new Set(),i=new Set();
 document.querySelectorAll('[class],[id]').forEach((e,n)=>{if(n>4000)return;

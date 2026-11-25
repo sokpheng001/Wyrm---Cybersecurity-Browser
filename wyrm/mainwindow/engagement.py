@@ -15,7 +15,7 @@ from .. import theme
 from ..dialogs import EngagementDialog, FindingDialog
 from ..scheme import SCHEME
 from ..security import rewrite
-from ..browser.scripts import CAPTURE_JS, FINGERPRINT_JS, YOUTUBE_JS
+from ..browser.scripts import CAPTURE_JS, FINGERPRINT_JS, PAGEHOOK_JS, YOUTUBE_JS
 from ..ui.common import HOME
 
 
@@ -106,6 +106,8 @@ class EngagementMixin:
             inject("wyrm-antifp", FINGERPRINT_JS, subframes=True)
         if self.settings.value("capture/enabled", False, type=bool):
             inject("wyrm-capture", CAPTURE_JS, subframes=True)  # in-page API & WebSocket capture (opt-in)
+        if not getattr(self, "tor", None):   # B2: postMessage listener count for passive page info (not in Tor)
+            inject("wyrm-pagehook", PAGEHOOK_JS, subframes=True)
         geo_mode = self.settings.value("privacy/geo_mode", "", type=str)
         if not geo_mode:  # migrate the old boolean setting
             geo_mode = "custom" if self.settings.value("privacy/geo_spoof", False, type=bool) else "off"

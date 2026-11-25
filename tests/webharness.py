@@ -69,9 +69,11 @@ def serve(directory, extra=None):
     return srv, f"http://127.0.0.1:{srv.server_address[1]}/"
 
 
-def run_page(directory, page="index.html", scripts=(), timeout=10.0, extra=None):
+def run_page(directory, page="index.html", scripts=(), timeout=10.0, extra=None, eval_js=None, result=None):
     """Load `page` from `directory` with `scripts` ((name, source) pairs) injected at document creation in the
-    main world of every frame — exactly how Wyrm injects them. Returns the list of console messages."""
+    main world of every frame — exactly how Wyrm injects them. Returns the list of console messages.
+    With `eval_js`, that script is run via runJavaScript (main world, like the Security panel) once the page
+    signals done, and its return value is stored in result["value"]."""
     _qapp()
     from PySide6.QtCore import QEventLoop, QTimer, QUrl
     from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineScript
@@ -83,7 +85,14 @@ def run_page(directory, page="index.html", scripts=(), timeout=10.0, extra=None)
         def javaScriptConsoleMessage(self, level, message, line, source):  # noqa: N802
             msgs.append(message)
             if message == DONE:
-                QTimer.singleShot(300, loop.quit)  # let trailing async emits land
+                if eval_js is not None:
+                    def got(v):
+                        if result is not None:
+                            result["value"] = v
+                        QTimer.singleShot(100, loop.quit)
+                    self.runJavaScript(eval_js, 0, got)
+                else:
+                    QTimer.singleShot(300, loop.quit)  # let trailing async emits land
 
     prof = QWebEngineProfile()  # off-the-record
     for name, src in scripts:

@@ -1,0 +1,19 @@
+<!doctype html>
+<!-- Wyrm — tests/pageinfo/index.html · Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny -->
+<html><head><meta charset="utf-8"><script>
+/* B2: postMessage handlers added the usual ways, one removed again; then the page tampers with JSON. */
+function a(e) {} function b(e) {} function c(e) {} function gone(e) {}
+window.addEventListener("message", a);
+addEventListener("message", b);              // unqualified (this === undefined)
+self.addEventListener("message", c, false);
+window.addEventListener("message", a);       // duplicate: the DOM ignores it, so must we
+window.addEventListener("message", gone);
+window.removeEventListener("message", gone);
+document.addEventListener("message", function () {});   // not on window: not a postMessage handler
+JSON.stringify = function () { return '{"url":"FORGED","postMessage":false}'; };
+Object.defineProperty(Object.prototype, "toJSON", {configurable: true, value: function () { return {url: "FORGED2"}; }});
+window.__pmNative = String(EventTarget.prototype.addEventListener).indexOf("[native code]") >= 0 &&
+                    EventTarget.prototype.addEventListener.name === "addEventListener";
+console.log("NATIVE " + window.__pmNative);
+console.log("WYRM_TEST_DONE");
+</script></head><body>pageinfo</body></html>
