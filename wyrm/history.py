@@ -25,7 +25,48 @@ class History:
         self.db.execute("CREATE TABLE IF NOT EXISTS visits (id INTEGER PRIMARY KEY, url TEXT NOT NULL, "
                         "title TEXT NOT NULL DEFAULT '', ts REAL NOT NULL)")
         self.db.execute("CREATE INDEX IF NOT EXISTS visits_ts ON visits (ts)")
+        # B6: what the user typed in the address bar (autocomplete). Lives here, not in QSettings, so history has
+        # one store and a new entry is one row instead of rewriting a 500-item list in the settings file.
+        self.db.execute("CREATE TABLE IF NOT EXISTS typed (text TEXT PRIMARY KEY, ts REAL NOT NULL)")
         self.db.commit()
+
+    # ---------------------------------------------------------------- typed address-bar entries (B6)
+    TYPED_MAX = 500
+
+    def add_typed(self, text: str) -> None:
+        text = (text or "").strip()
+        if not text:
+            return
+        self.db.execute("INSERT INTO typed (text, ts) VALUES (?, ?) ON CONFLICT(text) DO UPDATE SET ts = excluded.ts",
+                        (text, time.time()))
+        self.db.execute("DELETE FROM typed WHERE text NOT IN (SELECT text FROM typed ORDER BY ts DESC LIMIT ?)",
+                        (self.TYPED_MAX,))
+        self.db.commit()
+
+    def typed(self, limit: int = 500) -> list[str]:
+        return [r[0] for r in self.db.execute("SELECT text FROM typed ORDER BY ts DESC LIMIT ?", (limit,))]
+
+    def clear_typed(self) -> None:
+        self.db.execute("DELETE FROM typed")
+        self.db.commit()
+
+    def import_typed(self, entries) -> int:
+        """One-time migration of the old QSettings list (newest first). Only entries missing here are added,
+        ranked below anything already in the database. Returns how many were added."""
+        have = set(self.typed(self.TYPED_MAX))
+        oldest = self.db.execute("SELECT MIN(ts) FROM typed").fetchone()[0] or time.time()
+        added = 0
+        for i, text in enumerate(e for e in (entries or []) if isinstance(e, str) and e.strip()):
+            text = text.strip()
+            if text in have:
+                continue
+            self.db.execute("INSERT OR IGNORE INTO typed (text, ts) VALUES (?, ?)", (text, oldest - 1 - i))
+            have.add(text)
+            added += 1
+        self.db.execute("DELETE FROM typed WHERE text NOT IN (SELECT text FROM typed ORDER BY ts DESC LIMIT ?)",
+                        (self.TYPED_MAX,))
+        self.db.commit()
+        return added
 
     def record(self, url: str, title: str = "") -> None:
         if not url.startswith(("http://", "https://")):

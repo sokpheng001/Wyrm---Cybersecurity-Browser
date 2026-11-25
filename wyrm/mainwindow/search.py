@@ -63,11 +63,14 @@ class SearchMixin:
             return  # never record in Tor windows or for internal pages
         self._history = [text] + [h for h in self._history if h != text]
         del self._history[500:]  # cap
-        self.settings.setValue("history/entries", self._history)
+        if getattr(self, "history_db", None) is not None:   # B6: history.db is the only store
+            self.history_db.add_typed(text)
 
     def clear_history(self):
         self._history = []
-        self.settings.setValue("history/entries", [])
+        if getattr(self, "history_db", None) is not None:
+            self.history_db.clear_typed()
+        self.settings.remove("history/entries")
         self._rebuild_suggest_model([], [])
         self.toast("Search & address history cleared")
 

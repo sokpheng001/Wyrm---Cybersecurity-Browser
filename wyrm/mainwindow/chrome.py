@@ -24,6 +24,21 @@ class ChromeMixin:
     """Window chrome: tab strip, toolbar, find bar, frame / title-bar handling and keys. (Mixed into MainWindow.)"""
 
     # ================================================================ chrome
+
+    def _load_typed_history(self) -> list:
+        """Typed address-bar entries from history.db. B6: a list still in QSettings (history/entries — rewritten
+        in full on every navigation) is merged in once and the key deleted, so history has a single store."""
+        db = getattr(self, "history_db", None)
+        legacy = self.settings.value("history/entries", None, type=list)
+        if db is None:
+            return list(legacy or [])
+        if legacy is not None:
+            try:
+                db.import_typed(legacy)
+                self.settings.remove("history/entries")
+            except Exception:  # noqa: BLE001 — keep the old list rather than lose it
+                return list(legacy or [])
+        return db.typed(500)
     def _tool(self, icon: str, tip: str, fn=None, keys=()) -> QToolButton:
         b = QToolButton()
         b.setFixedSize(40, 40)  # square, so the hover background is centred on the icon
@@ -159,7 +174,7 @@ class ChromeMixin:
         self.urlbar.customContextMenuRequested.connect(self._urlbar_context_menu)
         # address-bar autocomplete: history + live search suggestions (Tor windows never record anything)
         from PySide6.QtGui import QStandardItemModel
-        self._history = [] if self.ephemeral else list(self.settings.value("history/entries", [], type=list) or [])
+        self._history = [] if self.ephemeral else self._load_typed_history()
         self._suggest_model = QStandardItemModel(self)
         self._completer = QCompleter(self._suggest_model, self)
         self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
