@@ -284,6 +284,32 @@ def test_path_builder_preserves_traversal_slashes():
     assert "../../../../etc/passwd" in url   # slashes kept so path-traversal payloads reach the server
 
 
+def _ssrf_meta_send(vulnerable=True):
+    def send(url, headers, body):
+        if vulnerable and "169.254.169.254" in url:
+            return {"status": 200, "headers": {}, "location": "", "url": url,
+                    "text": "ami-id\ninstance-id\niam/security-credentials/\nlocal-ipv4\nhostname"}
+        return {"status": 200, "headers": {}, "text": "ok", "location": "", "url": url}
+    return send
+
+
+def test_ssrf_cloud_metadata_no_oob_detected():
+    c = chk.Ssrf()
+    point = {"loc": "query", "name": "url", "value": "https://example.com/img.png"}
+    build = lambda p: ("https://t.test/fetch?url=" + p, {}, None)
+    f = c.run(point, build, _ssrf_meta_send(vulnerable=True), baseline=None, rand="abc", oob=None)
+    assert f is not None and f["check"] == "ssrf" and f["severity"] == "high"
+    assert "metadata" in f["evidence"].lower()
+
+
+def test_ssrf_metadata_not_probed_on_non_url_param():
+    c = chk.Ssrf()
+    point = {"loc": "query", "name": "sort", "value": "asc"}   # not a URL-ish param
+    build = lambda p: ("https://t.test/list?sort=" + p, {}, None)
+    f = c.run(point, build, _ssrf_meta_send(vulnerable=True), baseline=None, rand="abc", oob=None)
+    assert f is None
+
+
 def test_passive_detects_leaked_secrets_redacted():
     from wyrm.security.audit import passive
     body = (

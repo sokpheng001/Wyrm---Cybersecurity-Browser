@@ -222,23 +222,42 @@ class CrlfInjection:
         return None
 
 
+_SSRF_NAMES = {"url", "uri", "link", "src", "source", "dest", "destination", "redirect", "callback", "webhook",
+               "image", "img", "imageurl", "file", "feed", "host", "to", "next", "data", "reference", "ref",
+               "open", "load", "path", "proxy", "fetch", "domain", "site", "page", "target"}
+_AWS_META = re.compile(r"\b(ami-id|instance-id|instance-type|iam/security-credentials|local-ipv4|public-keys|"
+                       r"security-credentials|hostname)\b")
+
+
 class Ssrf:
     key, title, severity = "ssrf", "Server-side request forgery (SSRF)", "high"
 
     def run(self, point, build, send, baseline, rand, oob=None):
-        if oob is None:
-            return None
-        token = oob.token()
-        url = oob.url(token)
-        if not url:
-            return None
-        r = None
-        for payload in (url, "//" + url.split("://", 1)[-1]):   # full URL, then scheme-relative
-            r = send(*build(payload)) or r
-        if oob.wait_hit(token, 10):
-            return _finding(self, point, url,
-                            "The server fetched our out-of-band URL — it makes requests to an attacker-controlled "
-                            "host (SSRF).", "firm", r or {})
+        name = point.get("name", "").lower()
+        val = point.get("value", "") or ""
+        url_ish = name in _SSRF_NAMES or val.startswith(("http://", "https://", "//", "www."))
+        # 1) out-of-band: the most reliable signal (works for any parameter)
+        if oob is not None:
+            token = oob.token()
+            url = oob.url(token)
+            if url:
+                r = None
+                for payload in (url, "//" + url.split("://", 1)[-1]):   # full URL, then scheme-relative
+                    r = send(*build(payload)) or r
+                if oob.wait_hit(token, 10):
+                    return _finding(self, point, url,
+                                    "The server fetched our out-of-band URL — it makes requests to an "
+                                    "attacker-controlled host (SSRF).", "firm", r or {})
+        # 2) no-OOB fallback: make the server fetch the cloud metadata service and look for its contents. Only on
+        # URL-ish parameters, to bound cost. A hit here often means instance credentials are reachable.
+        if url_ish:
+            meta = "http://169.254.169.254/latest/meta-data/"
+            r2 = send(*build(meta))
+            if r2 and _AWS_META.search(r2.get("text", "")):
+                return _finding(self, point, meta,
+                                "The server fetched the cloud metadata endpoint (169.254.169.254) and returned "
+                                "its contents — SSRF to the instance metadata service (often exposes credentials).",
+                                "firm", r2)
         return None
 
 
