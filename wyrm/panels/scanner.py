@@ -635,7 +635,8 @@ class ScannerTab(QWidget):
         ne, ns = len(r["endpoints"]), len(r["secrets"])
         if not ne and not ns:
             self._add("Nothing found in the page's scripts", "", "No endpoints or secrets matched.", {"url": r["base"]})
-        self.status.setText(f"JS recon: {ns} secret(s), {ne} endpoint(s) from "
+        loc = ((urlparse(r["base"]).netloc + urlparse(r["base"]).path) or r["base"])[:60]   # QA-L1: show the URL
+        self.status.setText(f"JS recon on {loc}: {ns} secret(s), {ne} endpoint(s) from "
                             f"{r['inline']} inline + {r['external']} external script(s).")
         if self.tree.topLevelItemCount():
             self.tree.setCurrentItem(self.tree.topLevelItem(0))

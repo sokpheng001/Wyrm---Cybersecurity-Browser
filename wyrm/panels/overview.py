@@ -146,7 +146,11 @@ class OverviewTab(QWidget):
             counts[i["severity"]] = counts.get(i["severity"], 0) + 1
         parts = [f"<span style='color:{SEV_COLOR[s]}'>{counts[s]} {s}</span>"
                  for s in ("critical", "high", "medium", "low", "info") if counts.get(s)]
-        status = f"HTTP {r.get('status')} · " if r.get("status") else ""
+        from urllib.parse import urlparse
+        pu = urlparse(url)
+        loc = ((pu.netloc + pu.path) or url)[:60]   # QA-L1: show which URL these results are for
+        from html import escape as _esc
+        status = f"<b>{_esc(loc)}</b> · " + (f"HTTP {r.get('status')} · " if r.get("status") else "")
         self.summary.setText(status + " · ".join(parts) + ("  ⚠ " + "; ".join(r["errors"]) if r["errors"] else ""))
         self.tree.clear()
         groups: dict[str, QTreeWidgetItem] = {}

@@ -105,7 +105,10 @@ class DomTab(QWidget):
             self.counts.setText(f"DOM analysis failed: {r}")
             return
         c = r["counts"]
-        self.counts.setText(f"{c['sinks']} sinks · {c['sources']} sources · {c['flows']} potential flows "
+        from urllib.parse import urlparse
+        pu = urlparse(url)
+        loc = ((pu.netloc + pu.path) or url)[:60]   # QA-L1: show which URL these results are for
+        self.counts.setText(f"{loc} · {c['sinks']} sinks · {c['sources']} sources · {c['flows']} potential flows "
                             f"· {c['scripts']} script(s) scanned")
         self.tree.clear()
         groups: dict[str, QTreeWidgetItem] = {}
