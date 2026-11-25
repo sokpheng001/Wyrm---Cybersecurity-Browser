@@ -377,8 +377,12 @@ class SettingsDialog(QDialog):
         self.proxy_port.setMinimumHeight(30)   # L-10: bigger, usable step buttons (the default arrows were tiny)
         self.proxy_port.setButtonSymbols(QSpinBox.ButtonSymbols.PlusMinus)
         self._row(lay, "Port", self.proxy_port, "proxy port")
-        self.proxy_insecure = QCheckBox("Trust the proxy's CA (ignore certificate errors while proxied)")
-        self.proxy_insecure.setChecked(self.settings.value("proxy/insecure", False, type=bool))
+        from . import proxycfg
+        _eng = getattr(self.win, "engagement", None)
+        self._tls_eng_id = _eng.id if _eng else 0
+        self.proxy_insecure = QCheckBox("Don't verify upstream TLS while proxied (accept certificate errors) — "
+                                        + (f"for engagement “{_eng.name}”" if _eng else "for personal browsing"))
+        self.proxy_insecure.setChecked(proxycfg.insecure_setting(self.settings, self._tls_eng_id))
         self._row(lay, "", self.proxy_insecure, "proxy certificate ca insecure")
         lay.addStretch(1)
         return page
@@ -420,12 +424,13 @@ class SettingsDialog(QDialog):
         s.setValue("privacy/doh_provider", self.doh_prov.currentData())
         for key in ("ads", "trackers", "malware", "linkguard", "antifp", "popups", "params", "youtube"):
             s.setValue(f"shields/{key}", getattr(self, f"sh_{key}").isChecked())
+        from . import proxycfg
         proxy_before = (s.value("proxy/enabled", False, type=bool), s.value("proxy/host", ""), s.value("proxy/port", 0, type=int),
-                        s.value("proxy/insecure", False, type=bool))
+                        proxycfg.insecure_setting(s, self._tls_eng_id))
         s.setValue("proxy/enabled", self.proxy_enabled.isChecked())
         s.setValue("proxy/host", self.proxy_host.text().strip() or "127.0.0.1")
         s.setValue("proxy/port", self.proxy_port.value())
-        s.setValue("proxy/insecure", self.proxy_insecure.isChecked())
+        proxycfg.set_insecure(s, self._tls_eng_id, self.proxy_insecure.isChecked())   # B7: per engagement
         proxy_after = (self.proxy_enabled.isChecked(), s.value("proxy/host", ""), self.proxy_port.value(),
                        self.proxy_insecure.isChecked())
         # apply live where possible
@@ -436,5 +441,6 @@ class SettingsDialog(QDialog):
             self.win.security.shields.sync_from_settings()
         self.win._apply_fp_ua_all()   # apply/clear the anti-fingerprinting User-Agent without a restart
         self.accept()
+        self.win.update_tls_indicators()
         if proxy_before != proxy_after:
             self.win.prompt_restart_for_proxy()

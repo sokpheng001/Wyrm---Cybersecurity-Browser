@@ -29,8 +29,11 @@ def apply_proxy_flags():
         return
     flags = [f"--proxy-server=http://{s.value('proxy/host', '127.0.0.1')}:{s.value('proxy/port', 8080, type=int)}",
              "--proxy-bypass-list=<-loopback>"]
-    if s.value("proxy/insecure", False, type=bool):
+    from wyrm import proxycfg   # B7: per-engagement choice (Chromium's flags are fixed for this run)
+    if proxycfg.upstream_unverified(s, proxycfg.startup_engagement(s)):
         flags.append("--ignore-certificate-errors")
+    os.environ["WYRM_TLS_UNVERIFIED_AT_START"] = "1" if proxycfg.upstream_unverified(
+        s, proxycfg.startup_engagement(s)) else "0"
     os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "") + " " + " ".join(flags)).strip()
 
 

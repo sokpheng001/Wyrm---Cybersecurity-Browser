@@ -172,5 +172,25 @@ class PrivacyMixin:
         return {"http": p, "https": p}
 
     def verify_tls(self) -> bool:
-        s = self.settings
-        return not (s.value("proxy/enabled", False, type=bool) and s.value("proxy/insecure", False, type=bool))
+        from .. import proxycfg   # B7: per engagement
+        eng = getattr(self, "engagement", None)
+        return not proxycfg.upstream_unverified(self.settings, eng.id if eng else 0)
+
+    def update_tls_indicators(self):
+        """B7: keep the red banner and the Proxy panel's indicator in step with the current engagement."""
+        import os
+        unverified = not self.verify_tls()
+        pages_unverified = os.environ.get("WYRM_TLS_UNVERIFIED_AT_START") == "1"
+        banner = getattr(self, "insecure_banner", None)
+        if banner is not None and not self.ephemeral:
+            if unverified or pages_unverified:
+                why = ("⚠ Upstream TLS not verified — certificate errors are accepted while proxied. ")
+                if unverified != pages_unverified:
+                    why += "Web pages change after a restart; Wyrm's own requests already follow this engagement. "
+                banner.show_banner(True, why + "Change it in the Proxy panel or Settings → Network.", "Settings",
+                                   self._open_settings)
+            else:
+                banner.show_banner(False, "")
+        proxy = getattr(getattr(self, "security", None), "proxy", None)
+        if proxy is not None and hasattr(proxy, "refresh_tls_state"):
+            proxy.refresh_tls_state()

@@ -172,6 +172,8 @@ class EngagementMixin:
         self._refresh_engagement_ui()
 
     def _refresh_engagement_ui(self):
+        if hasattr(self, "update_tls_indicators"):
+            self.update_tls_indicators()   # B7: TLS verification is per engagement
         box = self.eng_box
         box.blockSignals(True)
         box.clear()

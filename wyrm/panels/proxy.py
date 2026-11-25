@@ -3,7 +3,7 @@
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Developers: Kwan and Oda (intercepting HTTPS proxy)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: Kim, Oda, Kwan, Naly
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """Proxy tab: full HTTPS request/response history (with bodies) and response interception (hold → edit → forward)."""
 from __future__ import annotations
@@ -56,6 +56,19 @@ class ProxyTab(QWidget):
                           "request/response bodies and edit responses (Burp/Caido-style). It installs a local "
                           "certificate so HTTPS can be decrypted, and restarts Wyrm.")
         v.addWidget(intro)
+
+        # B7: upstream TLS verification is visible here, and chosen per engagement
+        tls_row = QHBoxLayout()
+        self.tls_state = QLabel()
+        self.tls_state.setWordWrap(True)
+        tls_row.addWidget(self.tls_state, 1)
+        self.tls_toggle = QCheckBox("Accept upstream TLS errors for this engagement")
+        self.tls_toggle.setToolTip("For an upstream testing proxy (Burp/ZAP) that re-signs traffic. Wyrm's own "
+                                   "requests follow this at once; web pages after a restart.")
+        self.tls_toggle.toggled.connect(self._set_tls_insecure)
+        tls_row.addWidget(self.tls_toggle)
+        v.addLayout(tls_row)
+        self.refresh_tls_state()
 
         row = QHBoxLayout()
         self.toggle = QPushButton("Turn off proxy" if active else "Turn on intercepting proxy")
@@ -161,6 +174,32 @@ class ProxyTab(QWidget):
     # ------------------------------------------------------------ interception plumbing (worker thread)
     def _set_intercept(self, on):
         self._intercept_on = on
+
+    def refresh_tls_state(self):
+        from .. import proxycfg
+        s, eng = self.win.settings, getattr(self.win, "engagement", None)
+        eid = eng.id if eng else 0
+        upstream = s.value("proxy/enabled", False, type=bool)
+        insecure = proxycfg.insecure_setting(s, eid)
+        self.tls_toggle.blockSignals(True)
+        self.tls_toggle.setChecked(insecure)
+        self.tls_toggle.blockSignals(False)
+        self.tls_toggle.setEnabled(upstream)
+        who = f"engagement “{eng.name}”" if eng else "personal browsing"
+        if not upstream:
+            self.tls_state.setText("<span style='color:#24a148'>●</span> Upstream TLS verified "
+                                   "(no upstream proxy configured).")
+        elif insecure:
+            self.tls_state.setText(f"<span style='color:#da1e28'><b>⚠ Upstream TLS not verified</b></span> — "
+                                   f"certificate errors are accepted while proxied ({who}).")
+        else:
+            self.tls_state.setText(f"<span style='color:#24a148'>●</span> Upstream TLS verified ({who}).")
+
+    def _set_tls_insecure(self, on):
+        from .. import proxycfg
+        eng = getattr(self.win, "engagement", None)
+        proxycfg.set_insecure(self.win.settings, eng.id if eng else 0, on)
+        self.win.update_tls_indicators()
 
     def _set_http2(self, on):
         from PySide6.QtCore import QSettings

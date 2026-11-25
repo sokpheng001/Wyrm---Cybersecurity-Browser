@@ -191,11 +191,7 @@ class MainWindow(
                 self._update_timer.start(6 * 60 * 60 * 1000)
 
         self._build_ui()
-        if not self.ephemeral and self.settings.value("proxy/enabled", False, type=bool) \
-                and self.settings.value("proxy/insecure", False, type=bool):
-            self.insecure_banner.show_banner(
-                True, "⚠ Certificate errors are being ignored while proxied — every site's TLS errors are accepted. "
-                "Turn this off in Settings → Network unless you're using Burp/ZAP.", "Settings", self._open_settings)
+        self.update_tls_indicators()   # B7: "Upstream TLS not verified" banner + Proxy panel indicator
         self._setup_dock_titlebars()
         sb = self.statusBar()
         sb.setSizeGripEnabled(False)
