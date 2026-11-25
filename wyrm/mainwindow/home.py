@@ -26,12 +26,61 @@ class HomeMixin:
             self._kev_recent = result
             self._refresh_home_pages()
 
-    def _refresh_home_pages(self):
-        for i in range(self.tabbar.count()):  # reload open start pages so new feeds / background show up
+    # W2: patch only the [data-live] regions of an open start page (weather, shortcuts, news/KEV feeds) instead
+    # of reloading it — no white flash, no replayed entry animation, scroll position and typed text kept. Runs
+    # only on Wyrm's own start page (checked in the page itself, which a site can't spoof), never elsewhere.
+    _LIVE_PATCH_JS = (
+        "(function(h){if(location.protocol!=='wyrm:'||(location.host!=='home'&&location.host!==''))return -2;"
+        "var cur=document.querySelectorAll('[data-live]');if(!cur.length)return -1;"
+        "var d=new DOMParser().parseFromString(h,'text/html'),n=0;"
+        "for(var i=0;i<cur.length;i++){var o=cur[i],k=o.getAttribute('data-live'),"
+        "x=d.querySelector('[data-live=\"'+k+'\"]');"
+        "if(x&&x.innerHTML!==o.innerHTML){o.innerHTML=x.innerHTML;n++;}}return n;})(%s)")
+
+    def _refresh_home_pages(self, full: bool = False):
+        """Refresh open start pages. Bursts (news + KEV + weather + favicons arriving together at startup) are
+        coalesced into one update; `full=True` (background/theme changes) reloads instead of patching."""
+        self._home_full = getattr(self, "_home_full", False) or full
+        t = getattr(self, "_home_timer", None)
+        if t is None:
+            t = self._home_timer = QTimer(self)
+            t.setSingleShot(True)
+            t.setInterval(300)
+            t.timeout.connect(self._do_refresh_home_pages)
+        t.start()
+
+    def _home_views(self):
+        for i in range(self.tabbar.count()):
             v = self.tabbar.tabData(i)
+            if v is None:
+                continue
             u = v.url()
             if u.scheme() == "wyrm" and u.host() in ("home", ""):
+                yield v
+
+    def _do_refresh_home_pages(self):
+        full, self._home_full = getattr(self, "_home_full", False), False
+        views = list(self._home_views())
+        if not views:
+            return
+        if full:
+            for v in views:
                 v.page().triggerAction(QWebEnginePage.WebAction.ReloadAndBypassCache)
+            return
+        import json
+        try:
+            html = pages.render_home(self.scheme_handler._home_ctx())
+        except Exception:  # noqa: BLE001 — never leave the page stale because a patch couldn't be built
+            html = None
+        for v in views:
+            if html is None:
+                v.page().triggerAction(QWebEnginePage.WebAction.ReloadAndBypassCache)
+                continue
+
+            def done(res, v=v):
+                if res == -1:   # an older page without live regions: fall back to a reload
+                    v.page().triggerAction(QWebEnginePage.WebAction.ReloadAndBypassCache)
+            v.page().runJavaScript(self._LIVE_PATCH_JS % json.dumps(html), 0, done)
 
     # ---------------------------------------------------------------- start page: news + background
     def _fetch_news(self):
@@ -128,7 +177,7 @@ class HomeMixin:
         self.settings.setValue("home/bg_mode", mode)
         self.settings.setValue("home/background", mode != "none")
         self.settings.sync()
-        QTimer.singleShot(0, self._refresh_home_pages)
+        QTimer.singleShot(0, lambda: self._refresh_home_pages(full=True))
 
     def _pick_background_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "Choose a background image", str(Path.home() / "Pictures"),
@@ -181,7 +230,7 @@ class HomeMixin:
         if self.settings.value("home/bg_mode", "", type=str) == "image":  # was active → back to Wyrm wallpapers
             self._set_background({"mode": "random"})
         else:
-            QTimer.singleShot(0, self._refresh_home_pages)
+            QTimer.singleShot(0, lambda: self._refresh_home_pages(full=True))
         self.toast("Removed your uploaded image")
 
     def _remove_background_video(self):
@@ -192,7 +241,7 @@ class HomeMixin:
         if self.settings.value("home/bg_mode", "", type=str) == "video_local":
             self._set_background({"mode": "random"})
         else:
-            QTimer.singleShot(0, self._refresh_home_pages)
+            QTimer.singleShot(0, lambda: self._refresh_home_pages(full=True))
         self.toast("Removed your uploaded video")
 
     # ---------------------------------------------------------------- start-page shortcuts (speed dial)
@@ -591,7 +640,7 @@ class HomeMixin:
                 if mins in pages.BG_INTERVAL_LABEL:
                     self.settings.setValue("home/bg_interval_min", mins)
                     self._bg_interval()
-                    QTimer.singleShot(0, self._refresh_home_pages)
+                    QTimer.singleShot(0, lambda: self._refresh_home_pages(full=True))
             elif do == "hist-del" and self.history_db is not None:
                 try:
                     self.history_db.delete(int(params.get("id", "0")))
@@ -854,5 +903,9 @@ class HomeMixin:
                 if banner is not None:
                     banner.set_offline(False)
             if result != getattr(self, "_weather", None):
+                prev = getattr(self, "_weather", None) or {}
                 self._weather = result
-                self._refresh_home_pages()
+                # the live-weather wallpaper is drawn from the weather code: only a new scene needs a reload
+                scene_changed = (self.settings.value("home/bg_mode", "", type=str) == "weather"
+                                 and (prev.get("code"), prev.get("is_day")) != (result.get("code"), result.get("is_day")))
+                self._refresh_home_pages(full=scene_changed)

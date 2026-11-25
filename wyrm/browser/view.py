@@ -59,6 +59,24 @@ class BrowserView(QWebEngineView):
         self.cert_error = False
         page.certificateError.connect(self._on_cert_error)
         self.loadStarted.connect(self._clear_cert_error)
+        # W2: Wyrm's own (dark) pages paint the theme background before their first frame instead of
+        # Chromium's default white, so opening/reloading them doesn't flash. Websites keep the default.
+        self.urlChanged.connect(self._sync_page_bg)
+        self._sync_page_bg(self.url())
+
+    def _sync_page_bg(self, url):
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QColor
+        color = QColor(Qt.GlobalColor.white)
+        if url.scheme() in ("wyrm", ""):   # "" = the blank moment before a new tab's first page
+            try:
+                from .. import theme
+                color = QColor(theme.resolve_palette(getattr(self.win, "theme_name", "dark"),
+                                                     getattr(self.win, "mode", "blue"))["bg"])
+            except Exception:  # noqa: BLE001
+                pass
+        if self.page().backgroundColor() != color:
+            self.page().setBackgroundColor(color)
 
     def _on_cert_error(self, error):
         try:

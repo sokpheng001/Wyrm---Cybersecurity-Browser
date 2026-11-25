@@ -54,6 +54,8 @@ class AppearanceMixin:
         self._sync_chrome()
         for i in range(self.tabbar.count()):  # internal pages follow the theme/mode
             view = self.tabbar.tabData(i)
+            if hasattr(view, "_sync_page_bg"):
+                view._sync_page_bg(view.url())   # W2: repaint background in the new theme, no flash
             if view.url().scheme() == "wyrm":
                 # bypass cache: wyrm:// pages are dynamic (theme/mode), a soft reload serves a stale copy
                 view.page().triggerAction(QWebEnginePage.WebAction.ReloadAndBypassCache)

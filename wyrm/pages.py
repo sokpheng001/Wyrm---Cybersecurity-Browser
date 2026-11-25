@@ -680,8 +680,9 @@ def render_home(ctx: dict) -> str:
         wx_html = f"<div class='wx'>{cond}{place}</div>" if (cond or place) else ""
     infobar = ("<div class='infobar'><div class='blk'><span class='clock' id='wyrm-clock'>--:--</span>"
                "<span class='date' id='wyrm-date'></span></div>"
+               + "<span data-live='wx' style='display:contents'>"
                + ("<div class='sep'></div>" + wx_html if wx_html else "")
-               + "</div>"
+               + "</span></div>"
                "<script>(function(){var KEY='wyrm.clock12',mem=null;"
                "function g(){if(mem!==null)return mem;try{return localStorage.getItem(KEY)==='1';}catch(e){return false;}}"
                "function s(v){mem=v;try{localStorage.setItem(KEY,v?'1':'0');}catch(e){}}"
@@ -713,11 +714,11 @@ def render_home(ctx: dict) -> str:
         "placeholder='Search the web, or a CVE, IP, domain or URL'>"
         "<button type='submit'>Search</button></form>"
         + examples + status
-        + shortcuts_html
+        + "<div data-live='sc' style='display:contents'>" + shortcuts_html + "</div>"
         + ("<p class='privnote'><b>Private window</b> · pages you visit, cookies and site data are deleted when you "
            "close this window. Downloads and bookmarks you save are kept.</p>" if ctx.get("private") else "")
         + f"<div class='grid'>{tiles}</div>"
-        + news_html + feed
+        + "<div data-live='feeds' style='display:contents'>" + news_html + feed + "</div>"
         + "<p class='foot'>Only test systems you own or are explicitly authorized to test.</p>"
         + "<p class='credit'>Built by <a href='https://bykh.org' title='bykh.org'><b>ByKh R&amp;D Group</b></a>"
           " · <b>HackPi</b> — Ethical Hackers Group · <a href='https://bykh.org'>bykh.org</a></p>"
