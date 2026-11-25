@@ -410,6 +410,31 @@ def test_passive_get_form_not_flagged_for_csrf():
     assert not any("anti-CSRF token" in f["title"] for f in out)
 
 
+def test_passive_flags_werkzeug_debugger():
+    from wyrm.security.audit import passive
+    body = "<html><body>Werkzeug Debugger<div>The debugger caught an exception</div></body></html>"
+    out = passive.check_response("https://app.test/boom",
+                                 {"headers": {"content-type": "text/html"}, "status": 500, "text": body})
+    dbg = [f for f in out if "debugger" in f["title"].lower()]
+    assert dbg and dbg[0]["severity"] == "high"
+
+
+def test_passive_flags_phpinfo():
+    from wyrm.security.audit import passive
+    body = "<title>phpinfo()</title><table><tr><td>PHP Version </td><td>8.1.0</td></tr></table>"
+    out = passive.check_response("https://app.test/info.php",
+                                 {"headers": {"content-type": "text/html"}, "status": 200, "text": body})
+    assert any("phpinfo" in f["title"].lower() for f in out)
+
+
+def test_passive_normal_error_page_not_flagged_as_debugger():
+    from wyrm.security.audit import passive
+    body = "<html><body>Sorry, something went wrong. Please try again later.</body></html>"
+    out = passive.check_response("https://app.test/err",
+                                 {"headers": {"content-type": "text/html"}, "status": 500, "text": body})
+    assert not [f for f in out if "debugger" in f["title"].lower() or "phpinfo" in f["title"].lower()]
+
+
 def test_passive_detects_active_mixed_content():
     from wyrm.security.audit import passive
     body = '<html><head><script src="http://cdn.evil/x.js"></script></head><body>hi</body></html>'

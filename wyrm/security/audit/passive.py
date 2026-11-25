@@ -13,6 +13,17 @@ import re
 
 _JWT_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]*")
 
+# Interactive debuggers / framework debug pages that leak source, config or even allow code execution.
+_DEBUG_SIG = [
+    ("Werkzeug interactive debugger exposed", "high",
+     re.compile(r"Werkzeug Debugger|werkzeug\.debug|__traceback_hide__|The debugger caught an exception")),
+    ("Django debug page (DEBUG=True)", "high",
+     re.compile(r"you have\s+DEBUG\s*=\s*True|<div[^>]*id=\"?traceback|Django Version:", re.I)),
+    ("Rails detailed exception page", "high", re.compile(r"Action Controller: Exception caught|rails\.png")),
+    ("phpinfo() output exposed", "medium",
+     re.compile(r"<title>phpinfo\(\)</title>|>phpinfo\(\)<|PHP Version\s*</td>|HTTP Request Headers.*PHP Credits", re.S)),
+]
+
 
 def _b64url_json(seg: str):
     seg += "=" * (-len(seg) % 4)
@@ -93,6 +104,12 @@ def check_response(url: str, resp: dict) -> list[dict]:
             add(f"Cookie without HttpOnly flag: {name}", "low", c[:120])
     if _ERROR_SIG.search(text):
         add("Verbose error / stack trace", "low", "The response body contains a stack trace or verbose error.")
+    for name, sev, rx in _DEBUG_SIG:
+        if rx.search(text):
+            add(name, sev, "An interactive debugger or framework debug page is exposed — it can leak source, "
+                           "configuration and secrets (and some allow code execution). Disable debug mode in "
+                           "production.")
+            break
     for m in _JWT_RE.finditer(text):
         try:
             hdr = _b64url_json(m.group(0).split(".")[0])
