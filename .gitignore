@@ -19,3 +19,8 @@ wyrm/assets/video/
 /close.svg
 /dclose-*.svg
 /dfloat-*.svg
+
+# QA-H1: generated at build time
+wyrm/_buildinfo.py
+# QA fixture request log
+tests/fixtures/*.log
