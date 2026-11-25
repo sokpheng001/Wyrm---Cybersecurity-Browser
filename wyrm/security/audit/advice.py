@@ -32,6 +32,9 @@ ADVICE = {
     "cmdi": ("Avoid invoking a shell. Call programs with an argument array (no shell string), and strictly "
              "validate/allow-list any user input that reaches a command.",
              ["https://owasp.org/www-community/attacks/Command_Injection"]),
+    "xxe": ("Disable external entities and DTDs in the XML parser (set a no-DTD / no-external-entities secure "
+            "configuration for your language's parser) and don't echo parsed XML content back to the user.",
+            ["https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html"]),
     "cors": ("Don't reflect the request Origin. Validate it against a strict allow-list of trusted origins, never "
              "echo an arbitrary Origin or 'null', and only send Access-Control-Allow-Credentials: true for exact, "
              "explicitly allowed origins.",

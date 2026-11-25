@@ -158,6 +158,50 @@ def test_cors_fixed_allowlist_is_clean():
     assert f is None
 
 
+_XML_BODY = '<?xml version="1.0"?><order><item>widget</item><qty>2</qty></order>'
+
+
+def _xxe_send(vulnerable=True):
+    def send(url, headers, body):
+        text = "<result>ok</result>"
+        if vulnerable and body and "file:///etc/passwd" in body and "&xxe;" in body:
+            # a vulnerable parser resolves the entity and reflects the file content
+            text = "<result>root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:</result>"
+        return {"status": 200, "headers": {"content-type": "application/xml"}, "text": text,
+                "location": "", "url": url}
+    return send
+
+
+def test_xxe_file_disclosure_detected():
+    c = chk.Xxe()
+    f = c.run_request("POST", "https://api.test/orders", {"Content-Type": "application/xml"}, _XML_BODY,
+                      _xxe_send(vulnerable=True), baseline=None, rand="abc")
+    assert f is not None and f["check"] == "xxe" and f["severity"] == "high"
+    assert "entity" in f["evidence"].lower()
+
+
+def test_xxe_safe_parser_no_finding():
+    c = chk.Xxe()
+    f = c.run_request("POST", "https://api.test/orders", {"Content-Type": "application/xml"}, _XML_BODY,
+                      _xxe_send(vulnerable=False), baseline=None, rand="abc")
+    assert f is None
+
+
+def test_xxe_skips_non_xml_requests():
+    c = chk.Xxe()
+    f = c.run_request("POST", "https://api.test/orders", {"Content-Type": "application/json"},
+                      '{"item":"widget"}', _xxe_send(vulnerable=True), baseline=None, rand="abc")
+    assert f is None
+
+
+def test_xxe_payload_references_entity_in_first_text_node():
+    # the builder must both define the entity (DOCTYPE) and reference it, or the probe proves nothing
+    out = chk._xml_with_entity(_XML_BODY, '<!ENTITY xxe SYSTEM "file:///etc/passwd">', "&xxe;")
+    assert out is not None
+    assert "<!DOCTYPE" in out and "file:///etc/passwd" in out
+    assert "&xxe;" in out and "<item>&xxe;</item>" in out
+
+
 def test_passive_detects_leaked_secrets_redacted():
     from wyrm.security.audit import passive
     body = (

