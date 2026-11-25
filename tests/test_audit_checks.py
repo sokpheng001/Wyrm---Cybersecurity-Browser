@@ -235,6 +235,37 @@ def test_host_header_clean_app_no_finding():
     assert f is None
 
 
+def _gql_send(enabled=True):
+    def send(url, headers, body):
+        if enabled and body and "__schema" in body:
+            return {"status": 200, "headers": {"content-type": "application/json"},
+                    "text": '{"data":{"__schema":{"queryType":{"name":"Query"},"types":[{"name":"User","kind":"OBJECT"}]}}}',
+                    "location": "", "url": url}
+        return {"status": 200, "headers": {}, "text": '{"errors":[{"message":"introspection disabled"}]}',
+                "location": "", "url": url}
+    return send
+
+
+def test_graphql_introspection_enabled_detected():
+    c = chk.GraphqlIntrospection()
+    f = c.run_request("POST", "https://api.test/graphql", {}, '{"query":"{me{id}}"}',
+                      _gql_send(enabled=True), baseline=None, rand="abc")
+    assert f is not None and f["check"] == "graphql-introspection"
+
+
+def test_graphql_introspection_disabled_no_finding():
+    c = chk.GraphqlIntrospection()
+    f = c.run_request("POST", "https://api.test/graphql", {}, '{"query":"{me{id}}"}',
+                      _gql_send(enabled=False), baseline=None, rand="abc")
+    assert f is None
+
+
+def test_graphql_check_skips_get_and_non_graphql():
+    c = chk.GraphqlIntrospection()
+    assert c.run_request("GET", "https://api.test/graphql", {}, "", _gql_send(True), None, "abc") is None
+    assert c.run_request("POST", "https://api.test/users", {}, '{"name":"x"}', _gql_send(True), None, "abc") is None
+
+
 def test_passive_detects_leaked_secrets_redacted():
     from wyrm.security.audit import passive
     body = (

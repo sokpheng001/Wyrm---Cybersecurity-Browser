@@ -352,6 +352,32 @@ class Xxe:
         return None
 
 
+class GraphqlIntrospection:
+    """GraphQL introspection exposure (request-level): if the target is a GraphQL endpoint and introspection is
+    left enabled, anyone can download the full schema (every type, query and mutation), which greatly eases
+    attacking the API. Best practice is to disable introspection in production."""
+
+    key, title, severity = "graphql-introspection", "GraphQL introspection enabled", "low"
+    _QUERY = '{"query":"query{__schema{queryType{name} types{name kind}}}"}'
+
+    def run_request(self, method, url, headers, body, send, baseline, rand, oob=None):
+        b = body if isinstance(body, str) else ""
+        looks_gql = "graphql" in url.lower() or '"query"' in b or bool(re.search(r"\b(query|mutation)\s*[\({]", b))
+        if not looks_gql or (method or "").upper() != "POST":   # introspection is a POST; avoid false probes on GET
+            return None
+        r = send(url, {**headers, "Content-Type": "application/json"}, self._QUERY)
+        if not r or r.get("status") != 200:
+            return None
+        text = str(r.get("text", ""))
+        if '"__schema"' in text or '"queryType"' in text or ('"types"' in text and '"kind"' in text):
+            return {"check": self.key, "title": self.title, "severity": self.severity, "confidence": "firm",
+                    "loc": "request", "param": "", "payload": self._QUERY,
+                    "evidence": "The GraphQL endpoint answered an introspection query with its schema — "
+                                "introspection is enabled, exposing all types, queries and mutations.",
+                    "status": r.get("status"), "url": url}
+        return None
+
+
 class HostHeaderInjection:
     """Host header injection (request-level): many apps build absolute URLs (password-reset links, redirects,
     cached asset URLs) from the incoming Host / X-Forwarded-Host. If an attacker-controlled host is reflected in
@@ -430,8 +456,8 @@ class CorsMisconfig:
 def standard(time_based: bool = True) -> list:
     """The full active check set. time_based=False drops the slow sleep-based probes (blind SQLi, command inj.)."""
     return [ReflectedXSS(), SqlError(), SqlBlindBoolean(), SqlBlindTime(time_based=time_based), Ssti(),
-            PathTraversal(), OpenRedirect(), CrlfInjection(), CorsMisconfig(), HostHeaderInjection(), Xxe(),
-            Ssrf(), CommandInjection(time_based=time_based)]
+            PathTraversal(), OpenRedirect(), CrlfInjection(), CorsMisconfig(), HostHeaderInjection(),
+            GraphqlIntrospection(), Xxe(), Ssrf(), CommandInjection(time_based=time_based)]
 
 
 ALL_CHECKS = standard(True)

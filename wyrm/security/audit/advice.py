@@ -32,6 +32,9 @@ ADVICE = {
     "cmdi": ("Avoid invoking a shell. Call programs with an argument array (no shell string), and strictly "
              "validate/allow-list any user input that reaches a command.",
              ["https://owasp.org/www-community/attacks/Command_Injection"]),
+    "graphql-introspection": ("Disable GraphQL introspection in production, and enforce query depth/complexity "
+                              "limits and field-level authorization so the schema and data aren't freely mapped.",
+                              ["https://cheatsheetseries.owasp.org/cheatsheets/GraphQL_Cheat_Sheet.html"]),
     "host-header": ("Don't build absolute URLs from the incoming Host / X-Forwarded-Host. Use a configured "
                     "canonical hostname, and validate the Host header against an allow-list of expected domains.",
                     ["https://portswigger.net/web-security/host-header"]),
