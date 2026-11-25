@@ -70,7 +70,8 @@ class UpdatesMixin:
         self.b_update.setEnabled(True)
         self.b_update.setToolTip(tip)
         self.b_update.show()
-        if kind == "auto" and not manual:
+        from .. import updater as _upd
+        if kind == "auto" and not manual and not _upd.updates_frozen(self.settings):
             # routine update: download in the background now; it still installs on restart. Show progress on the
             # pill so it's clearly working (otherwise clicking it mid-download looked like it did nothing).
             self._auto_update = True

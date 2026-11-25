@@ -37,6 +37,11 @@ class Tool:
     args: list[str]              # fixed args; "{t}" is replaced by the target
     json_flag: str = "-silent"   # extra flag(s) already in args; kept for reference
     result_keys: tuple = ()      # JSON keys to show, in order (first non-empty is the headline)
+    exe: str = ""                # executable when it differs from key (two presets of one tool)
+
+    @property
+    def binary(self) -> str:
+        return self.exe or self.key
 
 
 # The ProjectDiscovery suite. `{t}` is the target. All use -silent and JSON/JSONL output so we can stream rows.
@@ -55,11 +60,25 @@ TOOLS: list[Tool] = [
     Tool("httpx", "httpx", "Probe a host/URL: status, title, tech, server", True, "host",
          ["-silent", "-json", "-title", "-status-code", "-tech-detect", "-web-server", "-u", "{t}"],
          result_keys=("url", "status_code", "title", "webserver")),
-    Tool("katana", "katana", "Crawl a site and list its URLs", True, "url",
-         ["-silent", "-jsonl", "-d", "2", "-kf", "all", "-u", "{t}"], result_keys=("request.endpoint",)),
-    Tool("nuclei", "nuclei", "Template-based vulnerability scan (safe/default templates)", True, "url",
-         ["-silent", "-jsonl", "-u", "{t}"],
+    # Speed-up: bounded concurrency/parallelism and a short per-request timeout suit the small scopes Wyrm is
+    # used on (a 5-page site took 13 s with the defaults); -jsl (jsluice) also finds endpoints that exist only as
+    # JavaScript string constants, e.g. const API="/api/v1/admin/export".
+    Tool("katana", "katana", "Crawl a site and list its URLs (incl. endpoints in JavaScript)", True, "url",
+         ["-silent", "-jsonl", "-d", "2", "-kf", "all", "-jsl", "-c", "10", "-p", "10", "-timeout", "5",
+          "-u", "{t}"], result_keys=("request.endpoint",)),
+    # nuclei presets. Measured on the local lab (127.0.0.1 test lab, Nov 2026): all ~14k templates
+    # took 425 s; the default tag preset found the same 14 results (git-config, missing security headers, tech)
+    # in 224 s; automatic scan (-as, templates for the detected technologies only) took 59 s but missed the
+    # medium git-config exposure, so it's offered as the fastest option rather than the default.
+    Tool("nuclei", "nuclei", "Vulnerability scan — exposures, misconfigurations, headers, tech (recommended)", True,
+         "url", ["-silent", "-jsonl", "-tags", "tech,exposure,config,misconfig,headers", "-u", "{t}"],
          result_keys=("template-id", "info.name", "matched-at", "info.severity")),
+    Tool("nuclei-auto", "nuclei (automatic, fastest)", "Only templates for the site's detected technologies (-as)",
+         True, "url", ["-silent", "-jsonl", "-as", "-u", "{t}"],
+         result_keys=("template-id", "info.name", "matched-at", "info.severity"), exe="nuclei"),
+    Tool("nuclei-full", "nuclei (all templates)", "Vulnerability scan with every template (slowest)", True, "url",
+         ["-silent", "-jsonl", "-u", "{t}"],
+         result_keys=("template-id", "info.name", "matched-at", "info.severity"), exe="nuclei"),
     Tool("cdncheck", "cdncheck", "Is the host behind a CDN / WAF / cloud?", True, "host",
          ["-silent", "-jsonl", "-resp", "-i", "{t}"], result_keys=("input", "ip", "cdn_name", "waf_name", "cloud_name")),
     Tool("uncover", "uncover", "Find exposed hosts via search engines (Shodan/Censys/Fofa keys)", False, "domain",
@@ -167,6 +186,7 @@ USER_DIR: "Path | None" = None  # writable dir for auto-updated tools (set by th
 
 def find(key: str) -> str | None:
     """Path of a tool: an auto-updated copy if present, else the one bundled with Wyrm, else one on the PATH."""
+    key = getattr(TOOLS_BY_KEY.get(key), "binary", key)   # presets (nuclei-full) run the same executable
     exe_name = key + (".exe" if sys.platform == "win32" else "")
     if USER_DIR is not None:
         upd = USER_DIR / "pdtools" / exe_name
@@ -176,12 +196,47 @@ def find(key: str) -> str | None:
     return str(exe) if exe.is_file() else shutil.which(key)
 
 
+def count_templates(d: "Path | None") -> int:
+    if d is None or not d.is_dir():
+        return 0
+    return sum(1 for _ in d.rglob("*.yaml"))
+
+
+MIN_TEMPLATES = 1000   # an updated set smaller than this is a broken/partial download, never used
+
+
+def updated_templates_valid(d: "Path | None", bundled_count: "int | None" = None) -> bool:
+    """A refreshed template set is used only when it looks complete: nuclei finished writing it (.checksum),
+    it has a sane number of templates, and it isn't much smaller than the bundled set."""
+    if d is None or not d.is_dir() or not (d / ".checksum").is_file():
+        return False
+    n = count_templates(d)
+    if n < MIN_TEMPLATES:
+        return False
+    if bundled_count is None:
+        bundled_count = count_templates(BUNDLED / "nuclei-templates")
+    return not bundled_count or n >= 0.9 * bundled_count
+
+
+_TPL_CACHE: dict = {}
+
+
 def templates_dir() -> "Path | None":
-    """nuclei templates: an auto-updated copy if present, else the bundled one."""
-    if USER_DIR is not None and (USER_DIR / "nuclei-templates").is_dir():
-        return USER_DIR / "nuclei-templates"
+    """The ONE nuclei template set in use: the auto-updated copy when it's valid, else the bundled one."""
+    upd = USER_DIR / "nuclei-templates" if USER_DIR is not None else None
     b = BUNDLED / "nuclei-templates"
-    return b if b.is_dir() else None
+    key = (str(upd), _mtime(upd / ".checksum") if upd else 0)
+    if key not in _TPL_CACHE:   # counting ~14k files is cheap but not free: decide once per update
+        _TPL_CACHE.clear()
+        _TPL_CACHE[key] = upd if upd is not None and updated_templates_valid(upd) else (b if b.is_dir() else None)
+    return _TPL_CACHE[key]
+
+
+def _mtime(p: Path) -> float:
+    try:
+        return p.stat().st_mtime
+    except OSError:
+        return 0.0
 
 
 def installed() -> list[Tool]:
@@ -271,7 +326,7 @@ def run(tool: Tool, target: str, on_line, proxies=None, timeout: int = 600, shou
     if not exe:
         raise RuntimeError(f"{tool.key} is not installed")
     args = [a.replace("{t}", target) for a in tool.args]
-    if tool.key == "nuclei":  # use the templates bundled with (or auto-updated by) Wyrm, offline
+    if tool.binary == "nuclei":  # use the templates bundled with (or auto-updated by) Wyrm, offline
         tpl = templates_dir()
         if tpl is not None:
             args = ["-disable-update-check", "-t", str(tpl)] + args

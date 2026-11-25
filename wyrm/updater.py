@@ -27,6 +27,19 @@ _ALLOWED_HOSTS = ("github.com", "objects.githubusercontent.com", "release-assets
                   "codeload.github.com")
 
 
+
+def updates_frozen(settings=None) -> bool:
+    """Freeze updates (demos, engagements): WYRM_NO_UPDATE=1 or Settings → General → "Freeze updates" turns off
+    automatic app downloads/installs and the daily ProjectDiscovery tool + nuclei template refresh. A manual
+    "Check for updates…" still works and asks before installing."""
+    import os
+    if os.environ.get("WYRM_NO_UPDATE", "").strip().lower() in ("1", "true", "yes", "on"):
+        return True
+    if settings is None:
+        return False
+    v = settings.value("updates/freeze", False)
+    return v is True or str(v).lower() in ("true", "1")
+
 def _ver_tuple(v: str) -> tuple:
     nums = re.findall(r"\d+", (v or "").lstrip("vV"))
     nums = [int(x) for x in nums[:3]]

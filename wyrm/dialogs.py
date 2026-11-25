@@ -239,6 +239,15 @@ class SettingsDialog(QDialog):
         self.restore_tabs = QCheckBox("Reopen last session's tabs on startup")
         self.restore_tabs.setChecked(self.settings.value("general/restore_tabs", False, type=bool))
         self._row(lay, "", self.restore_tabs, "startup session restore")
+        from . import updater as _upd
+        self.freeze_updates = QCheckBox("Freeze updates — no automatic app installs and no daily tool/template "
+                                        "refresh (for demos and engagements)")
+        self.freeze_updates.setChecked(self.settings.value("updates/freeze", False, type=bool))
+        if _upd.updates_frozen(None):
+            self.freeze_updates.setChecked(True)
+            self.freeze_updates.setEnabled(False)
+            self.freeze_updates.setToolTip("Frozen by the WYRM_NO_UPDATE environment variable.")
+        self._row(lay, "", self.freeze_updates, "freeze updates demo engagement pdtools templates")
         self.autoanalyze = QCheckBox("Auto-analyze in-scope pages (security grade)")
         self.autoanalyze.setChecked(self.settings.value("sec/auto", True, type=bool))
         self._row(lay, "", self.autoanalyze, "analysis grade")
@@ -412,6 +421,8 @@ class SettingsDialog(QDialog):
         s.setValue("downloads/ask", self.dl_ask.isChecked())
         s.setValue("downloads/folder", self.dl_folder.text())
         s.setValue("general/restore_tabs", self.restore_tabs.isChecked())
+        if self.freeze_updates.isEnabled():
+            s.setValue("updates/freeze", self.freeze_updates.isChecked())
         s.setValue("sec/auto", self.autoanalyze.isChecked())
         from . import secretstore
         secretstore.set(s, "ai/api_key", self.ai_key.text())   # OS keyring (F4); never plain text in QSettings

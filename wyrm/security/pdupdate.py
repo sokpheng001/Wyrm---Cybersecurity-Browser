@@ -3,7 +3,7 @@
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Developer: Kwan (ProjectDiscovery tool auto-update)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: Kim, Oda, Kwan, Naly
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """Keep the bundled ProjectDiscovery tools (and nuclei templates) current.
 
@@ -76,6 +76,8 @@ def check_and_update(user_dir: Path, proxies=None, verify=True, log=lambda *a: N
         s.proxies = proxies or {}
         s.verify = verify
         for tool in pdtools.TOOLS:
+            if tool.exe:   # a preset of another tool (nuclei-full): updated with that tool
+                continue
             try:
                 updated += _update_one(s, tool.key, tag, user_dir, log)
             except Exception as e:  # noqa: BLE001 - one tool failing must not stop the rest
@@ -127,15 +129,30 @@ def _update_one(s, key, tag, user_dir, log) -> int:
 
 
 def _update_templates(user_dir: Path, proxies, verify, log) -> None:
-    """Refresh nuclei templates into the user dir (nuclei manages them itself)."""
+    """Refresh nuclei templates into the user dir (nuclei manages them itself) and log the result.
+
+    B3: the refreshed set is the latest templates *release* — the bundle is built from the same release, so the
+    two match. (An older bundle built from the main branch also had ~200 unreleased templates — exactly those
+    in its .new-additions list — which is why the counts differed; nothing was being dropped.) The count is
+    logged after every update, and a set that is missing, partial or much smaller than the bundled one is never
+    used: pdtools.templates_dir() falls back to the bundled templates."""
     exe = pdtools.find("nuclei")
     if not exe:
         return
     tdir = user_dir / "nuclei-templates"
+    before = pdtools.count_templates(tdir)
+    bundled = pdtools.count_templates(pdtools.BUNDLED / "nuclei-templates")
     try:
-        subprocess.run([exe, "-update-templates", "-update-template-dir", str(tdir), "-silent"],
-                       capture_output=True, timeout=300, creationflags=_NO_WINDOW)
-        if any(tdir.rglob("*.yaml")):
-            log("nuclei templates refreshed")
-    except (OSError, subprocess.SubprocessError):
-        pass
+        r = subprocess.run([exe, "-update-templates", "-update-template-dir", str(tdir), "-silent"],
+                           capture_output=True, timeout=600, creationflags=_NO_WINDOW)
+    except subprocess.TimeoutExpired:
+        log(f"nuclei templates: update timed out; using {'previous' if before else 'bundled'} set")
+        return
+    except (OSError, subprocess.SubprocessError) as e:
+        log(f"nuclei templates: update failed ({type(e).__name__})")
+        return
+    after = pdtools.count_templates(tdir)
+    ok = pdtools.updated_templates_valid(tdir, bundled)
+    log(f"nuclei templates: {after} after update (was {before}, bundled {bundled}, exit {r.returncode})"
+        + ("" if ok else " — incomplete, using the bundled set"))
+    pdtools._TPL_CACHE.clear()

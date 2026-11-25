@@ -94,26 +94,79 @@ def main() -> None:
     fetch_nuclei_templates()
 
 
-def fetch_nuclei_templates() -> None:
-    """Bundle the nuclei templates (projectdiscovery/nuclei-templates) into wyrm/bin/nuclei-templates/, so the
-    first nuclei scan runs offline with no template download. Non-fatal."""
+# Invisible format characters that have slipped into upstream paths (e.g. a LEFT-TO-RIGHT MARK before "http",
+# which created a second, look-alike "http" folder in the bundle). They are removed; any other non-ASCII path
+# segment is rejected (skipped and reported), so every template lands under the folder its name says.
+_INVISIBLE = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u200e\u200f\u202a\u202b\u202c\u202d\u202e"
+                                    "\u2066\u2067\u2068\u2069\ufeff\u00ad"), None)
+
+
+def clean_member_path(name: str):
+    """Normalized relative path for a template archive member, or None to skip it (unsafe or non-ASCII)."""
+    import unicodedata
+    parts = []
+    for seg in name.replace("\\", "/").split("/"):
+        seg = unicodedata.normalize("NFC", seg).translate(_INVISIBLE).strip()
+        if seg in ("", "."):
+            continue
+        if seg == ".." or not seg.isascii() or any(ord(c) < 32 for c in seg):
+            return None
+        parts.append(seg)
+    return "/".join(parts) or None
+
+
+def latest_templates_release(s=None) -> tuple[str, str]:
+    """(tag, tarball URL) of the latest nuclei-templates RELEASE — the same set `nuclei -update-templates`
+    installs, so the bundled and the auto-updated copies match (main also carries unreleased templates)."""
+    s = s or requests
+    r = s.get("https://api.github.com/repos/projectdiscovery/nuclei-templates/releases/latest", timeout=30,
+              headers=UA)
+    r.raise_for_status()
+    rel = r.json()
+    return rel["tag_name"], rel["tarball_url"]
+
+
+def extract_templates(data: bytes, dest: Path) -> tuple[int, list[str]]:
+    """Unpack a templates tarball into dest with clean paths. Returns (yaml count, skipped member names)."""
     import tarfile
+    skipped, renamed = [], 0
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
+        members = tf.getmembers()
+        root = members[0].name.split("/")[0] + "/" if members else ""
+        for m in members:
+            if not (m.name.startswith(root) and m.isfile()):
+                continue   # directories are created from file paths; links/devices are never extracted
+            rel = m.name[len(root):]
+            clean = clean_member_path(rel)
+            if clean is None:
+                skipped.append(rel)
+                continue
+            if clean != rel:
+                renamed += 1
+            out = dest / clean
+            out.parent.mkdir(parents=True, exist_ok=True)
+            with tf.extractfile(m) as src, open(out, "wb") as fh:
+                shutil.copyfileobj(src, fh)
+    n = sum(1 for _ in dest.rglob("*.yaml"))
+    if renamed:
+        print(f"  nuclei-templates: normalized {renamed} path(s) with invisible characters")
+    for name in skipped:
+        print(f"  nuclei-templates: skipped non-ASCII/unsafe path {name!r}")
+    return n, skipped
+
+
+def fetch_nuclei_templates() -> None:
+    """Bundle the latest nuclei-templates release into wyrm/bin/nuclei-templates/, so the first nuclei scan runs
+    offline with no template download. Non-fatal."""
     dest = BINROOT / "nuclei-templates"
     try:
-        url = "https://github.com/projectdiscovery/nuclei-templates/archive/refs/heads/main.tar.gz"
+        tag, url = latest_templates_release()
         data = requests.get(url, timeout=600, headers=UA).content
         shutil.rmtree(dest, ignore_errors=True)
         dest.mkdir(parents=True)
-        with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
-            members = tf.getmembers()
-            root = members[0].name.split("/")[0] + "/" if members else ""
-            for m in members:
-                if m.name.startswith(root) and (m.isfile() or m.isdir()):
-                    m.name = m.name[len(root):] or "."
-                    if ".." not in m.name and not m.name.startswith("/"):
-                        tf.extract(m, dest)
-        n = sum(1 for _ in dest.rglob("*.yaml"))
-        print(f"  nuclei-templates: {n} templates bundled ({len(data) // 1048576} MB download)")
+        n, _ = extract_templates(data, dest)
+        (dest / ".wyrm-templates.json").write_text(f'{{"tag": "{tag}", "count": {n}}}')
+        print(f"  nuclei-templates {tag}: {n} templates bundled ({len(data) // 1048576} MB download)")
     except Exception as e:  # noqa: BLE001 - non-fatal
         print("  nuclei-templates skipped:", type(e).__name__, e)
 

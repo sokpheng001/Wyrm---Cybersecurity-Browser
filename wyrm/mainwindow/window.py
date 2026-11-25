@@ -183,7 +183,8 @@ class MainWindow(
             self._news_timer.timeout.connect(self._fetch_news)
             self._news_timer.start(30 * 60 * 1000)  # refresh headlines every 30 minutes
             QTimer.singleShot(3200, self._fetch_shortcut_icons)  # favicons for the start-page shortcuts
-            if self.settings.value("updates/check", True, type=bool):
+            from .. import updater as _upd
+            if self.settings.value("updates/check", True, type=bool) and not _upd.updates_frozen(self.settings):
                 # quiet checks (startup, then every 6 h): a newer release only shows the toolbar "Update" button
                 QTimer.singleShot(4000, lambda: self._check_updates(manual=False))
                 self._update_timer = QTimer(self)

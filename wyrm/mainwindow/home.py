@@ -748,6 +748,9 @@ class HomeMixin:
         """Daily, while online: update the ProjectDiscovery tools + nuclei templates if newer ones are released."""
         if self.ephemeral or not self._is_online:
             return
+        from .. import updater
+        if updater.updates_frozen(self.settings):   # demo/engagement: tools + templates stay exactly as they are
+            return
         from ..security import pdtools, pdupdate
         px, verify = self.proxies(), self.verify_tls()
 
