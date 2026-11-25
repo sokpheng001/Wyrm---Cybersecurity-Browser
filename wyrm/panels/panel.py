@@ -133,6 +133,7 @@ class SecurityPanel(QDockWidget):
         btn, idx = self._nav_buttons[name]
         btn.setChecked(True)
         self.stack.setCurrentIndex(idx)
+        self.nav.ensureWidgetVisible(btn)   # QA-U8: scroll the active nav item into view so it looks selected
 
     def show_tab(self, name):
         self.show()
