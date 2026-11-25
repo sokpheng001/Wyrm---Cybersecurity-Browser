@@ -51,6 +51,21 @@ def test_addon_check_runs_in_the_engine():
     assert any(f["title"] == "Add-on demo finding" for f in findings)
 
 
+def test_flows_snapshot_is_read_only_copy():
+    from wyrm.security import mitm
+    ctx, win = _ctx()
+    assert ctx.flows() == []                      # proxy off -> empty
+    fake = types.SimpleNamespace(flows=[{"url": "https://a/"}, {"url": "https://b/"}])
+    mitm.ACTIVE = fake
+    try:
+        snap = ctx.flows()
+        assert len(snap) == 2 and snap[0]["url"] == "https://a/"
+        snap.append({"url": "x"})                  # mutating the copy must not affect the proxy
+        assert len(fake.flows) == 2
+    finally:
+        mitm.ACTIVE = None
+
+
 def test_per_point_addon_check_also_runs():
     ctx, win = _ctx()
 

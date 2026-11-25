@@ -9,6 +9,7 @@ An add-on can:
   - rewrite requests / responses on live proxy traffic (ctx.on_request / ctx.on_response),
   - watch responses passively (ctx.on_response_observed),
   - register custom active/passive scanner checks (ctx.add_scan_check),
+  - read a snapshot of captured proxy traffic (ctx.flows),
   - add its own tab to the Security panel (ctx.add_tab),
   - file findings (ctx.add_finding), toast, log, and keep small persistent storage (ctx.storage / ctx.save).
 
@@ -69,6 +70,13 @@ class AddonContext:
             self.win._addon_scan_checks = lst
         lst.append(check)
         self.log(f"registered a scanner check: {getattr(check, 'title', type(check).__name__)}")
+
+    def flows(self) -> list:
+        """A read-only snapshot of the proxy's captured flows (oldest first). Each flow is a dict with keys like
+        method, url, status, req_headers, req_body, resp_headers, resp_body, client_proto. Empty when the
+        intercepting proxy is off. Copy — mutating it doesn't affect Wyrm."""
+        from ..security import mitm
+        return list(mitm.ACTIVE.flows) if mitm.ACTIVE is not None else []
 
     # -------------------------------------------------- UI
     def add_tab(self, name: str, widget):
