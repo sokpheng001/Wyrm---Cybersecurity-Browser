@@ -439,6 +439,34 @@ def test_passive_clean_response_has_no_secret_findings():
     assert not [f for f in out if f["title"].startswith("Secret exposed")]
 
 
+def test_engine_end_to_end_finds_multiple_vuln_classes():
+    """A deliberately vulnerable fake app: reflects input (XSS), errors on a quote (SQLi), and reflects the
+    Origin with credentials (CORS). The full engine (insertion points + all checks + passive + request-level)
+    should surface all three."""
+    from urllib.parse import urlsplit, parse_qsl
+    from wyrm.security.audit import engine
+
+    def vuln_send(method, url, headers, body):
+        text = "<html><body>"
+        H = {}
+        for k, v in parse_qsl(urlsplit(url).query, keep_blank_values=True):
+            text += f"<div>{v}</div>"                       # reflects unescaped -> XSS
+            if "'" in v:
+                text += "You have an error in your SQL syntax; check the manual that corresponds to your MySQL"
+        origin = headers.get("Origin")
+        if origin:                                          # reflects arbitrary Origin + credentials -> CORS
+            H["access-control-allow-origin"] = origin
+            H["access-control-allow-credentials"] = "true"
+        return {"status": 200, "headers": H, "text": text + "</body></html>", "location": "", "url": url}
+
+    findings = engine.scan({"method": "GET", "url": "https://vuln.test/page?q=hello", "headers": {}, "body": ""},
+                           vuln_send, passive=True)
+    found = {f["check"] for f in findings}
+    assert "xss" in found, found
+    assert "sqli" in found, found
+    assert "cors" in found, found
+
+
 if __name__ == "__main__":
     import traceback
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
