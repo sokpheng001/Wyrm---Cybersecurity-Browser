@@ -20,7 +20,14 @@ most important points first. Each build of a version adds an "Also in this build
   X-Forwarded-Host (password-reset poisoning, web-cache poisoning).
 - New GraphQL introspection check: flags GraphQL endpoints that leave introspection enabled (full schema
   disclosure), with remediation guidance.
-- The scanner also flags payment card numbers (Luhn-validated) exposed in responses, masked in the finding.
+- The scanner now inspects responses for more sensitive exposure: payment card numbers (Luhn-validated, masked),
+  weak JSON Web Tokens (unsigned alg:none, or no expiry), active mixed content on HTTPS pages, and POST forms
+  with no anti-CSRF token.
+- SSRF detection now also catches cloud-metadata SSRF (169.254.169.254) without needing an out-of-band listener.
+- Scans now also fuzz REST-style URL path segments (e.g. /api/users/123, /files/report.pdf), so every check
+  tests path ids and filenames, not just query/body parameters.
+- Audit results are listed most-severe first, with a severity breakdown when a scan finishes (e.g. "2 high,
+  3 medium, 5 low").
 - Add-ons can now register their own scanner checks (ctx.add_scan_check), which run alongside the built-in
   checks at Fast and Thorough intensity.
 - HTTP/2 interception is now on by default in the intercepting proxy and handles a page's many streams at the
