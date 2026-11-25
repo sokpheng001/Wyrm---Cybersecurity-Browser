@@ -78,8 +78,9 @@ def clickjacking_test(url: str, proxies=None, verify=True) -> dict:
     elif fa:
         verdict, sev = "Partly protected: frame-ancestors allows some other origins — check they are trusted.", "low"
     else:
+        from . import severity as _sev   # QA-M1: shared severity so all tools agree
         verdict, sev = ("Vulnerable: no X-Frame-Options or CSP frame-ancestors, so any site can frame this page "
-                        "and trick users into clicking (clickjacking)."), "medium"
+                        "and trick users into clicking (clickjacking)."), _sev.default("missing-clickjacking")
     return {"url": url, "status": r.status_code, "x_frame_options": xfo, "frame_ancestors": fa,
             "protected": protected and sev != "medium", "verdict": verdict, "severity": sev,
             "paper": CLICKJACKING_PAPER}

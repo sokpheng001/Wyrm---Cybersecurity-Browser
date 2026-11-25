@@ -18,6 +18,8 @@ import ssl
 from datetime import datetime, timezone
 from urllib.parse import urljoin, urlparse
 
+from . import severity as _sev
+
 import requests
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Wyrm/0.2"
@@ -94,7 +96,7 @@ def parse_csp(value: str) -> dict[str, list[str]]:
 def evaluate_csp(value: str | None, report_only: str | None) -> list[dict]:
     C = "Content-Security-Policy"
     if not value:
-        out = [issue(C, "No Content-Security-Policy", "medium",
+        out = [issue(C, "No Content-Security-Policy", _sev.default("missing-csp"),
                      "Without a CSP, any XSS bug can run arbitrary script. Recommended: a nonce-based "
                      "'strict-dynamic' policy, plus object-src 'none' and base-uri 'none'.")]
         if report_only:
@@ -151,7 +153,7 @@ def check_headers(resp: dict, https: bool) -> list[dict]:
     if https:
         hsts = h.get("strict-transport-security")
         if not hsts:
-            out.append(issue(H, "Missing Strict-Transport-Security (HSTS)", "medium",
+            out.append(issue(H, "Missing Strict-Transport-Security (HSTS)", _sev.default("missing-hsts"),
                              "Users can be downgraded to HTTP by an on-path attacker (SSL stripping)."))
         else:
             m = re.search(r"max-age=(\d+)", hsts)
@@ -163,7 +165,7 @@ def check_headers(resp: dict, https: bool) -> list[dict]:
         out.append(issue(H, "Page served over plain HTTP", "high", "All traffic, including cookies, is readable and modifiable in transit."))
     csp = h.get("content-security-policy", "")
     if not h.get("x-frame-options") and "frame-ancestors" not in csp:
-        out.append(issue(H, "No clickjacking protection", "medium",
+        out.append(issue(H, "No clickjacking protection", _sev.default("missing-clickjacking"),
                          "Neither X-Frame-Options nor CSP frame-ancestors is set, so the page can be framed."))
     if h.get("x-content-type-options", "").lower() != "nosniff":
         out.append(issue(H, "Missing X-Content-Type-Options: nosniff", "low", "Browsers may MIME-sniff responses into script."))

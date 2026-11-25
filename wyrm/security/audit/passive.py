@@ -68,26 +68,30 @@ def check_response(url: str, resp: dict) -> list[dict]:
         out.append({"check": "passive", "title": title, "severity": sev, "confidence": "certain",
                     "loc": "response", "param": "", "payload": "", "evidence": ev, "status": status, "url": url})
 
+    from .. import severity as _sev   # QA-M1: shared default severities so all tools agree
     if html and not csp:
-        add("Missing Content-Security-Policy", "low", "No CSP header — the page has no built-in XSS/clickjacking defence.")
+        add("Missing Content-Security-Policy", _sev.default("missing-csp"),
+            "No CSP header — the page has no built-in XSS/clickjacking defence.")
     if html and "x-frame-options" not in H and "frame-ancestors" not in csp.lower():
-        add("Missing clickjacking protection", "low", "No X-Frame-Options and no CSP frame-ancestors.")
+        add("Missing clickjacking protection", _sev.default("missing-clickjacking"),
+            "No X-Frame-Options and no CSP frame-ancestors.")
     if "x-content-type-options" not in H:
-        add("Missing X-Content-Type-Options: nosniff", "info", "Responses can be MIME-sniffed by the browser.")
+        add("Missing X-Content-Type-Options: nosniff", _sev.default("missing-nosniff"),
+            "Responses can be MIME-sniffed by the browser.")
     if https and "strict-transport-security" not in H:
-        add("Missing HSTS", "low", "No Strict-Transport-Security header on an HTTPS response.")
+        add("Missing HSTS", _sev.default("missing-hsts"), "No Strict-Transport-Security header on an HTTPS response.")
     srv = str(H.get("server", ""))
     if re.search(r"\d+\.\d+", srv):
-        add("Server version disclosure", "info", f"Server: {srv}")
+        add("Server version disclosure", _sev.default("server-version"), f"Server: {srv}")
     if H.get("x-powered-by"):
-        add("Technology disclosure (X-Powered-By)", "info", f"X-Powered-By: {H.get('x-powered-by')}")
+        add("Technology disclosure (X-Powered-By)", _sev.default("powered-by"), f"X-Powered-By: {H.get('x-powered-by')}")
     for c in (resp.get("set_cookie") or []):
         low = c.lower()
         name = c.split("=", 1)[0].strip()
         if https and "secure" not in low:
-            add(f"Cookie without Secure flag: {name}", "low", c[:120])
+            add(f"Cookie without Secure flag: {name}", _sev.default("cookie-no-secure"), c[:120])
         if "httponly" not in low:
-            add(f"Cookie without HttpOnly flag: {name}", "low", c[:120])
+            add(f"Cookie without HttpOnly flag: {name}", _sev.default("cookie-no-httponly"), c[:120])
     if _ERROR_SIG.search(text):
         add("Verbose error / stack trace", "low", "The response body contains a stack trace or verbose error.")
     for name, sev, rx in _DEBUG_SIG:

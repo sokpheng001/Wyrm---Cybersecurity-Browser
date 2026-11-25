@@ -15,9 +15,15 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QTreeWidgetItem, QVBoxLayout, QWidget
 
 from .. import theme
+from ..security import severity as _severity
 
 
 SEV_COLOR = theme.SEVERITY
+
+
+def sev_title(s: str) -> str:
+    """Display a severity in Title case ('medium' -> 'Medium') — one consistent form across panels (QA-M1)."""
+    return _severity.title(s)
 
 
 # pageinfo.js with the per-session hook token filled in (B2); empty if a build is missing the file

@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from .common import SEV_COLOR, sev_badge
-from ..security import jsrecon, pdtools, portscan, techdetect, webchecks
+from ..security import jsrecon, pdtools, portscan, severity as _sev, techdetect, webchecks
 from ..widgets import SkeletonOverlay
 
 
@@ -237,7 +237,7 @@ class ScannerTab(QWidget):
         raw = (sev or "").lower()
         norm = self._SEV_ALIAS.get(raw)              # a recognised severity, or None for severity-less results
         color = SEV_COLOR.get(norm) if norm else None
-        it = QTreeWidgetItem([text, norm.upper() if norm else ""])
+        it = QTreeWidgetItem([text, _sev.title(norm) if norm else ""])
         it.setData(0, Qt.ItemDataRole.UserRole, {"title": text, "severity": norm or "info", "detail": detail_html,
                                                  **(data or {})})
         if color:                                    # colour the severity text in its own style, and reveal the column
@@ -620,7 +620,8 @@ class ScannerTab(QWidget):
                       "<br><br>Found in the page's JavaScript. Verify it is live and in scope before reporting.",
                       {"url": r["base"]})
         for absolute, shown, interesting in r["endpoints"]:
-            self._add(("★ " if interesting else "") + shown, "warning" if interesting else "",
+            # QA-M1: 'warning' isn't a severity level — interesting endpoints are 'info' plus the ★ marker
+            self._add(("★ " if interesting else "") + shown, "info" if interesting else "",
                       f"<b>Endpoint</b><br><br><a href='{escape(absolute)}'>{escape(absolute)}</a>"
                       + ("<br><br>Flagged as interesting (admin / token / api / graphql …).</i>" if interesting else ""),
                       {"url": absolute})

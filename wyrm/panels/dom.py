@@ -15,7 +15,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QGuiApplication
 from PySide6.QtWidgets import QHBoxLayout, QHeaderView, QLabel, QPushButton, QSplitter, QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
-from .common import PAGEINFO_JS, SEV_COLOR, sev_badge
+from .common import PAGEINFO_JS, SEV_COLOR, sev_badge, sev_title
 from ..security import domscan
 from ..widgets import SkeletonOverlay
 
@@ -119,7 +119,7 @@ class DomTab(QWidget):
                 g.setFont(0, fnt)
                 self.tree.addTopLevelItem(g)
                 groups[i["category"]] = g
-            it = QTreeWidgetItem([i["title"], i["severity"]])
+            it = QTreeWidgetItem([i["title"], sev_title(i["severity"])])
             it.setForeground(1, QBrush(QColor(SEV_COLOR.get(i["severity"], "#888"))))
             it.setData(0, Qt.ItemDataRole.UserRole, i)
             g.addChild(it)

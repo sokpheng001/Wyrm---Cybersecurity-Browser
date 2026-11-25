@@ -23,7 +23,7 @@ from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QHeaderView, QLabel, QMessageBox, QPushButton, QSplitter,
                                QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from .common import SEV_COLOR, sev_badge
+from .common import SEV_COLOR, sev_badge, sev_title
 from ..security.audit import engine
 from ..security.audit.advice import advice as _advice
 from ..widgets import SkeletonOverlay
@@ -340,7 +340,7 @@ class AuditTab(QWidget):
     def _on_finding(self, f):
         self._count = getattr(self, "_count", 0) + 1
         sev = f.get("severity", "info")
-        it = QTreeWidgetItem([f.get("title", ""), sev.upper(), f.get("param", ""), f.get("confidence", "")])
+        it = QTreeWidgetItem([f.get("title", ""), sev_title(sev), f.get("param", ""), f.get("confidence", "")])
         if sev in SEV_COLOR:
             it.setForeground(1, QBrush(QColor(SEV_COLOR[sev])))
         it.setData(0, Qt.ItemDataRole.UserRole, f)
