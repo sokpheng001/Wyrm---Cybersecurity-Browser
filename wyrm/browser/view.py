@@ -37,7 +37,8 @@ class _CapturePage(QWebEnginePage):
         if message.startswith(_CAP_PREFIX):
             win = getattr(self, "_wyrm_win", None)
             if win is not None and hasattr(win, "_on_capture"):
-                win._on_capture(message[len(_CAP_PREFIX):])
+                # F1: the frame URL comes from Qt, never from what the script claims
+                win._on_capture(message[len(_CAP_PREFIX):], self.url().toString())
             return
         super().javaScriptConsoleMessage(level, message, line, source)
 

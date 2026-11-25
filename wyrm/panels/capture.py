@@ -3,7 +3,7 @@
 # Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
 # Developer: Kwan (in-page API & WebSocket capture)
 # Copyright (c) 2023-present ByKh R&D Group. Licensed under the MIT License (see LICENSE).
-# Authors: Kim, Oda, Kwan, Naly
+# Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
 #------------------------------------------------------------------------------
 """API & WebSocket tab: live fetch/XHR calls (with bodies) and WebSocket frames captured from pages."""
 from __future__ import annotations
@@ -26,7 +26,9 @@ class CaptureTab(QWidget):
         v = QVBoxLayout(self)
         intro = QLabel("<b>API &amp; WebSocket</b> — captures <b>fetch</b> / <b>XHR</b> calls (with request and "
                        "response bodies) and <b>WebSocket</b> frames from the pages you browse, no proxy needed. "
-                       "Top-level pages and static files aren't included (that needs a proxy).")
+                       "Top-level pages and static files aren't included (that needs a proxy). "
+                       "These rows are <b>page-reported</b>: the hook runs inside the page, so a hostile page "
+                       "can shape what it reports. Rows from the intercepting proxy are the trusted source.")
         intro.setWordWrap(True)
         v.addWidget(intro)
 
@@ -46,7 +48,7 @@ class CaptureTab(QWidget):
         v.addLayout(row)
 
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabels(["Type", "Method/Event", "URL", "Status"])
+        self.tree.setHeaderLabels(["Type", "Method/Event", "URL", "Status", "Source"])
         self.tree.setRootIsDecorated(False)
         self.tree.header().setStretchLastSection(False)
         self.tree.setColumnWidth(0, 60)
@@ -74,7 +76,9 @@ class CaptureTab(QWidget):
         else:
             method, status = rec.get("method", ""), str(rec.get("status", ""))
         it = QTreeWidgetItem([{"fetch": "fetch", "xhr": "XHR", "ws": "WS"}.get(k, k), method,
-                              rec.get("url", "")[:200], status])
+                              rec.get("url", "")[:200], status, rec.get("source", "page-reported")])
+        it.setToolTip(4, "Reported by a hook running inside the page — not independently verified (use the "
+                         "intercepting proxy for trusted traffic).")
         it.setData(0, Qt.ItemDataRole.UserRole, rec)
         self.tree.addTopLevelItem(it)
         self._filter_item(it)
@@ -89,9 +93,16 @@ class CaptureTab(QWidget):
         if not rec:
             self.detail.clear()
             return
-        lines = [f"{rec.get('method', rec.get('ev', ''))}  {rec.get('url', '')}"]
-        if rec.get("status"):
-            lines.append(f"Status: {rec['status']}")
+        lines = [f"{rec.get('method', rec.get('ev', ''))}  {rec.get('url', '')}",
+                 f"Source: {rec.get('source', 'page-reported')} (from a hook inside the page — not verified)"]
+        if rec.get("page"):
+            lines.append(f"Page: {rec['page']}")
+        if rec.get("k") != "ws":
+            lines.append(f"Status: {rec.get('status', 0)}" + ("  (no response)" if not rec.get("status") else ""))
+        if rec.get("error"):
+            lines.append(f"Error: {rec['error']}")
+        if rec.get("headers"):
+            lines.append("\n--- Request headers ---\n" + "\n".join(f"{k}: {v}" for k, v in rec["headers"].items()))
         if rec.get("req"):
             lines.append("\n--- Request body ---\n" + rec["req"])
         if rec.get("res"):
@@ -109,7 +120,8 @@ class CaptureTab(QWidget):
         m.exec(self.tree.viewport().mapToGlobal(pos))
 
     def _to_repeater(self, rec):
-        self.win.security.tools_tab.load_request(rec.get("method", "GET"), rec.get("url", ""), {},
+        self.win.security.tools_tab.load_request(rec.get("method", "GET"), rec.get("url", ""),
+                                                 dict(rec.get("headers") or {}),
                                                  rec.get("req", ""))
         self.win.security.show_tab("Tools")
 

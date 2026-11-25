@@ -14,7 +14,7 @@ navigations or static sub-resources (images, CSS); that needs the proxy. Off by 
 """
 from __future__ import annotations
 
-import json
+from ..browser import capturemsg
 
 
 class CaptureMixin:
@@ -48,16 +48,16 @@ class CaptureMixin:
         self.toast("Capturing API & WebSocket traffic — reload pages to start" if on
                    else "Capture off", 5000)
 
-    def _on_capture(self, payload: str):
-        """Called (UI thread) from _CapturePage for each sentinel console message."""
+    def _on_capture(self, payload: str, page_url: str = ""):
+        """Called (UI thread) from _CapturePage for each sentinel console message. Rows are page-reported (F1):
+        validated against a strict schema, with the page URL taken from Qt rather than from the script."""
         # Defence in depth (SEC-4): even though the sentinel carries an unguessable per-process token, ignore
         # anything that arrives while capture is off, so a page can never add rows unless the user opted in.
         if not self.capture_enabled():
             return
         self._init_capture()
-        try:
-            rec = json.loads(payload)
-        except ValueError:
+        rec = capturemsg.parse(payload, page_url)
+        if rec is None:
             return
         self.captures.append(rec)
         del self.captures[:-500]  # keep the most recent 500

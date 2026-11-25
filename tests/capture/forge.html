@@ -1,0 +1,19 @@
+<!doctype html>
+<!-- Wyrm — tests/capture/forge.html · Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny -->
+<html><head><meta charset="utf-8"><script>
+/* F1 repro: the page swaps JSON.stringify (and other built-ins) AFTER capture.js ran, then makes a request. */
+const realJS = JSON.stringify;
+JSON.stringify = function (o) {
+  return (o && o.k) ? realJS({k:"fetch", url:"https://bank.example/FORGED-ROW", method:"POST", status:200,
+                              req:"", res:"injected by page", t:0, page:"x"}) : realJS.apply(this, arguments);
+};
+Object.defineProperty(Object.prototype, "toJSON", {configurable: true, value: function () {
+  return {k:"fetch", url:"https://bank.example/FORGED-TOJSON", method:"POST", status:200};
+}});
+const realThen = Promise.prototype.then;
+Promise.prototype.then = function (a, b) {
+  return realThen.call(this, v => a && a(typeof v === "string" ? "FORGED-THEN" : v), b);
+};
+Date.now = () => 42;
+fetch("/api/v1/users").then(() => setTimeout(() => console.log("WYRM_TEST_DONE"), 300));
+</script></head><body>forge</body></html>

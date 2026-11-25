@@ -1,0 +1,23 @@
+<!doctype html>
+<!-- Wyrm — tests/capture/genuine.html · Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny -->
+<html><head><meta charset="utf-8"><script>
+/* Genuine traffic that capture.js must still report (F1) plus the B1 cases. */
+(async function () {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  await fetch("/api/v1/users", {headers: {"X-Test": "1"}});                       // plain fetch + headers
+  await fetch(new URL("/api/v1/users?via=url", location.href));                    // B1: URL object
+  await fetch(new Request("/api/v1/users?via=req", {method: "POST", body: "reqbody=1"}));  // B1: Request body
+  try { await fetch("http://127.0.0.1:1/unreachable"); } catch (e) {}               // B1: rejected fetch
+  await new Promise(res => {                                                        // XHR json + header hook
+    const x = new XMLHttpRequest(); x.open("GET", "/api/v1/users?via=xhr"); x.responseType = "json";
+    x.setRequestHeader("X-Xhr", "yes"); x.onloadend = res; x.send();
+  });
+  await new Promise(res => {                                                        // XHR arraybuffer
+    const x = new XMLHttpRequest(); x.open("GET", "/api/v1/users?via=bin"); x.responseType = "arraybuffer";
+    x.onloadend = res; x.send();
+  });
+  try { const ws = new WebSocket("ws://127.0.0.1:1/sock"); ws.onerror = () => {}; } catch (e) {}
+  await wait(800);
+  console.log("WYRM_TEST_DONE");
+})();
+</script></head><body>genuine</body></html>
