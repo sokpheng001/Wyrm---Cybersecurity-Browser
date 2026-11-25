@@ -352,6 +352,43 @@ class Xxe:
         return None
 
 
+class HostHeaderInjection:
+    """Host header injection (request-level): many apps build absolute URLs (password-reset links, redirects,
+    cached asset URLs) from the incoming Host / X-Forwarded-Host. If an attacker-controlled host is reflected in
+    a redirect Location or in the page, it enables password-reset poisoning and web-cache poisoning."""
+
+    key, title, severity = "host-header", "Host header injection", "medium"
+
+    def run_request(self, method, url, headers, body, send, baseline, rand, oob=None):
+        evil = f"wyrm{rand}.attacker.example"
+        variants = [
+            {"X-Forwarded-Host": evil},                               # most common and least disruptive
+            {"X-Forwarded-Host": evil, "X-Forwarded-Scheme": "https"},
+            {"X-Host": evil},
+            {"Host": evil},                                           # direct override (may be rejected by routing)
+        ]
+        for extra in variants:
+            r = send(url, {**headers, **extra}, body)
+            if not r:
+                continue
+            H = r.get("headers", {})
+            loc = str(H.get("location", "") or r.get("location", ""))
+            injected = next(iter(extra))
+            if evil in loc:
+                return {"check": self.key, "title": self.title, "severity": "high", "confidence": "firm",
+                        "loc": "request", "param": injected, "payload": f"{injected}: {evil}",
+                        "evidence": f"A redirect Location was built from the injected host ({loc[:120]}) — "
+                                    "host-header injection (password-reset poisoning / open redirect).",
+                        "status": r.get("status"), "url": url}
+            if evil in str(r.get("text", "")):
+                return {"check": self.key, "title": self.title, "severity": "medium", "confidence": "firm",
+                        "loc": "request", "param": injected, "payload": f"{injected}: {evil}",
+                        "evidence": f"The injected host ({evil}) was reflected in the response body (absolute "
+                                    "links/scripts) — host-header injection (web-cache poisoning).",
+                        "status": r.get("status"), "url": url}
+        return None
+
+
 class CorsMisconfig:
     """CORS misconfiguration (request-level): send an attacker Origin and see whether the app trusts it. Reflecting
     an arbitrary Origin in Access-Control-Allow-Origin lets any site make cross-origin reads; doing so with
@@ -393,8 +430,8 @@ class CorsMisconfig:
 def standard(time_based: bool = True) -> list:
     """The full active check set. time_based=False drops the slow sleep-based probes (blind SQLi, command inj.)."""
     return [ReflectedXSS(), SqlError(), SqlBlindBoolean(), SqlBlindTime(time_based=time_based), Ssti(),
-            PathTraversal(), OpenRedirect(), CrlfInjection(), CorsMisconfig(), Xxe(), Ssrf(),
-            CommandInjection(time_based=time_based)]
+            PathTraversal(), OpenRedirect(), CrlfInjection(), CorsMisconfig(), HostHeaderInjection(), Xxe(),
+            Ssrf(), CommandInjection(time_based=time_based)]
 
 
 ALL_CHECKS = standard(True)

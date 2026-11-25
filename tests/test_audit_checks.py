@@ -202,6 +202,39 @@ def test_xxe_payload_references_entity_in_first_text_node():
     assert "&xxe;" in out and "<item>&xxe;</item>" in out
 
 
+def _host_send(mode):
+    def send(url, headers, body):
+        xfh = headers.get("X-Forwarded-Host") or headers.get("X-Host") or headers.get("Host") or ""
+        H, text, status = {}, "<html>home</html>", 200
+        if mode == "redirect" and xfh and "attacker.example" in xfh:
+            H["location"] = f"https://{xfh}/login"; status = 302
+        elif mode == "reflect" and xfh and "attacker.example" in xfh:
+            text = f'<link rel="canonical" href="https://{xfh}/"><a href="https://{xfh}/reset">reset</a>'
+        return {"status": status, "headers": H, "text": text, "location": H.get("location", ""), "url": url}
+    return send
+
+
+def test_host_header_poisoned_redirect_is_high():
+    c = chk.HostHeaderInjection()
+    f = c.run_request("GET", "https://app.test/login", {"Host": "app.test"}, "",
+                      _host_send("redirect"), baseline=None, rand="abc")
+    assert f is not None and f["check"] == "host-header" and f["severity"] == "high"
+
+
+def test_host_header_reflected_in_body_is_medium():
+    c = chk.HostHeaderInjection()
+    f = c.run_request("GET", "https://app.test/", {"Host": "app.test"}, "",
+                      _host_send("reflect"), baseline=None, rand="abc")
+    assert f is not None and f["severity"] == "medium"
+
+
+def test_host_header_clean_app_no_finding():
+    c = chk.HostHeaderInjection()
+    f = c.run_request("GET", "https://app.test/", {"Host": "app.test"}, "",
+                      _host_send("clean"), baseline=None, rand="abc")
+    assert f is None
+
+
 def test_passive_detects_leaked_secrets_redacted():
     from wyrm.security.audit import passive
     body = (

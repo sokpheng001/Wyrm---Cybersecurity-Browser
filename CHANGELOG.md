@@ -16,6 +16,8 @@ most important points first. Each build of a version adds an "Also in this build
   Allow-Credentials) or trust a 'null' origin, with remediation guidance.
 - New XXE check: when an endpoint accepts XML, it tests whether the parser resolves external entities (local
   file disclosure or an out-of-band callback) and reports it with remediation guidance.
+- New host-header injection check: flags apps that build redirects or page links from the request Host /
+  X-Forwarded-Host (password-reset poisoning, web-cache poisoning).
 - HTTP/2 interception is now on by default in the intercepting proxy and handles a page's many streams at the
   same time, so modern sites are captured fully without slowing down (it was previously experimental and off).
 - This build: smoother browsing — the start page now updates in place instead of reloading every time news,

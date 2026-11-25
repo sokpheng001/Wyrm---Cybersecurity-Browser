@@ -32,6 +32,9 @@ ADVICE = {
     "cmdi": ("Avoid invoking a shell. Call programs with an argument array (no shell string), and strictly "
              "validate/allow-list any user input that reaches a command.",
              ["https://owasp.org/www-community/attacks/Command_Injection"]),
+    "host-header": ("Don't build absolute URLs from the incoming Host / X-Forwarded-Host. Use a configured "
+                    "canonical hostname, and validate the Host header against an allow-list of expected domains.",
+                    ["https://portswigger.net/web-security/host-header"]),
     "xxe": ("Disable external entities and DTDs in the XML parser (set a no-DTD / no-external-entities secure "
             "configuration for your language's parser) and don't echo parsed XML content back to the user.",
             ["https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html"]),
