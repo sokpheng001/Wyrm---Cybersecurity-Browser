@@ -459,7 +459,8 @@ class DownloadsPopup(QWidget):
     """A frameless panel under the Downloads button listing recent downloads with Open / Show in folder."""
 
     def __init__(self, win):
-        super().__init__(win, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
+        # QA-U3: Popup (not Tool) so it closes on an outside click or Esc and never floats across tabs
+        super().__init__(win, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         self.win = win
         self._rows: dict = {}     # id(rec) -> {bar, sub, pause} for live in-place updates (no flicker)
         self._sig = None          # membership/state signature: rebuild only when it changes
@@ -474,6 +475,8 @@ class DownloadsPopup(QWidget):
         head.addWidget(title, 1)
         clear = QPushButton("Clear")
         clear.setCursor(Qt.CursorShape.PointingHandCursor)
+        clear.setAutoDefault(False)   # QA-U3: don't make the destructive button the default (Enter) action
+        clear.setDefault(False)
         clear.clicked.connect(self._clear)
         head.addWidget(clear)
         outer.addLayout(head)
@@ -652,3 +655,10 @@ class DownloadsPopup(QWidget):
             import time
             self.win._dl_hidden_at = time.monotonic()   # so a click on the Downloads button toggles (not re-opens)
             self.hide()
+
+    def hideEvent(self, e):
+        # QA-U3: a Popup closes itself on Esc / an outside click; stamp the time so clicking the Downloads button
+        # again toggles it closed instead of instantly re-opening.
+        super().hideEvent(e)
+        import time
+        self.win._dl_hidden_at = time.monotonic()
