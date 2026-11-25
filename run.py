@@ -96,16 +96,11 @@ class TorDialog(QDialog):
 
 
 def _migrate_secrets():
-    """One-time: re-store any plaintext secret as DPAPI ciphertext so the registry no longer holds the raw
-    key (SEC-7). Safe to run every launch — already-encrypted or empty values are left untouched."""
+    """Move any secret still kept in QSettings (plain text, or DPAPI on Windows) into the OS keyring (F4) and
+    delete it from QSettings. Safe to run every launch."""
     try:
         from wyrm import secretstore
-        if not secretstore.available():
-            return
-        s = QSettings()
-        raw = s.value("ai/api_key", "", type=str)
-        if raw and not secretstore.is_encrypted(raw):
-            secretstore.set(s, "ai/api_key", raw)
+        secretstore.migrate(QSettings())   # F4: plain/DPAPI copies in QSettings -> OS keyring, then deleted
     except Exception:  # noqa: BLE001 — migration must never block startup
         pass
 
