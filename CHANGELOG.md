@@ -6,6 +6,9 @@ most important points first. Each build of a version adds an "Also in this build
 
 ## v0.5.0
 
+- The active scanner now detects blind, time-based SQL injection (MySQL/PostgreSQL/SQL Server), catching
+  injectable parameters that don't leak a database error — it confirms by timing, with a guard so naturally slow
+  pages aren't flagged. Runs at "Thorough" intensity.
 - HTTP/2 interception is now on by default in the intercepting proxy and handles a page's many streams at the
   same time, so modern sites are captured fully without slowing down (it was previously experimental and off).
 - This build: smoother browsing — the start page now updates in place instead of reloading every time news,

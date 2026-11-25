@@ -6,7 +6,8 @@
 """Active + passive web vulnerability auditing (scope-gated), built on the proxy's request pipeline.
 
     points.py   — parse a request into testable insertion points (query/body/json/cookie/header)
-    checks.py   — active checks (reflected XSS, error SQLi, SSTI, path traversal, open redirect, CRLF)
+    checks.py   — active checks (reflected XSS, error + blind/time-based SQLi, SSTI, path traversal,
+                  open redirect, CRLF, SSRF, OS command injection)
     passive.py  — passive checks on a response (missing security headers, cookie flags, verbose errors…)
     engine.py   — drive the checks over the insertion points, de-duplicate, score confidence
 """

