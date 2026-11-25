@@ -323,6 +323,31 @@ def test_passive_ignores_non_card_digit_runs():
     assert not [f for f in out if "Cardholder data" in f["title"]]
 
 
+def test_passive_flags_post_form_without_csrf_token():
+    from wyrm.security.audit import passive
+    body = '<html><body><form method="post" action="/transfer"><input name="amount"><button>Go</button></form></body></html>'
+    out = passive.check_response("https://bank.test/pay",
+                                 {"headers": {"content-type": "text/html"}, "status": 200, "text": body})
+    assert any("anti-CSRF token" in f["title"] for f in out)
+
+
+def test_passive_post_form_with_token_is_clean():
+    from wyrm.security.audit import passive
+    body = ('<form method="post"><input type="hidden" name="csrf_token" value="abc123">'
+            '<input name="amount"></form>')
+    out = passive.check_response("https://bank.test/pay",
+                                 {"headers": {"content-type": "text/html"}, "status": 200, "text": body})
+    assert not any("anti-CSRF token" in f["title"] for f in out)
+
+
+def test_passive_get_form_not_flagged_for_csrf():
+    from wyrm.security.audit import passive
+    body = '<form method="get" action="/search"><input name="q"></form>'
+    out = passive.check_response("https://site.test/",
+                                 {"headers": {"content-type": "text/html"}, "status": 200, "text": body})
+    assert not any("anti-CSRF token" in f["title"] for f in out)
+
+
 def test_passive_detects_active_mixed_content():
     from wyrm.security.audit import passive
     body = '<html><head><script src="http://cdn.evil/x.js"></script></head><body>hi</body></html>'

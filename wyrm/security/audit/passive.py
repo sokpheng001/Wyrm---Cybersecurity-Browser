@@ -84,6 +84,16 @@ def check_response(url: str, resp: dict) -> list[dict]:
             add(f"Cookie without HttpOnly flag: {name}", "low", c[:120])
     if _ERROR_SIG.search(text):
         add("Verbose error / stack trace", "low", "The response body contains a stack trace or verbose error.")
+    if html:
+        for form in re.findall(r"<form\b[^>]*>.*?</form>", text, re.I | re.S)[:40]:
+            if not re.search(r"method\s*=\s*['\"]?\s*post", form, re.I):
+                continue   # only state-changing (POST) forms matter for CSRF
+            token = re.search(r"<input\b[^>]*\b(?:csrf|token|authenticity|nonce|__requestverification)[^>]*>", form, re.I)
+            if not token:
+                add("Form without anti-CSRF token", "low",
+                    "A POST form has no hidden anti-CSRF token field — verify the endpoint is protected by a "
+                    "CSRF token or SameSite cookies before relying on it.")
+                break
     if https and html:
         active = re.findall(r"<(?:script|iframe|link|object|embed)\b[^>]*\b(?:src|href|data)\s*=\s*['\"]http://[^'\"]+",
                             text, re.I)
