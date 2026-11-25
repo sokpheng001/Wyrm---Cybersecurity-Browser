@@ -20,6 +20,9 @@ most important points first. Each build of a version adds an "Also in this build
   X-Forwarded-Host (password-reset poisoning, web-cache poisoning).
 - New GraphQL introspection check: flags GraphQL endpoints that leave introspection enabled (full schema
   disclosure), with remediation guidance.
+- The scanner also flags payment card numbers (Luhn-validated) exposed in responses, masked in the finding.
+- Add-ons can now register their own scanner checks (ctx.add_scan_check), which run alongside the built-in
+  checks at Fast and Thorough intensity.
 - HTTP/2 interception is now on by default in the intercepting proxy and handles a page's many streams at the
   same time, so modern sites are captured fully without slowing down (it was previously experimental and off).
 - This build: smoother browsing — the start page now updates in place instead of reloading every time news,

@@ -185,9 +185,10 @@ class AuditTab(QWidget):
         mode = self.intensity.currentText()
         if mode.startswith("Passive"):
             return []
-        if mode.startswith("Fast"):
-            return chk.standard(time_based=False)
-        return None   # Thorough: engine default (all checks)
+        # Fast drops the slow time-based probes; Thorough runs everything. Add-on-registered checks run in both.
+        base = chk.standard(time_based=not mode.startswith("Fast"))
+        extra = list(getattr(self.win, "_addon_scan_checks", []))
+        return base + extra
 
     def _make_send(self):
         px, verify = self.win.proxies(), self.win.verify_tls()

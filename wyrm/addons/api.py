@@ -8,6 +8,7 @@
 An add-on can:
   - rewrite requests / responses on live proxy traffic (ctx.on_request / ctx.on_response),
   - watch responses passively (ctx.on_response_observed),
+  - register custom active/passive scanner checks (ctx.add_scan_check),
   - add its own tab to the Security panel (ctx.add_tab),
   - file findings (ctx.add_finding), toast, log, and keep small persistent storage (ctx.storage / ctx.save).
 
@@ -53,6 +54,21 @@ class AddonContext:
             getattr(mitm.ACTIVE, listname).append(fn)
         else:
             self.log("proxy is off — this traffic hook will apply when the intercepting proxy is on")
+
+    # -------------------------------------------------- scanner
+    def add_scan_check(self, check):
+        """Register a custom check with the active scanner. `check` is an object with either or both of:
+          run(point, build, send, baseline, rand, oob)                         — per insertion point, or
+          run_request(method, url, headers, body, send, baseline, rand, oob)   — once per request,
+        returning a finding dict (keys: check, title, severity, confidence, loc, param, payload, evidence,
+        status, url) or None. It runs alongside the built-in checks at Fast and Thorough intensity (not Passive).
+        `send(url, headers, body)` performs one in-scope request; keep checks safe and non-destructive."""
+        lst = getattr(self.win, "_addon_scan_checks", None)
+        if lst is None:
+            lst = []
+            self.win._addon_scan_checks = lst
+        lst.append(check)
+        self.log(f"registered a scanner check: {getattr(check, 'title', type(check).__name__)}")
 
     # -------------------------------------------------- UI
     def add_tab(self, name: str, widget):
