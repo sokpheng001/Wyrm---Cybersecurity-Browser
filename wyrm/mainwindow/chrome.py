@@ -844,6 +844,15 @@ class ChromeMixin:
             star = getattr(self, "bm_star", None)
             if star is not None:
                 star.move(self.urlbar.width() - star.width() - 7, (self.urlbar.height() - star.height()) // 2)
+        elif obj is getattr(self, "urlbar", None) and ev.type() == QEvent.Type.FocusIn \
+                and ev.reason() == Qt.FocusReason.MouseFocusReason:
+            # QA-L4: like Chrome/Firefox, select the whole URL when the bar is first clicked, so typing replaces it
+            self._urlbar_click_select = True
+        elif obj is getattr(self, "urlbar", None) and ev.type() == QEvent.Type.MouseButtonRelease \
+                and getattr(self, "_urlbar_click_select", False):
+            self._urlbar_click_select = False
+            if not self.urlbar.hasSelectedText():   # respect a click-drag selection the user made
+                self.urlbar.selectAll()
         elif obj is getattr(self, "url_icon", None) and ev.type() == QEvent.Type.MouseButtonPress \
                 and ev.button() == Qt.MouseButton.LeftButton:
             self._show_certificate()
