@@ -145,6 +145,9 @@ class SettingsDialog(QDialog):
             sa.setWidget(page)
             self.stack.addWidget(sa)
             self.nav.addItem(title)
+        # QA-U5: a page shown when a search matches nothing, instead of a blank dialog
+        self._empty_page = QLabel("", objectName="Muted", alignment=Qt.AlignmentFlag.AlignCenter, wordWrap=True)
+        self._empty_idx = self.stack.addWidget(self._empty_page)
         self.nav.setCurrentRow(0)
         bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         bb.accepted.connect(self._save)
@@ -202,7 +205,7 @@ class SettingsDialog(QDialog):
         q = text.lower().strip()
         titles = [self.nav.item(i).text().lower() for i in range(self.nav.count())]
         title_hit = [bool(q) and q in t for t in titles]
-        page_has = [not q or title_hit[i] for i in range(self.stack.count())]
+        page_has = [not q or title_hit[i] for i in range(self.nav.count())]   # real pages only (not the empty one)
         sec_hit: dict = {}
         for pidx, rw, terms, sec in self._rows:
             m = (not q) or title_hit[pidx] or (q in terms)
@@ -215,8 +218,11 @@ class SettingsDialog(QDialog):
             hw.setVisible((not q) or title_hit[pidx] or sec_hit.get(hw, False))
         for i in range(self.nav.count()):
             self.nav.item(i).setHidden(bool(q) and not page_has[i])
-        if q and (self.nav.currentRow() < 0 or not page_has[self.nav.currentRow()]):
-            for i in range(self.stack.count()):
+        if q and not any(page_has):   # QA-U5: nothing matched -> show a message, not a blank page
+            self._empty_page.setText(f'No settings match “{text.strip()}”.')
+            self.stack.setCurrentIndex(self._empty_idx)
+        elif q and (self.nav.currentRow() < 0 or not page_has[self.nav.currentRow()]):
+            for i in range(self.nav.count()):
                 if page_has[i]:
                     self.nav.setCurrentRow(i)
                     break
