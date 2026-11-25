@@ -330,6 +330,8 @@ class AuditTab(QWidget):
     # ------------------------------------------------------------ results (UI thread)
     SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
+    _SEV_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+
     def _on_finding(self, f):
         self._count = getattr(self, "_count", 0) + 1
         sev = f.get("severity", "info")
@@ -337,8 +339,15 @@ class AuditTab(QWidget):
         if sev in SEV_COLOR:
             it.setForeground(1, QBrush(QColor(SEV_COLOR[sev])))
         it.setData(0, Qt.ItemDataRole.UserRole, f)
-        self.tree.addTopLevelItem(it)
-        self.tree.sortItems(1, Qt.SortOrder.AscendingOrder) if False else None
+        rank = self._SEV_RANK.get(sev, 4)
+        it.setData(1, Qt.ItemDataRole.UserRole, rank)
+        # keep the list ordered most-severe first as findings stream in (stable within a severity)
+        pos = self.tree.topLevelItemCount()
+        for i in range(self.tree.topLevelItemCount()):
+            if (self.tree.topLevelItem(i).data(1, Qt.ItemDataRole.UserRole) or 4) > rank:
+                pos = i
+                break
+        self.tree.insertTopLevelItem(pos, it)
         if self.tree.topLevelItemCount() == 1:
             self.tree.setCurrentItem(it)
 
