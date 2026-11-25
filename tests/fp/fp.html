@@ -1,0 +1,81 @@
+<!doctype html>
+<!--
+ Wyrm — tests/fp/fp.html
+ Part of Wyrm, the privacy & security browser by ByKh R&D Group (https://bykh.org)
+ Authors: Oda, Kwan, Kim, Lida, Naly, Buri, Vatanny
+
+ F2 acceptance page. Open it in Wyrm with "Resist fingerprinting" on (or in any Chromium browser with
+ wyrm/fingerprint.js injected before page scripts run, e.g. by tests/test_fingerprint.py). Each check prints
+ PASS/FAIL below and in the console as "FPRESULT {...}".
+-->
+<html><head><meta charset="utf-8"><title>Wyrm anti-fingerprinting checks</title>
+<style>body{font:14px monospace;margin:16px} .PASS{color:#080} .FAIL{color:#c00}</style></head>
+<body><h3>Wyrm anti-fingerprinting checks</h3><ul id="out"></ul>
+<div style="display:none"><iframe src="frame.html"></iframe><iframe src="frame.html"></iframe>
+<iframe src="frame.html"></iframe><iframe src="frame.html"></iframe><iframe src="frame.html"></iframe>
+<iframe src="frame.html"></iframe></div>
+<script>
+(function () {
+  var results = {};
+  function check(name, ok, detail) {
+    results[name] = { ok: !!ok, detail: String(detail) };
+    var li = document.createElement("li");
+    li.className = ok ? "PASS" : "FAIL";
+    li.textContent = (ok ? "PASS " : "FAIL ") + name + " — " + detail;
+    document.getElementById("out").appendChild(li);
+  }
+  function run() {
+    // canvas: draw, read the pixels, export 3x, read the pixels again
+    var c = document.createElement("canvas"); c.width = 220; c.height = 60;
+    var x = c.getContext("2d");
+    x.fillStyle = "#f60"; x.fillRect(0, 0, 220, 60);
+    x.fillStyle = "#069"; x.font = "18px Arial"; x.fillText("Wyrm fp test ☺", 4, 30);
+    var orig = CanvasRenderingContext2D.prototype.getImageData;
+    var before = Array.from(x.getImageData(0, 0, 220, 60).data).join(",");
+    var a = c.toDataURL(), b = c.toDataURL(), d = c.toDataURL();
+    check("toDataURL is stable", a === b && b === d, new Set([a, b, d]).size + " distinct of 3");
+    var after = Array.from(x.getImageData(0, 0, 220, 60).data).join(",");
+    check("canvas pixels unchanged after export", before === after, before === after ? "identical" : "modified");
+    var g1 = Array.from(x.getImageData(0, 0, 220, 60).data).join(","),
+        g2 = Array.from(x.getImageData(0, 0, 220, 60).data).join(",");
+    check("getImageData is stable", g1 === g2, g1 === g2 ? "identical" : "differs");
+
+    // six same-origin iframes: with a per-document seed they'd disagree with ~100% probability
+    var vals = Array.from(document.querySelectorAll("iframe")).map(function (f) {
+      return f.contentWindow.navigator.hardwareConcurrency; });
+    check("iframe hardwareConcurrency matches", vals.every(function (v) { return v === navigator.hardwareConcurrency; }),
+          "top=" + navigator.hardwareConcurrency + " iframes=" + vals.join(","));
+
+    var gl = document.createElement("canvas").getContext("webgl"), ren = "(no webgl)", ok = true;
+    if (gl) {
+      var ext = gl.getExtension("WEBGL_debug_renderer_info");
+      ren = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(0x9246);
+      var ua = navigator.userAgent;
+      ok = /Mac OS X/.test(ua) ? /Apple/.test(ren) && !/Direct3D|D3D/.test(ren)
+         : /Windows/.test(ua) ? /Direct3D|D3D/.test(ren)
+         : /OpenGL|Mesa|Vulkan/.test(ren) && !/Direct3D|D3D/.test(ren);
+    }
+    check("WebGL renderer matches UA platform", ok, ren);
+
+    var desc = Object.getOwnPropertyDescriptor(navigator, "hardwareConcurrency");
+    check("no own navigator property", desc === undefined, String(desc));
+
+    var fns = { "fetch": window.fetch, "toDataURL": HTMLCanvasElement.prototype.toDataURL,
+                "getImageData": CanvasRenderingContext2D.prototype.getImageData,
+                "Function.prototype.toString": Function.prototype.toString,
+                "hardwareConcurrency getter": Object.getOwnPropertyDescriptor(Navigator.prototype, "hardwareConcurrency").get };
+    var bad = Object.keys(fns).filter(function (k) {
+      return Function.prototype.toString.call(fns[k]).indexOf("[native code]") < 0; });
+    check("patched functions look native", bad.length === 0, bad.length ? "not native: " + bad.join(", ") : "all native");
+    var nl = HTMLCanvasElement.prototype.toDataURL.name === "toDataURL" &&
+             CanvasRenderingContext2D.prototype.getImageData.length === 4 &&
+             !("prototype" in HTMLCanvasElement.prototype.toDataURL);
+    check("name/length preserved", nl, "toDataURL.name=" + HTMLCanvasElement.prototype.toDataURL.name +
+          " getImageData.length=" + CanvasRenderingContext2D.prototype.getImageData.length);
+
+    console.log("FPRESULT " + JSON.stringify(results));
+    console.log("WYRM_TEST_DONE");
+  }
+  if (document.readyState === "complete") run(); else window.addEventListener("load", run);
+})();
+</script></body></html>

@@ -7,7 +7,9 @@
 """JavaScript injected into pages (CiteSee, YouTube ad removal, anti-fingerprinting, collectors)."""
 from __future__ import annotations
 
+import json
 import secrets
+import sys
 from pathlib import Path
 
 
@@ -24,7 +26,54 @@ CITESEE_JS = _load("citesee.js")
 
 YOUTUBE_JS = _load("youtube.js")
 
-FINGERPRINT_JS = _load("fingerprint.js")
+# --- anti-fingerprinting (F2) ---------------------------------------------------------------------------
+# One seed per browser session (process), shared by every frame and document, so a page and its iframes see
+# the same values. Chosen here, never derived from anything page-visible.
+FP_SEED = secrets.randbelow(2**31 - 2) + 1
+
+# WebGL UNMASKED_VENDOR/RENDERER pairs that real Chrome reports on each OS. They must match the platform in the
+# user agent: a macOS UA with a Direct3D renderer exists only in spoofing browsers and singles the user out.
+_GPU_PROFILES = {
+    "darwin": [
+        ("Google Inc. (Apple)", "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)"),
+        ("Google Inc. (Apple)", "ANGLE (Apple, ANGLE Metal Renderer: Apple M2, Unspecified Version)"),
+        ("Google Inc. (Apple)", "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)"),
+    ],
+    "win32": [
+        ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) UHD Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+        ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+        ("Google Inc. (AMD)", "ANGLE (AMD, AMD Radeon(TM) Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+    ],
+    "linux": [
+        ("Google Inc. (Intel)", "ANGLE (Intel, Mesa Intel(R) UHD Graphics 620 (KBL GT2), OpenGL 4.6)"),
+        ("Google Inc. (AMD)", "ANGLE (AMD, AMD Radeon Graphics (radeonsi, renoir, LLVM 15.0.7), OpenGL 4.6)"),
+    ],
+}
+_CORES = {"darwin": [8, 10, 12], "win32": [4, 8, 12, 16], "linux": [4, 8, 12, 16]}
+
+
+def _os_key(platform: str) -> str:
+    if platform.startswith("darwin"):
+        return "darwin"
+    if platform.startswith(("win", "cygwin", "msys")):
+        return "win32"
+    return "linux"
+
+
+def fingerprint_config(platform: str | None = None, seed: int | None = None) -> dict:
+    """The per-session values substituted into fingerprint.js for `platform` (default: this OS)."""
+    key = _os_key(platform or sys.platform)
+    seed = FP_SEED if seed is None else int(seed)
+    vendor, renderer = _GPU_PROFILES[key][seed % len(_GPU_PROFILES[key])]
+    return {"seed": seed, "vendor": vendor, "renderer": renderer, "cores": _CORES[key], "memory": [4, 8]}
+
+
+def fingerprint_js(platform: str | None = None, seed: int | None = None) -> str:
+    cfg = json.dumps(fingerprint_config(platform, seed))
+    return _load("fingerprint.js").replace("/*__WYRM_FP_CONFIG__*/null", cfg)
+
+
+FINGERPRINT_JS = fingerprint_js()
 
 # Per-process random secret so a page can't forge capture rows (SEC-4): the sentinel console.debug line that
 # Wyrm listens for carries this token, which pages can neither read (we emit via the original console.debug) nor

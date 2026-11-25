@@ -19,7 +19,10 @@ import os
 import threading
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu --no-sandbox")
+# Software WebGL (SwiftShader) so WebGL checks run headless too.
+os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS",
+                      "--no-sandbox --use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader "
+                      "--ignore-gpu-blocklist")
 
 DONE = "WYRM_TEST_DONE"
 _app = None
