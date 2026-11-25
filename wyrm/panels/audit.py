@@ -362,7 +362,14 @@ class AuditTab(QWidget):
         if not ok:
             self.status.setText(f"Audit failed: {res}")
         else:
-            self.status.setText(f"Audit complete — {n} issue(s). Only test authorized targets.")
+            counts: dict[str, int] = {}
+            for i in range(self.tree.topLevelItemCount()):
+                f = self.tree.topLevelItem(i).data(0, Qt.ItemDataRole.UserRole) or {}
+                s = f.get("severity", "info")
+                counts[s] = counts.get(s, 0) + 1
+            parts = [f"{counts[s]} {s}" for s in ("critical", "high", "medium", "low", "info") if counts.get(s)]
+            summary = ", ".join(parts) if parts else "no issues found"
+            self.status.setText(f"Audit complete — {summary} ({n} total). Only test authorized targets.")
 
     def _show(self, it, _prev=None):
         f = it.data(0, Qt.ItemDataRole.UserRole) if it else None
