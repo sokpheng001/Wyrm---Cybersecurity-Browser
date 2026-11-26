@@ -49,6 +49,32 @@ class RuleSet:
     def dump(self) -> str:
         return json.dumps([asdict(r) for r in self.rules])
 
+    # ---- shareable import/export (a file teams can pass around), separate from the compact per-engagement dump
+    EXPORT_KEY = "wyrm-match-replace"
+
+    def export_text(self) -> str:
+        """Pretty JSON wrapped with a format marker, for an export file."""
+        return json.dumps({"format": self.EXPORT_KEY, "version": 1,
+                           "rules": [asdict(r) for r in self.rules]}, indent=2)
+
+    @classmethod
+    def parse_rules(cls, text: str) -> list:
+        """Rules from an export file or a bare JSON list. Raises ValueError on anything else, so the UI can
+        tell the user the file isn't a rule set (rather than silently importing nothing)."""
+        data = json.loads(text)
+        if isinstance(data, dict):
+            if data.get("format") not in (cls.EXPORT_KEY, None):
+                raise ValueError("not a Wyrm Match & Replace export")
+            data = data.get("rules", [])
+        if not isinstance(data, list):
+            raise ValueError("expected a list of rules")
+        out = []
+        for r in data:
+            if not isinstance(r, dict):
+                raise ValueError("each rule must be an object")
+            out.append(Rule(**{k: r.get(k, getattr(Rule, k, "")) for k in Rule.__annotations__}))
+        return out
+
     def active(self) -> bool:
         return any(r.enabled and r.header for r in self.rules)
 

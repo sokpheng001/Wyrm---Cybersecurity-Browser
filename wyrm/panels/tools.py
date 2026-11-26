@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QButtonGroup, QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEdit, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QStackedWidget, QTabBar, QTextBrowser, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QButtonGroup, QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QStackedWidget, QTabBar, QTextBrowser, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 from .common import HeaderHighlighter, _format_response, _pane, mono
 from ..security import reqexport, tools
@@ -545,7 +545,8 @@ class ToolsTab(QWidget):
             self.rw_table.setColumnWidth(i, wdt)
         v.addWidget(self.rw_table, 1)
         row = QHBoxLayout()
-        for label, fn in (("Add rule", self._rw_add), ("Remove", self._rw_remove)):
+        for label, fn in (("Add rule", self._rw_add), ("Remove", self._rw_remove),
+                          ("Import…", self._rw_import), ("Export…", self._rw_export)):
             b = QPushButton(label)
             b.clicked.connect(fn)
             row.addWidget(b)
@@ -599,6 +600,41 @@ class ToolsTab(QWidget):
                 del self.win.rules.rules[idx]
                 self.win.save_rules()
                 self._rw_refresh()
+
+    def _rw_export(self):
+        if not getattr(self.win, "rules", None) or not self.win.rules.rules:
+            self.win.toast("No rules to export yet — add one first.", 3000)
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Export Match & Replace rules", "match-replace-rules.json",
+                                              "JSON (*.json);;All files (*)")
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(self.win.rules.export_text())
+            self.win.toast(f"Exported {len(self.win.rules.rules)} rule(s)")
+        except OSError as e:
+            QMessageBox.warning(self, "Export", f"Could not write file: {e}")
+
+    def _rw_import(self):
+        from ..security.rewrite import RuleSet
+        path, _ = QFileDialog.getOpenFileName(self, "Import Match & Replace rules", "",
+                                              "JSON (*.json);;All files (*)")
+        if not path:
+            return
+        try:
+            with open(path, encoding="utf-8") as fh:
+                new_rules = RuleSet.parse_rules(fh.read())
+        except (OSError, ValueError) as e:
+            QMessageBox.warning(self, "Import", f"Couldn't import rules: {e}")
+            return
+        if not new_rules:
+            self.win.toast("That file has no rules.", 3000)
+            return
+        self.win.rules.rules.extend(new_rules)   # append, so existing rules aren't clobbered
+        self.win.save_rules()
+        self._rw_refresh()
+        self.win.toast(f"Imported {len(new_rules)} rule(s) — appended to your list")
 
     def compare_add(self, text: str):
         """Send a request/response into the Comparer (fills A first, then B)."""
