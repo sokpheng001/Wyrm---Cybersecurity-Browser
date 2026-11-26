@@ -273,7 +273,11 @@ class TabsMixin:
         self._set_tab_text(view, view.title())
 
     def move_tab_to_window(self, i: int, target):
-        if target is None or target is self or getattr(target, "profile", None) is not self.profile:
+        if target is None or target is self:
+            return
+        if getattr(target, "profile", None) is not self.profile:
+            # tabs can only move between windows that share a browsing profile (same engagement)
+            self.toast("Can't move the tab there — that window uses a different engagement (separate session).", 4000)
             return
         last = self.tabbar.count() <= 1
         title = self.tabbar.tabText(i)
