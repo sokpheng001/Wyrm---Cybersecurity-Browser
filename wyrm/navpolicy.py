@@ -28,5 +28,10 @@ def should_block(target_scheme: str, *, is_main_frame: bool, user_driven: bool, 
     guarded = scheme in _GUARDED or (scheme == "data" and is_main_frame)
     if not guarded:
         return False
-    from_chrome = (current_scheme or "").lower() in ("wyrm", "")
-    return not (user_driven or from_chrome)
+    cur = (current_scheme or "").lower()
+    from_chrome = cur in ("wyrm", "")
+    # A page already loaded from the local filesystem may browse within it: clicking into a folder in a
+    # directory listing, or a link to another local file, is normal. The guard exists to stop a *web* page
+    # (http/https) reaching file://, not to stop local pages linking to local pages.
+    same_local = scheme == "file" and cur == "file"
+    return not (user_driven or from_chrome or same_local)

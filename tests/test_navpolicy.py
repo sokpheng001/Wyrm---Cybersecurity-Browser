@@ -46,6 +46,15 @@ def test_wyrm_chrome_may_navigate_itself():
     assert navpolicy.should_block("wyrm", is_main_frame=True, user_driven=False, current_scheme="") is False
 
 
+def test_local_page_can_browse_the_local_filesystem():
+    # a page already loaded from file:// may click into folders / local files (directory browsing)
+    assert navpolicy.should_block("file", is_main_frame=True, user_driven=False, current_scheme="file") is False
+    assert navpolicy.should_block("file", is_main_frame=False, user_driven=False, current_scheme="file") is False
+    # but a local page still can't jump to privileged / script schemes on its own
+    assert navpolicy.should_block("wyrm", is_main_frame=True, user_driven=False, current_scheme="file") is True
+    assert navpolicy.should_block("javascript", is_main_frame=True, user_driven=False, current_scheme="file") is True
+
+
 if __name__ == "__main__":
     import traceback
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

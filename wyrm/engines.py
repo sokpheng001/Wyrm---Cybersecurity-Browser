@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from urllib.parse import quote_plus
+from urllib.parse import quote, quote_plus
 
 
 @dataclass(frozen=True)
@@ -98,11 +98,12 @@ def resolve(text: str, default_engine: str = DEFAULT_ENGINE) -> str:
     if scheme in _KNOWN_SCHEMES:
         return t
     # a local file path typed without the file:// scheme — open it instead of searching for it:
-    #   Windows drive path (C:\… or C:/…), or a UNC path (\\server\share)
+    #   Windows drive path (C:\… or C:/…), or a UNC path (\\server\share). Percent-encode the path so spaces
+    #   and other special characters (common in Windows paths) survive as a valid URL.
     if re.match(r"^[A-Za-z]:[\\/]", t):
-        return "file:///" + t.replace("\\", "/")
+        return "file:///" + quote(t.replace("\\", "/"), safe="/:")
     if t.startswith("\\\\"):
-        return "file:" + t.replace("\\", "/")
+        return "file:" + quote(t.replace("\\", "/"), safe="/:")
     if " " not in t and _HOSTLIKE.match(t):
         host = t.split("/", 1)[0]
         local = host.startswith("localhost") or re.match(r"^\d", host)
