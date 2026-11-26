@@ -11,10 +11,12 @@ from __future__ import annotations
 from urllib.parse import urlparse
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (QCheckBox, QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from .common import mono
+from ..security import reqexport
 
 
 class CaptureTab(QWidget):
@@ -117,7 +119,23 @@ class CaptureTab(QWidget):
             return
         m = QMenu(self)
         m.addAction("Send to Repeater", lambda: self._to_repeater(rec))
+        m.addSeparator()
+        copy = m.addMenu("Copy as code")
+        for lang in reqexport.LANGS:
+            copy.addAction(lang, lambda l=lang: self._copy_as(rec, l))
+        m.addAction("Copy URL", lambda: QGuiApplication.clipboard().setText(rec.get("url", "")))
         m.exec(self.tree.viewport().mapToGlobal(pos))
+
+    def _rec_req(self, rec) -> dict:
+        return {"method": rec.get("method", "GET"), "url": rec.get("url", ""),
+                "headers": dict(rec.get("headers") or {}), "body": rec.get("req", "")}
+
+    def _copy_as(self, rec, lang):
+        try:
+            QGuiApplication.clipboard().setText(reqexport.to_code(self._rec_req(rec), lang))
+            self.win.toast(f"Copied request as {lang}", 3000)
+        except ValueError as e:
+            self.win.toast(str(e), 3000)
 
     def _to_repeater(self, rec):
         self.win.security.tools_tab.load_request(rec.get("method", "GET"), rec.get("url", ""),

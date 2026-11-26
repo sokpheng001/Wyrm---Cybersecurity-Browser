@@ -77,12 +77,18 @@ class IntruderTab(QWidget):
             add = QPushButton("Add ▾")
             add.setObjectName("Segment")
             add.setFixedHeight(24)
+            add.setToolTip("Append a built-in payload set (grouped by category) or a number range")
             from ..security import payloads as _pl
             menu = QMenu(add)
             menu.addAction("Numbers…", self._add_numbers)
             menu.addSeparator()
-            for name in _pl.LISTS:
-                menu.addAction(name, lambda _c=False, n=name: self._add_list(n))
+            for cat, names in _pl.CATEGORIES:   # grouped submenus keep the list readable as it grows
+                sub = menu.addMenu(cat)
+                sub.setToolTipsVisible(True)   # show each set's description on hover
+                for name in names:
+                    act = sub.addAction(f"{name}  ({len(_pl.LISTS[name])})",
+                                        lambda _c=False, n=name: self._add_list(n))
+                    act.setToolTip(_pl.META.get(name, ""))
             add.setMenu(menu)
             head.addWidget(add)
         split.addWidget(_pane("Payloads (one per line)", self.payloads, payload_tools))
