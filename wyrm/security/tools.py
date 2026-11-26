@@ -173,9 +173,54 @@ def identify_hash(h: str) -> list[str]:
     return ["Unknown format"]
 
 
+_HASH_ALGOS = ("md5", "sha1", "sha224", "sha256", "sha384", "sha512", "sha3_256", "blake2b")
+
+
 def compute_hashes(s: str) -> dict[str, str]:
     b = s.encode()
-    return {n: hashlib.new(n, b).hexdigest() for n in ("md5", "sha1", "sha256", "sha512")}
+    out = {}
+    for n in _HASH_ALGOS:
+        try:
+            out[n] = hashlib.new(n, b).hexdigest()
+        except (ValueError, TypeError):   # an algorithm this build's OpenSSL doesn't offer
+            continue
+    out["crc32"] = format(zlib.crc32(b) & 0xFFFFFFFF, "08x")
+    return out
+
+
+def hmac_hashes(s: str, key: str) -> dict[str, str]:
+    """HMAC of `s` under `key` for the common algorithms (empty when no key is given)."""
+    import hmac as _hmac
+    if not key:
+        return {}
+    kb, b = key.encode(), s.encode()
+    out = {}
+    for n in ("md5", "sha1", "sha256", "sha512"):
+        try:
+            out[f"hmac-{n}"] = _hmac.new(kb, b, n).hexdigest()
+        except (ValueError, TypeError):
+            continue
+    return out
+
+
+# length (hex chars) -> the hashlib algorithm to test a candidate word against
+_CRACK_BY_LEN = {32: "md5", 40: "sha1", 56: "sha224", 64: "sha256", 96: "sha384", 128: "sha512"}
+
+
+def crack_hint(h: str, words) -> tuple[str, str] | None:
+    """Offline weak-password check: if an unsalted hex digest matches the hash of a common word, return
+    (plaintext, algorithm). Not a cracker — just flags obviously weak/known values. `words` is the candidate list."""
+    h = h.strip().lower()
+    algo = _CRACK_BY_LEN.get(len(h))
+    if algo is None or not re.fullmatch(r"[0-9a-f]+", h):
+        return None
+    for w in words:
+        try:
+            if hashlib.new(algo, w.encode()).hexdigest() == h:
+                return (w, algo)
+        except (ValueError, TypeError):
+            return None
+    return None
 
 
 # ------------------------------------------------------------------ repeater

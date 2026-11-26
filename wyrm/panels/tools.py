@@ -268,6 +268,13 @@ class ToolsTab(QWidget):
         self.h_in.setPlaceholderText("Paste a hash to identify, or text to hash")
         self.h_in.textChanged.connect(self._hash_update)
         v.addWidget(self.h_in)
+        krow = QHBoxLayout()
+        krow.addWidget(QLabel("HMAC key"))
+        self.h_key = mono(QLineEdit())
+        self.h_key.setPlaceholderText("optional — adds HMAC-* rows")
+        self.h_key.textChanged.connect(self._hash_update)
+        krow.addWidget(self.h_key, 1)
+        v.addLayout(krow)
         self.h_out = mono(QPlainTextEdit())
         self.h_out.setReadOnly(True)
         v.addWidget(self.h_out, 1)
@@ -278,8 +285,17 @@ class ToolsTab(QWidget):
         if not s:
             self.h_out.clear()
             return
-        lines = ["IDENTIFY (if this is a hash)", "  " + " / ".join(tools.identify_hash(s)), "", "HASH OF THIS TEXT"]
-        lines += [f"  {k:7} {v}" for k, v in tools.compute_hashes(s).items()]
+        lines = ["IDENTIFY (if this is a hash)", "  " + " / ".join(tools.identify_hash(s))]
+        from ..security import payloads as _pl
+        hit = tools.crack_hint(s, _pl.LISTS.get("Common passwords", []) + _pl.LISTS.get("Common usernames", []))
+        if hit:
+            lines.append(f"  ⚠ WEAK: matches {hit[0]!r} ({hit[1].upper()}) — a known common password")
+        lines += ["", "HASH OF THIS TEXT"]
+        lines += [f"  {k:10} {v}" for k, v in tools.compute_hashes(s).items()]
+        hm = tools.hmac_hashes(s, self.h_key.text())
+        if hm:
+            lines += ["", f"HMAC (key {self.h_key.text()!r})"]
+            lines += [f"  {k:12} {v}" for k, v in hm.items()]
         self.h_out.setPlainText("\n".join(lines))
 
     def _repeater(self):
