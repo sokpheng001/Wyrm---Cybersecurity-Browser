@@ -121,6 +121,23 @@ class BrowserView(QWebEngineView):
             link = req.linkUrl().toString()
         sel = (req.selectedText().strip() if req is not None else "")
         editable = bool(req is not None and req.isContentEditable())
+        # the image under the cursor (right-click an <img> or a CSS/background media element)
+        media_url = ""
+        try:
+            from PySide6.QtWebEngineCore import QWebEngineContextMenuRequest as _CMR
+            if req is not None and req.mediaType() == _CMR.MediaType.MediaTypeImage and not req.mediaUrl().isEmpty():
+                media_url = req.mediaUrl().toString()
+        except Exception:  # noqa: BLE001 - older Qt without the media request API: fall back to no image entry
+            media_url = ""
+        if media_url:
+            menu.addSeparator()
+            menu.addAction("Copy image address",
+                           lambda u=media_url: QGuiApplication.clipboard().setText(u))
+            if media_url.startswith("http"):
+                menu.addAction("Copy image address (no trackers)",
+                               lambda u=media_url: QGuiApplication.clipboard().setText(linkguard.strip_tracking(u)))
+                menu.addAction("Open image in new tab",
+                               lambda u=media_url: self.win.open_url(u, new_tab=True))
         # selection → search it, or go to it if it looks like a URL/domain
         if sel:
             menu.addSeparator()

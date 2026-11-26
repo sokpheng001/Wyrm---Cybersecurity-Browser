@@ -151,7 +151,8 @@ class ChromeMixin:
         n.setSpacing(1)
         self.b_back = self._tool("back", "Back (Alt+Left)", lambda: self.current_view().back(), ["Alt+Left"])
         self.b_fwd = self._tool("forward", "Forward (Alt+Right)", lambda: self.current_view().forward(), ["Alt+Right"])
-        self.b_reload = self._tool("reload", "Reload (F5)", self._reload_or_stop, ["F5", "Ctrl+R"])
+        self.b_reload = self._tool("reload", "Reload (F5)\nHard reload, bypass cache (Ctrl+Shift+R)",
+                                   self._reload_or_stop, ["F5", "Ctrl+R"])
         b_home = self._tool("home", "Home", lambda: self.current_view().setUrl(QUrl(HOME)), ["Alt+Home"])
         for b in (self.b_back, self.b_fwd, self.b_reload, b_home):
             n.addWidget(b)
@@ -411,6 +412,7 @@ class ChromeMixin:
             (["Ctrl+7"], lambda: self._goto_tab(6)),
             (["Ctrl+8"], lambda: self._goto_tab(7)),
             (["Ctrl+9"], lambda: self._goto_tab(self.tabbar.count() - 1)),
+            (["Ctrl+Shift+R", "Ctrl+F5"], self._hard_reload),
             (["F11"], self._toggle_fullscreen),
             (["F1"], self.open_help),
             (["Ctrl+Shift+N"], self.open_private_window),

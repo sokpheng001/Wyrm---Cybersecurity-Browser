@@ -73,6 +73,20 @@ class TabsMixin:
         else:
             v.reload()
 
+    def _hard_reload(self):
+        """Reload the current page bypassing the HTTP cache (Ctrl+Shift+R / Chrome's hard refresh): re-fetch
+        every resource from the network, useful after editing a site or when a stale asset is cached."""
+        self._hard_reload_view(self.current_view())
+
+    def _hard_reload_view(self, v):
+        from PySide6.QtWebEngineCore import QWebEnginePage
+        if v is None:
+            return
+        if v in self._failed:
+            v.setUrl(self._failed[v])   # error page has nothing cached to bypass; just retry the URL
+            return
+        v.page().triggerAction(QWebEnginePage.WebAction.ReloadAndBypassCache)
+
     def _zoom(self, delta: float):
         v = self.current_view()
         if not v:
@@ -169,6 +183,7 @@ class TabsMixin:
         if i >= 0:
             view = self.tabbar.tabData(i)
             m.addAction("Reload tab", lambda _c=False, v=view: v.reload() if v is not None else None)
+            m.addAction("Hard reload (bypass cache)", lambda _c=False, v=view: self._hard_reload_view(v))
             m.addAction("Duplicate tab", lambda _c=False, j=i: self.duplicate_tab(j))
             muted = view.page().isAudioMuted() if view is not None else False
             m.addAction("Unmute tab" if muted else "Mute tab", lambda _c=False, v=view: self._toggle_mute(v))

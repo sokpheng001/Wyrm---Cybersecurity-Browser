@@ -87,6 +87,15 @@ def _run_checks():
         p._groups, p._pinned, p._collapsed)]
     print("Tool nav OK")
 
+    # 4) hard reload (Ctrl+Shift+R) is wired and bound to exactly one window action
+    from PySide6.QtGui import QKeySequence
+    seqs = [QKeySequence("Ctrl+Shift+R"), QKeySequence("Ctrl+F5")]
+    bound = [a for a in w.actions() if any(a.shortcuts() and s in a.shortcuts() for s in seqs)]
+    assert bound, "Ctrl+Shift+R / Ctrl+F5 not bound to any window action"
+    w._hard_reload()                 # must not raise with a live view
+    w._hard_reload_view(w.current_view())
+    print("Hard reload OK")
+
 
 if __name__ == "__main__":
     if "--run" in sys.argv:
