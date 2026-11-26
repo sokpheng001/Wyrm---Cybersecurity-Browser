@@ -7,8 +7,13 @@
 """The Security panel dock: grouped navigation over all tabs."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDockWidget, QHBoxLayout, QLabel, QPushButton, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
+from html import escape
+
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtWidgets import (QDockWidget, QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton, QScrollArea,
+                               QSizePolicy, QStackedWidget, QVBoxLayout, QWidget)
+
+from . import toolnav
 
 from .dom import DomTab
 from .scanner import ScannerTab
@@ -23,8 +28,8 @@ from .traffic import TrafficTab
 
 
 class SecurityPanel(QDockWidget):
-    """Grouped vertical navigation (Protection / Website Intelligence / Traffic / Testing / Findings)
-    over a stacked content area — reuses every existing tab widget, no horizontal tab overflow."""
+    """Grouped vertical navigation over a stacked content area. Built to scale to many tools: short groups that
+    collapse, pinned favourites at the top, and a search box that also finds tools nested inside tabs (toolnav)."""
 
     def __init__(self, win):
         super().__init__("Security", win)
@@ -60,54 +65,63 @@ class SecurityPanel(QDockWidget):
         self.addons_tab = AddonsTab(win)
         from .audit import AuditTab
         self.audit = AuditTab(win)
-        groups = [
-            ("PROTECTION", [("Shields", self.shields)]),
-            ("INTELLIGENCE", [("Overview", self.overview), ("Site map", self.sitemap), ("Recon", self.recon)]),
-            ("TRAFFIC", [("Traffic", self.traffic)]),
-            ("TESTING", [("Scanner", self.scanner), ("Audit", self.audit), ("Intruder", self.intruder),
-                         ("DOM Analysis", self.dom), ("Tools", self.tools_tab), ("Proxy", self.proxy),
-                         ("WebSocket", self.ws), ("Workflows", self.workflows), ("Session / auth", self.sessionauth),
-                         ("API & WebSocket", self.capture), ("OOB Interactions", self.oob)]),
-            ("FINDINGS", [("Findings", self.findings)]),
-            ("ADD-ONS", [("Add-ons", self.addons_tab)]),   # add-on-provided tabs are appended under this group
-        ]
+        tabs = {"Shields": self.shields, "Overview": self.overview, "Site map": self.sitemap, "Recon": self.recon,
+                "Traffic": self.traffic, "Proxy": self.proxy, "WebSocket": self.ws, "API & WebSocket": self.capture,
+                "Scanner": self.scanner, "Audit": self.audit, "DOM Analysis": self.dom, "OOB Interactions": self.oob,
+                "Tools": self.tools_tab, "Intruder": self.intruder, "Workflows": self.workflows,
+                "Session / auth": self.sessionauth, "Findings": self.findings, "Add-ons": self.addons_tab}
+        self._groups = [(title, list(items)) for title, items in toolnav.GROUPS]
+        self._settings = getattr(win, "settings", None)
+        self._pinned: list[str] = self._load_list("panel/pinned")
+        self._collapsed: set[str] = set(self._load_list("panel/collapsed"))
+        self._addon_info: dict[str, str] = {}   # add-on tab name -> description (hover + search)
         root = QWidget()
         h = QHBoxLayout(root)
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(0)
-        # left nav: section captions + nav buttons in a real scroll area (independent of the fixed header);
-        # avoids the QListWidget::item padding/selection quirks that clipped the section headings.
+        # left column: a tool search box above the grouped nav. The nav is a real scroll area (independent of the
+        # fixed header); avoids the QListWidget::item padding/selection quirks that clipped the section headings.
+        col = QWidget(objectName="NavColumn")
+        col.setFixedWidth(158)
+        cv = QVBoxLayout(col)
+        cv.setContentsMargins(0, 0, 0, 0)
+        cv.setSpacing(0)
+        self.nav_search = QLineEdit(objectName="NavSearch")
+        self.nav_search.setPlaceholderText("Find a tool…")
+        self.nav_search.setClearButtonEnabled(True)
+        self.nav_search.setToolTip("Search every tool, including the ones inside Tools and Scanner "
+                                   "(e.g. repeater, jwt, nuclei). Enter opens the first match, Esc clears.")
+        self.nav_search.textChanged.connect(lambda _t: self._render_nav())
+        self.nav_search.returnPressed.connect(self._open_first_result)
+        self.nav_search.installEventFilter(self)
+        sbox = QHBoxLayout()
+        sbox.setContentsMargins(10, 12, 10, 4)   # in the layout, not QSS margin: that misplaces the clear button
+        sbox.addWidget(self.nav_search)
+        cv.addLayout(sbox)
         self.nav = QScrollArea(objectName="PanelNav")
         self.nav.setWidgetResizable(True)
-        self.nav.setFixedWidth(150)
         self.nav.setFrameShape(self.nav.Shape.NoFrame)
         self.nav.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        navbody = QWidget(objectName="NavBody")
+        cv.addWidget(self.nav, 1)
+        self._navbody = navbody = QWidget(objectName="NavBody")
         nb = QVBoxLayout(navbody)
-        nb.setContentsMargins(0, 18, 0, 12)  # breathing room between the fixed header and the first caption
+        nb.setContentsMargins(0, 6, 0, 12)
         nb.setSpacing(2)
-        self._nb = nb   # kept so add-on tabs can be appended at runtime
+        self._nb = nb
+        self._captions: dict[str, QPushButton] = {}
+        self._results: list[QPushButton] = []
+        self._result_entries: list[dict] = []
+        self._empty = QLabel("No tool matches.", navbody, objectName="Muted")
+        self._empty.setContentsMargins(16, 12, 12, 4)
+        self._empty.setWordWrap(True)
+        self._empty.hide()
         self.stack = QStackedWidget()
         self._nav_buttons: dict[str, tuple] = {}   # name -> (button, stack index)
-        for gi, (title, items) in enumerate(groups):
-            cap = QLabel(title, objectName="NavGroup")
-            cap.setContentsMargins(16, 16 if gi else 10, 12, 4)  # space above each group (header gap handled by NavBody margin)
-            nb.addWidget(cap)
-            for name, widget in items:
-                btn = QPushButton(name.replace("&", "&&"), objectName="NavItem")  # QA-M4: '&' isn't a mnemonic here
-                btn.setCheckable(True)
-                btn.setAutoExclusive(True)
-                btn.setCursor(Qt.CursorShape.PointingHandCursor)
-                page = QScrollArea()  # tall pages scroll instead of squashing; width follows the panel
-                page.setWidgetResizable(True)
-                page.setFrameShape(QScrollArea.Shape.NoFrame)
-                page.setWidget(widget)
-                idx = self.stack.addWidget(page)
-                btn.clicked.connect(lambda _c=False, n=name: self._select(n))
-                self._nav_buttons[name] = (btn, idx)
-                nb.addWidget(btn)
-        nb.addStretch(1)
+        for _title, items in self._groups:
+            for name in items:
+                self._make_nav_item(name, tabs[name])
         self.nav.setWidget(navbody)
+        navbody.setMinimumWidth(0)
         # one consistent outer margin + row spacing for every panel page (alignment & rhythm across tabs)
         for _n, (_b, idx) in self._nav_buttons.items():
             lay = self.stack.widget(idx).widget().layout()
@@ -119,7 +133,8 @@ class SecurityPanel(QDockWidget):
         for lab in self.stack.findChildren(QLabel):  # long explanatory labels wrap with the panel width
             if not lab.wordWrap() and len(lab.text()) > 40:
                 lab.setWordWrap(True)
-        h.addWidget(self.nav)
+        self._render_nav()
+        h.addWidget(col)
         h.addWidget(self.stack, 1)
         self.setWidget(root)
         self.show_tab("Shields")
@@ -131,6 +146,16 @@ class SecurityPanel(QDockWidget):
 
     def _select(self, name):
         btn, idx = self._nav_buttons[name]
+        folded = [t for t, names, f in toolnav.sections(self._groups, self._pinned, self._collapsed)
+                  if f and name in names]
+        if folded or self.nav_search.text():   # make sure the chosen tool is visible in the nav
+            self._collapsed.difference_update(folded)
+            if folded:
+                self._save_list("panel/collapsed", sorted(self._collapsed))
+            self.nav_search.blockSignals(True)
+            self.nav_search.clear()
+            self.nav_search.blockSignals(False)
+            self._render_nav()
         btn.setChecked(True)
         self.stack.setCurrentIndex(idx)
         self.nav.ensureWidgetVisible(btn)   # QA-U8: scroll the active nav item into view so it looks selected
@@ -140,27 +165,163 @@ class SecurityPanel(QDockWidget):
         if name in self._nav_buttons:
             self._select(name)
 
-    def add_addon_tab(self, name, widget):
+    def add_addon_tab(self, name, widget, desc: str = ""):
         """Append an add-on-provided tab under the ADD-ONS group (called by the add-on loader at startup)."""
         if name in self._nav_buttons:   # avoid a duplicate label clobbering the nav mapping
             name = f"{name} ({len(self._nav_buttons)})"
-        page = QScrollArea()
-        page.setWidgetResizable(True)
-        page.setFrameShape(QScrollArea.Shape.NoFrame)
-        page.setWidget(widget)
-        idx = self.stack.addWidget(page)
+        btn = self._make_nav_item(name, widget)
         lay = widget.layout()
         if lay is not None:
             lay.setContentsMargins(16, 14, 16, 12)
             lay.setSpacing(10)
-        btn = QPushButton(name.replace("&", "&&"), objectName="NavItem")   # QA-M4: escape any '&' in add-on names
+        if desc:
+            self._addon_info[name] = desc
+            btn.setToolTip(f"<b>{escape(name)}</b><br>{escape(desc)}<br><i>Right-click to pin</i>")
+        else:
+            self._addon_info.setdefault(name, "")
+        self._groups[-1][1].append(name)   # ADD-ONS is the last group
+        self._render_nav()
+        return name
+
+    # ------------------------------------------------------------------ nav: items, groups, pins, search
+    def _make_nav_item(self, name, widget):
+        # parented to the nav body even while hidden (collapsed group), so auto-exclusive selection stays in one group
+        btn = QPushButton(name.replace("&", "&&"), self._navbody, objectName="NavItem")  # QA-M4: '&' isn't a mnemonic
         btn.setCheckable(True)
         btn.setAutoExclusive(True)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._fit(btn)
+        info = toolnav.TOOL_INFO.get(name, ("",))[0]
+        btn.setToolTip(f"<b>{escape(name)}</b><br>{escape(info)}<br><i>Right-click to pin</i>")
+        btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        btn.customContextMenuRequested.connect(lambda pos, n=name, b=btn: self._nav_menu(n, b.mapToGlobal(pos)))
         btn.clicked.connect(lambda _c=False, n=name: self._select(n))
+        btn.hide()
+        page = QScrollArea()  # tall pages scroll instead of squashing; width follows the panel
+        page.setWidgetResizable(True)
+        page.setFrameShape(QScrollArea.Shape.NoFrame)
+        page.setWidget(widget)
+        idx = self.stack.addWidget(page)
         self._nav_buttons[name] = (btn, idx)
-        self._nb.insertWidget(self._nb.count() - 1, btn)   # before the trailing stretch (ADD-ONS is the last group)
-        return name
+        return btn
+
+    @staticmethod
+    def _fit(w):
+        """Rows never widen the nav (a long label would scroll it sideways and push every row off the left edge);
+        the full name is in the hover text."""
+        w.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        return w
+
+    def _caption(self, title):
+        cap = self._captions.get(title)
+        if cap is None:
+            cap = self._fit(QPushButton(self._navbody, objectName="NavGroup"))
+            cap.setCursor(Qt.CursorShape.PointingHandCursor)
+            cap.setToolTip("Click to show or hide this group")
+            cap.clicked.connect(lambda _c=False, t=title: self._toggle_group(t))
+            self._captions[title] = cap
+        return cap
+
+    def _render_nav(self):
+        """Lay the nav out from its state: search results while searching, otherwise the (pinned +) groups."""
+        nb = self._nb
+        while nb.count():
+            w = nb.takeAt(0).widget()
+            if w is not None:
+                w.hide()
+        for b in self._results:
+            b.deleteLater()
+        self._results, self._result_entries = [], []
+        q = self.nav_search.text().strip()
+        if q:
+            self._result_entries = toolnav.search(self._search_entries(), q)
+            for e in self._result_entries:
+                text = e["label"] if not e["sub"] else f"{e['label']}  ·  {e['tab']}"
+                b = self._fit(QPushButton(text.replace("&", "&&"), self._navbody, objectName="NavItem"))
+                b.setCursor(Qt.CursorShape.PointingHandCursor)
+                b.setToolTip(f"<b>{escape(text)}</b><br>{escape(e['desc'])}")
+                b.clicked.connect(lambda _c=False, ent=e: self._open_entry(ent))
+                self._results.append(b)
+                nb.addWidget(b)
+                b.show()
+            if not self._result_entries:
+                nb.addWidget(self._empty)
+                self._empty.show()
+        else:
+            for title, names, folded in toolnav.sections(self._groups, self._pinned, self._collapsed):
+                cap = self._caption(title)
+                cap.setText(("▸  " if folded else "▾  ") + title + (f"  ({len(names)})" if folded else ""))
+                nb.addWidget(cap)
+                cap.show()
+                if not folded:
+                    for n in names:
+                        btn = self._nav_buttons[n][0]
+                        nb.addWidget(btn)
+                        btn.show()
+        nb.addStretch(1)
+
+    def _search_entries(self):
+        entries = toolnav.base_entries(n for n in self._nav_buttons if n not in self._addon_info)
+        for name, desc in self._addon_info.items():
+            entries.append(toolnav.entry(name, name, "", desc, "add-on"))
+        for t in getattr(self.scanner, "_pd_tools", None) or []:   # ProjectDiscovery tools installed here
+            entries.append(toolnav.entry(t.name, "Scanner", "pd:" + t.key, t.desc, t.key + " projectdiscovery"))
+        return entries
+
+    def _open_entry(self, e):
+        self._select(e["tab"])
+        sub = e["sub"]
+        if sub.startswith("pd:"):
+            box = getattr(self.scanner, "pd_box", None)
+            i = box.findData(sub[3:]) if box is not None else -1
+            if i >= 0:
+                box.setCurrentIndex(i)
+                box.setFocus()
+        elif sub and e["tab"] == "Tools":
+            self.tools_tab._select_tool(sub)
+
+    def _open_first_result(self):
+        if self._result_entries:
+            self._open_entry(self._result_entries[0])
+
+    def eventFilter(self, obj, ev):
+        if obj is self.nav_search and ev.type() == QEvent.Type.KeyPress and ev.key() == Qt.Key.Key_Escape:
+            self.nav_search.clear()
+            return True
+        return super().eventFilter(obj, ev)
+
+    def _toggle_group(self, title):
+        self._collapsed ^= {title}
+        self._save_list("panel/collapsed", sorted(self._collapsed))
+        self._render_nav()
+
+    def _nav_menu(self, name, gpos):
+        m = QMenu(self)
+        if name in self._pinned:
+            m.addAction("Unpin", lambda: self.set_pinned(name, False))
+        else:
+            m.addAction("Pin to top", lambda: self.set_pinned(name, True))
+        m.exec(gpos)
+
+    def set_pinned(self, name, pinned: bool):
+        if pinned and name not in self._pinned:
+            self._pinned.append(name)
+        elif not pinned and name in self._pinned:
+            self._pinned.remove(name)
+        self._save_list("panel/pinned", self._pinned)
+        self._render_nav()
+
+    def _load_list(self, key) -> list[str]:
+        if self._settings is None:
+            return []
+        v = self._settings.value(key, [])
+        if isinstance(v, str):   # QSettings hands back a bare string for a one-item list on some platforms
+            v = [v] if v else []
+        return [str(x) for x in (v or [])]
+
+    def _save_list(self, key, items):
+        if self._settings is not None:
+            self._settings.setValue(key, list(items))
 
     def _fade(self, w):
         # Deliberately a no-op. A QGraphicsOpacityEffect fade used to run here, but it disabled native rendering

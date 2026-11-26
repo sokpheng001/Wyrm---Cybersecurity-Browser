@@ -100,7 +100,8 @@ def _load_one(win, meta: dict):
             pass
     for name, widget in ctx._tabs:   # add-on UI goes into the Security panel under ADD-ONS
         try:
-            win.security.add_addon_tab(name, widget)
+            # the manifest description becomes the nav hover text and makes the tab findable by search
+            win.security.add_addon_tab(name, widget, str(meta.get("description") or ""))
         except Exception:  # noqa: BLE001
             ctx.log(f"could not add tab {name}")
     win.__dict__.setdefault("_addon_ctxs", []).append(ctx)

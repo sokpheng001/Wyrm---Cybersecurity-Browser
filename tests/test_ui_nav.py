@@ -58,6 +58,34 @@ def _run_checks():
     assert w.engine_box.isVisible() and not w.b_overflow.isVisible()
     print("QA-U1 OK")
 
+    # 3) Security panel tool nav: search finds nested tools, groups collapse, pins go to the top
+    p = w.security
+    p._settings = None            # don't write pins / collapsed groups into the real user settings
+    p._pinned, p._collapsed = [], set()
+    p._render_nav()
+    p.show_tab("Shields")
+    app.processEvents()
+    p.nav_search.setText("repeater")
+    app.processEvents()
+    assert p._result_entries and p._result_entries[0]["sub"] == "Repeater", p._result_entries
+    p._open_first_result()
+    app.processEvents()
+    assert p.current_page() is p.tools_tab and p.tools_tab._sel.currentText() == "Repeater"
+    assert p.nav_search.text() == "", "opening a result clears the search"
+    p._toggle_group("SCANNING")
+    assert not p._nav_buttons["Audit"][0].isVisibleTo(p)
+    p.show_tab("Audit")           # selecting a tool inside a collapsed group expands it
+    app.processEvents()
+    assert "SCANNING" not in p._collapsed and p._nav_buttons["Audit"][0].isChecked()
+    p.set_pinned("Intruder", True)
+    app.processEvents()
+    assert p._nb.itemAt(0).widget() is p._captions["PINNED"]
+    assert p._nb.itemAt(1).widget() is p._nav_buttons["Intruder"][0]
+    p.set_pinned("Intruder", False)
+    assert "PINNED" not in [t for t, _n, _f in __import__("wyrm.panels.toolnav", fromlist=["x"]).sections(
+        p._groups, p._pinned, p._collapsed)]
+    print("Tool nav OK")
+
 
 if __name__ == "__main__":
     if "--run" in sys.argv:

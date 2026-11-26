@@ -166,9 +166,13 @@ LoadingBar { background: $layer; }
 
 /* ---------- panels ---------- */
 QDockWidget { color: $text; font-size: 14px; }
-QScrollArea#PanelNav { background: $layer; border: none; border-right: 1px solid $border; }
+QWidget#NavColumn { background: $layer; border-right: 1px solid $border; }
+QScrollArea#PanelNav { background: $layer; border: none; }
 QWidget#NavBody { background: $layer; }
-QLabel#NavGroup { color: $strong; font-size: 10.5px; font-weight: 700; letter-spacing: 1px; background: transparent; }
+QLineEdit#NavSearch { padding: 5px 6px; font-size: 13px; }
+QPushButton#NavGroup { color: $strong; font-size: 10.5px; font-weight: 700; letter-spacing: 1px; background: transparent;
+    border: none; border-radius: 0; text-align: left; padding: 14px 12px 4px 10px; }
+QPushButton#NavGroup:hover { color: $text; }
 QPushButton#NavItem { background: transparent; border: none; border-left: 3px solid transparent; border-radius: 0;
     text-align: left; padding: 8px 12px 8px 14px; color: $muted; font-weight: 400; }
 QPushButton#NavItem:hover { background: $hover; color: $text; }
