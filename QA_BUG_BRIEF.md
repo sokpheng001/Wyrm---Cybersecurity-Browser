@@ -411,7 +411,7 @@ It is checked in as `tests/fixtures/vulnlab.py`. Run it with `python tests/fixtu
 | QA-L2 | Fixed | `ad22274` | Recon source buttons disabled while busy; stale results cleared before guard messages. |
 | QA-L3 | Fixed | `5805a79` | Audit "Add to findings"/"Add all" enabled only when there are results (and a selection). |
 | QA-L4 | Fixed | `6b17ae5` | Address bar selects all on the first click (event filter on mouse focus-in). |
-| QA-L5 | Deferred | — | Enhancement (record `<a href>` links / show browsed status): needs new page-link plumbing; not done. |
+| QA-L5 | Fixed | `test_sitemap_links.py` | Same-origin `<a href>` links on each loaded page are added with source "linked" (read from the DOM, nothing fetched). New Status column shows each browsed page's HTTP status, with 4xx/5xx in red. |
 | QA-U1 | Fixed | `2a8da15` | Responsive toolbar: address-bar min width; low-priority tools collapse into a "»" overflow; window min pinned. Widget test added. |
 | QA-U2 | Fixed | `f59dcef` | Tab min-width 140→72 (elide already on); tab-bar scroll arrows given a visible style. |
 | QA-U3 | Fixed | `a97e6f6` | Downloads popover is a `Qt.Popup` (closes on Esc/outside click, never floats across tabs); Clear not default. |
@@ -421,5 +421,5 @@ It is checked in as `tests/fixtures/vulnlab.py`. Run it with `python tests/fixtu
 | QA-U7 | Fixed | `30ea977` | Home search box raised to WCAG-AA contrast in Light theme; magnifier `z-index`. |
 | QA-U8 | Fixed (partial) | `b6d5db6` | Active Security-panel nav item scrolled into view. Menu shortcut-placement and the "In scope" pill reflow deferred (shortcut-ownership refactor / layout). |
 
-**Deferred:** QA-L5 (enhancement) and parts of QA-U6 / QA-U8 as noted above.
+**Deferred:** parts of QA-U6 / QA-U8 as noted above.
 **Tests:** `pytest -q` → 147 passed, 3 skipped. Every item marked *Test required* has a test.

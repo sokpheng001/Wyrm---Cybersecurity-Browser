@@ -8,10 +8,40 @@
 from __future__ import annotations
 
 from html import escape
-from urllib.parse import urlparse
+from urllib.parse import urldefrag, urljoin, urlparse
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QCheckBox, QFileDialog, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+
+
+# JS run after a page loads: the page's <a href> targets (resolved by the browser), capped.
+LINKS_JS = ("(function(){var o=[],s={};var a=document.querySelectorAll('a[href]');"
+            "for(var i=0;i<a.length&&o.length<500;i++){var h=a[i].href;if(h&&!s[h]){s[h]=1;o.push(h);}}"
+            "return o;})()")
+
+MAX_LINKED_PER_HOST = 2000
+
+
+def same_origin_links(page_url: str, hrefs) -> list[str]:
+    """QA-L5: the same-origin http(s) links among `hrefs` (resolved against `page_url`), fragment-stripped,
+    de-duplicated, in order. Other origins, javascript:/mailto:/data: links and the page itself are dropped."""
+    base = urlparse(page_url or "")
+    if base.scheme not in ("http", "https") or not base.hostname:
+        return []
+    origin = (base.scheme, base.hostname, base.port)
+    me = urldefrag(page_url)[0]
+    out, seen = [], set()
+    for h in hrefs or []:
+        if not isinstance(h, str) or not h.strip():
+            continue
+        u = urldefrag(urljoin(page_url, h.strip()))[0]
+        p = urlparse(u)
+        if (p.scheme, p.hostname, p.port) != origin or u == me or u in seen:
+            continue
+        seen.add(u)
+        out.append(u)
+    return out
 
 
 # =================================================================== dock
@@ -22,9 +52,11 @@ class SiteMapTab(QWidget):
         super().__init__()
         self.win = win
         self._discovered: dict[str, dict[str, dict]] = {}   # host -> path -> {methods, url, source}
+        self._linked: dict[str, dict[str, str]] = {}         # QA-L5: host -> path -> url, links seen on pages
+        self._status: dict[str, int] = {}                    # QA-L5: page url -> HTTP status of its main load
         v = QVBoxLayout(self)
         intro = QLabel("Passive discovery — URLs seen while you browse, plus what a site publishes about itself "
-                       "(robots.txt + sitemap.xml). No wordlists, no directory brute-forcing.")
+                       "(robots.txt + sitemap.xml) and the same-site links found on pages you open. No wordlists, no directory brute-forcing.")
         intro.setWordWrap(True)
         intro.setObjectName("Muted")
         v.addWidget(intro)
@@ -53,7 +85,7 @@ class SiteMapTab(QWidget):
         v.addLayout(row)
         self._cleared_after = None  # last traffic row at the moment of "Clear"; only newer rows are mapped
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabels(["Path", "Methods", "Source"])
+        self.tree.setHeaderLabels(["Path", "Status", "Methods", "Source"])
         self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.tree.itemDoubleClicked.connect(self._open)
         v.addWidget(self.tree, 1)
@@ -69,6 +101,8 @@ class SiteMapTab(QWidget):
         rows = self.win.security.traffic.model.rows
         self._cleared_after = rows[-1] if rows else None
         self._discovered.clear()
+        self._linked.clear()
+        self._status.clear()
         self._build()
         self.win.toast("Site map cleared — new pages you browse will appear here")
 
@@ -80,6 +114,26 @@ class SiteMapTab(QWidget):
             if rows[i] is mark:
                 return rows[i + 1:]
         return rows  # marker rotated out of the traffic buffer: everything left is newer
+
+    # ---- QA-L5 feeds (called by the tab manager on page load; passive: nothing is requested)
+    def note_status(self, url: str, status: int):
+        if url and status:
+            if len(self._status) > 20000:
+                self._status.clear()
+            self._status[urldefrag(url)[0]] = int(status)
+
+    def note_links(self, page_url: str, hrefs):
+        added = 0
+        for u in same_origin_links(page_url, hrefs):
+            p = urlparse(u)
+            bucket = self._linked.setdefault(p.hostname, {})
+            path = p.path or "/"
+            if path not in bucket and len(bucket) < MAX_LINKED_PER_HOST:
+                bucket[path] = u
+                added += 1
+        if added and self.isVisible():
+            self._build()
+        return added
 
     def _in_scope_host(self, host: str) -> bool:
         eng = self.win.engagement
@@ -95,10 +149,12 @@ class SiteMapTab(QWidget):
             if not host:
                 return
             h = hosts.setdefault(host, {})
-            e = h.setdefault(path, {"methods": set(), "url": url, "sources": set()})
+            e = h.setdefault(path, {"methods": set(), "url": url, "sources": set(), "status": 0})
             if method:
                 e["methods"].add(method)
             e["sources"].add(source)
+            if source == "browsed" and not e["status"]:
+                e["status"] = self._status.get(urldefrag(url)[0], 0)
 
         for r in rows:  # observed traffic
             if r["in_scope"] is not True and self.scope_only.isChecked():
@@ -113,16 +169,30 @@ class SiteMapTab(QWidget):
                 if f and f not in host.lower() and f not in path.lower():
                     continue
                 add(host, path, "", e["url"], e["source"])
+        for host, paths in self._linked.items():  # QA-L5: links seen on pages (not requested)
+            if self.scope_only.isChecked() and not self._in_scope_host(host):
+                continue
+            for path, u in paths.items():
+                if f and f not in host.lower() and f not in path.lower():
+                    continue
+                add(host, path, "", u, "linked")
         total = 0
         for host in sorted(hosts):
             paths = hosts[host]
-            top = QTreeWidgetItem([host, f"{len(paths)} paths", ""])
+            top = QTreeWidgetItem([host, "", f"{len(paths)} paths", ""])
             fnt = top.font(0)
             fnt.setBold(True)
             top.setFont(0, fnt)
             for path in sorted(paths):
                 e = paths[path]
-                it = QTreeWidgetItem([path, ",".join(sorted(m for m in e["methods"] if m)), ", ".join(sorted(e["sources"]))])
+                st = e["status"]
+                it = QTreeWidgetItem([path, str(st) if st else "", ",".join(sorted(m for m in e["methods"] if m)),
+                                      ", ".join(sorted(e["sources"]))])
+                if st >= 400:   # 404s etc. stand out from pages that loaded
+                    it.setForeground(1, QColor("#da1e28"))
+                    it.setToolTip(1, f"HTTP {st}")
+                elif 300 <= st < 400:
+                    it.setForeground(1, QColor("#b28600"))
                 it.setData(0, Qt.ItemDataRole.UserRole, e["url"])
                 it.setToolTip(0, escape(e["url"]))  # tooltips auto-render rich text; keep target URLs inert (SEC-6)
                 top.addChild(it)
@@ -130,7 +200,8 @@ class SiteMapTab(QWidget):
             self.tree.addTopLevelItem(top)
             top.setExpanded(len(paths) <= 40)
         disc = sum(len(p) for p in self._discovered.values())
-        self.count.setText(f"{len(hosts)} hosts · {total} paths · {disc} from robots/sitemap")
+        linked = sum(len(p) for p in self._linked.values())
+        self.count.setText(f"{len(hosts)} hosts · {total} paths · {disc} from robots/sitemap · {linked} linked")
 
     def _discover(self):
         view = self.win.current_view() if hasattr(self.win, "current_view") else None
@@ -176,6 +247,8 @@ class SiteMapTab(QWidget):
         urls = {r["url"] for r in rows}
         for paths in self._discovered.values():
             urls.update(e["url"] for e in paths.values())
+        for paths in self._linked.values():
+            urls.update(paths.values())
         if not urls:
             self.win.toast("Nothing to export yet — browse the site or run Discover")
             return

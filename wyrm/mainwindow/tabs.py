@@ -280,6 +280,23 @@ class TabsMixin:
         self._ext_store_check(url)  # Chrome Web Store page: offer "Add to Wyrm Browser"
 
     # ================================================================ errors / offline
+    def _sitemap_status(self, info):
+        """QA-L5: remember the HTTP status of each page load so the Site map can tell 404s from real pages."""
+        try:
+            sm = self.security.sitemap
+            sm.note_status(info.url().toString(), info.httpStatusCode())
+        except Exception:  # noqa: BLE001 - older Qt without httpStatusCode, or panel not built yet
+            pass
+
+    def _sitemap_links(self, view):
+        """QA-L5: hand the page's same-origin <a href> links to the Site map (read from the DOM, nothing fetched)."""
+        url = view.url().toString()
+        sm = getattr(getattr(self, "security", None), "sitemap", None)
+        if sm is None or not url.startswith("http"):
+            return
+        from ..panels.sitemap import LINKS_JS
+        view.page().runJavaScript(LINKS_JS, 1, lambda res, u=url: isinstance(res, list) and sm.note_links(u, res))
+
     def _on_loading_info(self, view, info):
         status = info.status()
         if status == QWebEngineLoadingInfo.LoadStatus.LoadStartedStatus:
@@ -295,9 +312,12 @@ class TabsMixin:
                 view.resp_headers = (info.url().toString(), hdrs)
             except Exception:  # noqa: BLE001
                 view.resp_headers = (info.url().toString(), {})
+            self._sitemap_status(info)
         elif status == QWebEngineLoadingInfo.LoadStatus.LoadFailedStatus:
             code = info.errorCode()
             D = QWebEngineLoadingInfo.ErrorDomain
+            if info.errorDomain() == D.HttpStatusCodeDomain:
+                self._sitemap_status(info)   # QA-L5: 404 / 500 pages show their status in the Site map
             if code == -3 or info.errorDomain() in (D.HttpStatusCodeDomain, D.NoErrorDomain):
                 return  # user pressed stop, or the server sent its own error page: show it as-is
             url = info.url().toString()
@@ -361,6 +381,7 @@ class TabsMixin:
             if self.history_db is not None and view.url().scheme() in ("http", "https"):
                 self.history_db.record(view.url().toString(), view.title())
             self._apply_cosmetics(view)
+            self._sitemap_links(view)
             QTimer.singleShot(4000, lambda v=view: self._index_of(v) >= 0 and self._apply_cosmetics(v))  # late content
         if view is self.current_view():
             self._update_shield_button()
