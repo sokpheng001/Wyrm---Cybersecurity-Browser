@@ -82,7 +82,7 @@ class SecurityPanel(QDockWidget):
         # left column: a tool search box above the grouped nav. The nav is a real scroll area (independent of the
         # fixed header); avoids the QListWidget::item padding/selection quirks that clipped the section headings.
         col = QWidget(objectName="NavColumn")
-        col.setFixedWidth(158)
+        col.setFixedWidth(176)
         cv = QVBoxLayout(col)
         cv.setContentsMargins(0, 0, 0, 0)
         cv.setSpacing(0)
@@ -250,7 +250,10 @@ class SecurityPanel(QDockWidget):
         else:
             for title, names, folded in toolnav.sections(self._groups, self._pinned, self._collapsed):
                 cap = self._caption(title)
-                cap.setText(("▸  " if folded else "▾  ") + title + (f"  ({len(names)})" if folded else ""))
+                # escape & (a QPushButton treats it as a mnemonic, so "PROXY & TRAFFIC" showed as "PROXY_TRAFFIC");
+                # the count is shown only when the group is collapsed
+                text = ("▸  " if folded else "▾  ") + title + (f"  ({len(names)})" if folded else "")
+                cap.setText(text.replace("&", "&&"))
                 nb.addWidget(cap)
                 cap.show()
                 if not folded:

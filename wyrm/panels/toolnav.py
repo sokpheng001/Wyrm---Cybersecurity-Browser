@@ -15,9 +15,9 @@ from __future__ import annotations
 GROUPS: list[tuple[str, list[str]]] = [
     ("PROTECTION", ["Shields"]),
     ("RECON", ["Overview", "Site map", "Recon"]),
-    ("PROXY & TRAFFIC", ["Traffic", "Proxy", "WebSocket", "API & WebSocket"]),
+    ("NETWORK", ["Traffic", "Proxy", "WebSocket", "API & WebSocket"]),
     ("SCANNING", ["Scanner", "Audit", "DOM Analysis", "OOB Interactions"]),
-    ("MANUAL TESTING", ["Tools", "Intruder", "Workflows", "Session / auth"]),
+    ("MANUAL", ["Tools", "Intruder", "Workflows", "Session / auth"]),
     ("FINDINGS", ["Findings"]),
     ("ADD-ONS", ["Add-ons"]),   # add-on-provided tabs are appended to this group at runtime
 ]

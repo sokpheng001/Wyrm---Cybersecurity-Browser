@@ -79,7 +79,10 @@ GRADE = {"A": "#24a148", "B": "#42be65", "C": "#f1c21b", "D": "#ff832b", "E": "#
 QSS = Template("""
 * { font-family: "$sans"; }
 QWidget { color: $text; font-size: 13px; }
-QMainWindow, #Root { background: $bg; }
+/* the window background shows only through the 1px native frame gaps; paint it the shell colour so the top
+   frame line matches the dark title bar instead of flashing white (the content area is painted by #Root) */
+QMainWindow { background: $shell; }
+#Root { background: $bg; }
 QMainWindow::separator { background: $border; width: 1px; height: 1px; }
 
 /* ---------- UI shell header (always dark, like Carbon) ---------- */
@@ -170,8 +173,8 @@ QWidget#NavColumn { background: $layer; border-right: 1px solid $border; }
 QScrollArea#PanelNav { background: $layer; border: none; }
 QWidget#NavBody { background: $layer; }
 QLineEdit#NavSearch { padding: 5px 6px; font-size: 13px; }
-QPushButton#NavGroup { color: $strong; font-size: 10.5px; font-weight: 700; letter-spacing: 1px; background: transparent;
-    border: none; border-radius: 0; text-align: left; padding: 14px 12px 4px 10px; }
+QPushButton#NavGroup { color: $strong; font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px; background: transparent;
+    border: none; border-radius: 0; text-align: left; padding: 14px 8px 4px 10px; }
 QPushButton#NavGroup:hover { color: $text; }
 QPushButton#ToolChip { background: transparent; color: $muted; border: 1px solid $border; border-radius: 13px;
     padding: 4px 12px; min-height: 18px; font-size: 13px; }
