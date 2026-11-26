@@ -105,8 +105,9 @@ class ChromeMixin:
         self.brand_divider.setFixedSize(1, 24)
         row.addWidget(self.brand_divider, 0, Qt.AlignmentFlag.AlignVCenter)
         self.strip = strip
-        self.tabbar = QTabBar(objectName="MainTabs", tabsClosable=True, movable=True, expanding=False, drawBase=False,
-                              elideMode=Qt.TextElideMode.ElideRight, usesScrollButtons=True)
+        from .tabbar import TearOffTabBar
+        self.tabbar = TearOffTabBar(objectName="MainTabs", tabsClosable=True, movable=True, expanding=False,
+                                    drawBase=False, elideMode=Qt.TextElideMode.ElideRight, usesScrollButtons=True)
         self.tabbar.setDocumentMode(True)
         self.tabbar.tabCloseRequested.connect(self.close_tab)
         self.tabbar.currentChanged.connect(self._on_tab_changed)

@@ -64,6 +64,20 @@ class BrowserView(QWebEngineView):
         self.urlChanged.connect(self._sync_page_bg)
         self._sync_page_bg(self.url())
 
+    def rebind(self, win):
+        """Re-point this view at a different MainWindow (used when a tab is torn off / merged into another window).
+        Only valid between windows that share the same QtWebEngine profile (same engagement)."""
+        old = self.win
+        self.win = win
+        self.page()._wyrm_win = win
+        if getattr(self, "guard", None) is not None:
+            self.guard.win = win
+        try:
+            self.page().linkHovered.disconnect(old.on_link_hovered)
+        except (RuntimeError, TypeError):
+            pass
+        self.page().linkHovered.connect(win.on_link_hovered)
+
     def _sync_page_bg(self, url):
         from PySide6.QtCore import Qt
         from PySide6.QtGui import QColor

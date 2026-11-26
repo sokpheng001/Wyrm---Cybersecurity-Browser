@@ -47,18 +47,36 @@ class TabsMixin:
         self.tabbar.setTabData(idx, view)
         self.tabbar.setCurrentIndex(idx)
         self.stack.setCurrentWidget(view)
-        view.titleChanged.connect(lambda t, v=view: self._set_tab_text(v, t))
-        view.iconChanged.connect(lambda ic, v=view: (self.tabbar.setTabIcon(self._index_of(v), ic),
-                                                     self._vtab_refresh_row(v)))
-        view.urlChanged.connect(lambda u, v=view: v is self.current_view() and self._sync_chrome())
-        view.loadStarted.connect(lambda v=view: self._loading(v, True))
-        view.loadProgress.connect(lambda p, v=view: v is self.current_view() and self.loading_bar.set_progress(p))
-        view.loadFinished.connect(lambda ok, v=view: self._on_load_finished(v, ok))
-        view.page().loadingChanged.connect(lambda info, v=view: self._on_loading_info(v, info))
+        self._wire_view(view)
         self._sync_vtabs()   # keep the left tab list (if shown) in step
         if url is not None:
             view.setUrl(url)
         return view
+
+    def _wire_view(self, view):
+        """Connect a view's signals to THIS window. Connections are stored on the view so they can be cleanly
+        detached again when the tab is moved to another window (tab tear-off / merge)."""
+        view._win_conns = [
+            view.titleChanged.connect(lambda t, v=view: self._set_tab_text(v, t)),
+            view.iconChanged.connect(lambda ic, v=view: (self.tabbar.setTabIcon(self._index_of(v), ic),
+                                                         self._vtab_refresh_row(v))),
+            view.urlChanged.connect(lambda u, v=view: v is self.current_view() and self._sync_chrome()),
+            view.loadStarted.connect(lambda v=view: self._loading(v, True)),
+            view.loadProgress.connect(lambda p, v=view: v is self.current_view()
+                                      and self.loading_bar.set_progress(p)),
+            view.loadFinished.connect(lambda ok, v=view: self._on_load_finished(v, ok)),
+            view.page().loadingChanged.connect(lambda info, v=view: self._on_loading_info(v, info)),
+        ]
+
+    def _unwire_view(self, view):
+        """Drop the window-bound signal connections made by _wire_view (the view keeps its own internal ones)."""
+        from PySide6.QtCore import QObject
+        for c in getattr(view, "_win_conns", []):
+            try:
+                QObject.disconnect(c)
+            except (RuntimeError, TypeError):
+                pass
+        view._win_conns = []
 
     def _new_tab_focus(self):
         self.new_tab(QUrl(HOME))
@@ -189,6 +207,15 @@ class TabsMixin:
             muted = view.page().isAudioMuted() if view is not None else False
             m.addAction("Unmute tab" if muted else "Mute tab", lambda _c=False, v=view: self._toggle_mute(v))
             m.addSeparator()
+            # move the tab to another window (tear-off / merge), keeping its page and history
+            m.addAction("Move tab to new window", lambda _c=False, j=i: self.move_tab_to_new_window(j))
+            targets = self._merge_targets()
+            if targets:
+                sub = m.addMenu("Move tab to window")
+                for w in targets:
+                    title = (w.windowTitle() or "Wyrm")[:40]
+                    sub.addAction(title, lambda _c=False, j=i, tw=w: self.move_tab_to_window(j, tw))
+            m.addSeparator()
             m.addAction("Close tab", lambda _c=False, j=i: self.close_tab(j))
             a_other = m.addAction("Close other tabs", lambda _c=False, j=i: self.close_other_tabs(j))
             a_other.setEnabled(n > 1)
@@ -204,6 +231,76 @@ class TabsMixin:
         view = self.tabbar.tabData(i) if i >= 0 else None
         if view is not None:
             self.new_tab(QUrl(view.url()))
+
+    # ---------------------------------------------------------------- move tabs between windows (tear-off / merge)
+    def _merge_targets(self) -> list:
+        """Other open normal windows that share this window's profile, so a tab can move there with its live page."""
+        from PySide6.QtWidgets import QApplication
+        out = []
+        for w in QApplication.instance().topLevelWidgets():
+            if (w is not self and isinstance(w, type(self)) and not w.isHidden()
+                    and getattr(w, "profile", None) is self.profile):
+                out.append(w)
+        return out
+
+    def _detach_tab(self, i: int):
+        """Remove the tab at `i` from this window WITHOUT destroying its view, and return the view (or None)."""
+        view = self.tabbar.tabData(i) if 0 <= i < self.tabbar.count() else None
+        if view is None:
+            return None
+        self._unwire_view(view)
+        self._failed.pop(view, None)
+        self._loading_views.discard(view)
+        self._theme_dirty_views.discard(view)
+        self.tabbar.removeTab(i)
+        self.stack.removeWidget(view)    # reparents out of the stack; the view stays alive
+        self._sync_vtabs()
+        return view
+
+    def _adopt_tab(self, view, title: str = ""):
+        """Add an existing view (from another window) as a new tab in this window and make it current."""
+        view.rebind(self)
+        self.stack.addWidget(view)
+        idx = self.tabbar.addTab(title or view.title() or "New tab")
+        self.tabbar.setTabData(idx, view)
+        self._wire_view(view)
+        icon = view.icon()
+        if not icon.isNull():
+            self.tabbar.setTabIcon(idx, icon)
+        self.tabbar.setCurrentIndex(idx)
+        self.stack.setCurrentWidget(view)
+        self._sync_vtabs()
+        self._set_tab_text(view, view.title())
+
+    def move_tab_to_window(self, i: int, target):
+        if target is None or target is self or getattr(target, "profile", None) is not self.profile:
+            return
+        last = self.tabbar.count() <= 1
+        title = self.tabbar.tabText(i)
+        view = self._detach_tab(i)
+        if view is None:
+            return
+        target._adopt_tab(view, title)
+        target.raise_()
+        target.activateWindow()
+        if last:
+            self.new_tab(QUrl(HOME))   # never leave this window with zero tabs
+        self._sync_chrome()
+
+    def move_tab_to_new_window(self, i: int):
+        view = self.tabbar.tabData(i) if 0 <= i < self.tabbar.count() else None
+        if view is None:
+            return
+        w = self.open_new_window()        # same process
+        # make the new window share this one's engagement/profile so the live page can move into it
+        w.engagement = self.engagement
+        w.profile = self.profile
+        # the fresh window starts with one placeholder HOME tab; move our tab in, then drop the placeholder
+        placeholders = [w.tabbar.tabData(j) for j in range(w.tabbar.count())]
+        self.move_tab_to_window(i, w)
+        for j in range(w.tabbar.count() - 1, -1, -1):
+            if w.tabbar.tabData(j) in placeholders:
+                w.close_tab(j)
 
     def close_all_tabs(self):
         """Close every tab; the last one resets to Home so the window stays open (all are kept for Ctrl+Shift+T)."""
