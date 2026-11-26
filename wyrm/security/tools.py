@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import base64
 import binascii
+import gzip
 import hashlib
 import html
 import json
 import re
 import time
+import zlib
 from datetime import datetime, timezone
 from urllib.parse import quote, unquote
 
@@ -21,18 +23,50 @@ import requests
 
 
 def _b64d(s: str) -> str:
+    return _as_text(_b64_bytes(s))
+
+
+def _b64_bytes(s: str) -> bytes:
     s = s.strip()
     s += "=" * (-len(s) % 4)
-    raw = base64.urlsafe_b64decode(s.replace("+", "-").replace("/", "_"))
+    return base64.urlsafe_b64decode(s.replace("+", "-").replace("/", "_"))
+
+
+def _is_text(raw: bytes) -> bool:
     try:
-        return raw.decode("utf-8")
+        raw.decode("utf-8")
+        return True
     except UnicodeDecodeError:
-        return "hex: " + raw.hex()
+        return False
+
+
+def _as_text(raw: bytes) -> str:
+    """Decompressed/binary output as UTF-8 text, falling back to a hex dump so the box never shows mojibake."""
+    return raw.decode("utf-8") if _is_text(raw) else "hex: " + raw.hex()
+
+
+def _gunzip(s: str) -> str:
+    return _as_text(gzip.decompress(_b64_bytes(s)))
+
+
+def _inflate(s: str) -> str:
+    raw = _b64_bytes(s)
+    try:
+        return _as_text(zlib.decompress(raw))          # zlib/deflate with header
+    except zlib.error:
+        return _as_text(zlib.decompress(raw, -zlib.MAX_WBITS))   # raw deflate (no header)
+
+
+def _jwt_decode(s: str) -> str:
+    d = decode_jwt(s)
+    out = {"header": d["header"], "payload": d["payload"], "signature_present": d["signature_present"]}
+    return json.dumps(out, indent=2, ensure_ascii=False) + ("\n\n" + "\n".join(d["notes"]) if d["notes"] else "")
 
 
 TRANSFORMS = {
     "Base64 encode": lambda s: base64.b64encode(s.encode()).decode(),
     "Base64 decode": _b64d,
+    "Base64 URL-safe encode": lambda s: base64.urlsafe_b64encode(s.encode()).decode().rstrip("="),
     "URL encode": lambda s: quote(s, safe=""),
     "URL decode": unquote,
     "Double URL encode": lambda s: quote(quote(s, safe=""), safe=""),
@@ -48,13 +82,16 @@ TRANSFORMS = {
     "Uppercase": str.upper,
     "Lowercase": str.lower,
     "Reverse": lambda s: s[::-1],
+    "JWT decode": _jwt_decode,
+    "Gzip decompress (base64 in)": _gunzip,
+    "Zlib/Deflate decompress (base64 in)": _inflate,
 }
 
 
 def transform(name: str, s: str) -> str:
     try:
         return TRANSFORMS[name](s)
-    except (binascii.Error, ValueError, UnicodeDecodeError) as e:
+    except (binascii.Error, ValueError, UnicodeDecodeError, zlib.error, OSError, EOFError, LookupError) as e:
         return f"[error] {e}"
 
 
