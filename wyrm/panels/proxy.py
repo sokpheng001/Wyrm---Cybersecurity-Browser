@@ -16,7 +16,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QMenu, QPlainTextEdit,
                                QPushButton, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from ..security import mitm
+from ..security import mitm, reqexport
 from .common import mono
 
 
@@ -387,17 +387,23 @@ class ProxyTab(QWidget):
         m.addAction("Scan this request", lambda: self._to_audit(fl))
         m.addAction("Send to Session macro", lambda: self._to_session(fl))
         m.addSeparator()
-        m.addAction("Copy as cURL", lambda: self._copy_curl(fl))
+        copy = m.addMenu("Copy as code")
+        for lang in reqexport.LANGS:
+            copy.addAction(lang, lambda l=lang: self._copy_as(fl, l))
         m.addAction("Copy URL", lambda: self._copy_url(fl))
         m.exec(self.tree.viewport().mapToGlobal(pos))
 
-    def _copy_curl(self, fl):
+    def _flow_req(self, fl) -> dict:
+        return {"method": fl.get("method", "GET"), "url": fl.get("url", ""),
+                "headers": dict(fl.get("req_headers", [])), "body": _as_text(fl.get("req_body", b""))}
+
+    def _copy_as(self, fl, lang):
         from PySide6.QtGui import QGuiApplication
-        from ..security import tools
-        curl = tools.to_curl(fl.get("method", "GET"), fl.get("url", ""), dict(fl.get("req_headers", [])),
-                             _as_text(fl.get("req_body", b"")))
-        QGuiApplication.clipboard().setText(curl)
-        self.win.toast("Copied request as cURL", 3000)
+        try:
+            QGuiApplication.clipboard().setText(reqexport.to_code(self._flow_req(fl), lang))
+            self.win.toast(f"Copied request as {lang}", 3000)
+        except ValueError as e:
+            self.win.toast(str(e), 3000)
 
     def _copy_url(self, fl):
         from PySide6.QtGui import QGuiApplication

@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QAbstractItemView, QCheckBox, QComboBox, QHBoxLayo
 
 from .common import mono
 from ..linkguard import registered_domain
-from ..security import tools
+from ..security import reqexport
 
 
 # =================================================================== Traffic
@@ -234,9 +234,21 @@ class TrafficTab(QWidget):
         m.addAction("Open in new tab", lambda: self.win.open_url(r["url"], new_tab=True))
         m.addSeparator()
         m.addAction("Copy URL", lambda: QGuiApplication.clipboard().setText(r["url"]))
-        m.addAction("Copy as cURL", lambda: QGuiApplication.clipboard().setText(
-            tools.to_curl(r["method"], r["url"], r.get("headers"))))
+        copy = m.addMenu("Copy as code")
+        for lang in reqexport.LANGS:
+            copy.addAction(lang, lambda l=lang, row=r: self._copy_as(row, l))
         m.exec(self.table.viewport().mapToGlobal(pos))
+
+    def _copy_as(self, r, lang):
+        method, url, headers, body, from_proxy = self._full_request(r)
+        req = {"method": method, "url": url, "headers": headers, "body": body}
+        try:
+            QGuiApplication.clipboard().setText(reqexport.to_code(req, lang))
+        except ValueError as e:
+            self.win.toast(str(e), 3000)
+            return
+        self._body_hint(method, body, from_proxy)
+        self.win.toast(f"Copied request as {lang}", 3000)
 
     def _full_request(self, r):
         """Best-effort full request (method, url, headers dict, body). The Traffic list comes from Chromium's
