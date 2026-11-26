@@ -13,10 +13,10 @@ from urllib.parse import urlparse
 
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QButtonGroup, QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QStackedWidget, QTabBar, QTextBrowser, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QButtonGroup, QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEdit, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QStackedWidget, QTabBar, QTextBrowser, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 from .common import HeaderHighlighter, _format_response, _pane, mono
-from ..security import tools
+from ..security import reqexport, tools
 from ..widgets import SkeletonOverlay, WrapRow
 
 
@@ -315,6 +315,11 @@ class ToolsTab(QWidget):
         self.r_url = mono(QLineEdit())
         self.r_url.setPlaceholderText("https://target/api/…")
         row.addWidget(self.r_url, 1)
+        r_paste = QPushButton("Paste raw")
+        r_paste.setToolTip("Fill this request from a raw HTTP request on the clipboard "
+                           "(e.g. copied from Proxy, Burp or the Network tab)")
+        r_paste.clicked.connect(self._r_paste_raw)
+        row.addWidget(r_paste)
         self.r_send = QPushButton("Send")
         self.r_send.setObjectName("Primary")
         self.r_send.clicked.connect(self._send)
@@ -379,11 +384,16 @@ class ToolsTab(QWidget):
             self.r_method.currentText(), self.r_url.text(), tools.parse_headers(self.r_headers.toPlainText()),
             self.r_body.toPlainText()))
         row2.addWidget(scan)
-        curl = QPushButton("Copy as cURL")
-        curl.clicked.connect(lambda: QGuiApplication.clipboard().setText(tools.to_curl(
-            self.r_method.currentText(), self.r_url.text(), tools.parse_headers(self.r_headers.toPlainText()),
-            self.r_body.toPlainText())))
-        row2.addWidget(curl)
+        copy = QToolButton()
+        copy.setText("Copy as ")
+        copy.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        copy.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        copy.setToolTip("Copy this request as code for another tool (cURL, Python, fetch, PowerShell)")
+        cmenu = QMenu(copy)
+        for lang in reqexport.LANGS:
+            cmenu.addAction(lang, lambda l=lang: self._r_copy_as(l))
+        copy.setMenu(cmenu)
+        row2.addWidget(copy)
         v.addLayout(row2)
         # relabel the active tab as the target changes, so tabs stay recognizable
         self.r_url.editingFinished.connect(self._r_relabel)
@@ -571,6 +581,34 @@ class ToolsTab(QWidget):
             self.win.toast("Request body isn't valid JSON — nothing to format.", 3000)
             return
         self.r_body.setPlainText(pretty)
+
+    def _r_paste_raw(self):
+        raw = QGuiApplication.clipboard().text()
+        if not raw.strip():
+            self.win.toast("Clipboard is empty — copy a raw HTTP request first.", 3000)
+            return
+        try:
+            req = reqexport.parse_raw(raw)
+        except ValueError as e:
+            self.win.toast(f"Not a raw HTTP request: {e}", 4000)
+            return
+        self._r_new_session(req["method"], req["url"],
+                            "\n".join(f"{k}: {v}" for k, v in req["headers"].items()),
+                            self._pretty_json(req["body"]))
+        self._r_relabel()
+        self.win.toast("Loaded raw request into a new Repeater tab.")
+
+    def _r_copy_as(self, lang):
+        req = {"method": self.r_method.currentText(), "url": self.r_url.text().strip(),
+               "headers": tools.parse_headers(self.r_headers.toPlainText()), "body": self.r_body.toPlainText()}
+        if not req["url"]:
+            self.win.toast("Nothing to copy — enter a URL first.", 3000)
+            return
+        try:
+            QGuiApplication.clipboard().setText(reqexport.to_code(req, lang))
+            self.win.toast(f"Request copied as {lang}.")
+        except ValueError as e:
+            self.win.toast(str(e), 3000)
 
     def load_request(self, method, url, headers: dict, body: str = ""):
         self._select_tool("Repeater")
