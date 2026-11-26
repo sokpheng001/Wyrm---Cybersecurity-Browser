@@ -56,6 +56,15 @@ def install(win, border_color: str = "#161616"):
     user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, SWP_FLAGS)
 
 
+def force_frame_recalc(win):
+    """Make Windows recompute the non-client area now (fires WM_NCCALCSIZE) without changing the size — used to
+    clear the 1px frame line that lingers at the top until the first resize, including when the window is
+    maximized (where a resize nudge isn't possible)."""
+    if not IS_WINDOWS:
+        return
+    ctypes.windll.user32.SetWindowPos(int(win.winId()), 0, 0, 0, 0, 0, SWP_FLAGS)
+
+
 def set_border_color(win, color: str):
     if not IS_WINDOWS:
         return

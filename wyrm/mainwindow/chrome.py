@@ -787,7 +787,10 @@ class ChromeMixin:
 
     def _resync_frame(self):
         if self.isMaximized() or self.isFullScreen():
-            return  # can't nudge the size; a maximized window is re-measured via WM_NCCALCSIZE anyway
+            # can't nudge the size; force a non-client recompute so the top frame line is cleared without
+            # waiting for the user's first manual resize
+            winframe.force_frame_recalc(self)
+            return
         w, h = self.width(), self.height()
         self.resize(w, h + 1)
         self.resize(w, h)
