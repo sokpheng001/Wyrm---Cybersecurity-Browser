@@ -45,6 +45,13 @@ class OverviewTab(QWidget):
         col.addWidget(self.summary)
         head.addLayout(col, 1)
         v.addLayout(head)
+        # auto-suggested next tools for this page (filled after an analysis); a wrapping row of clickable chips
+        from ..widgets import WrapRow
+        self.suggest_box = QWidget()
+        self._suggest_flow = WrapRow(hspacing=6, vspacing=6)
+        self.suggest_box.setLayout(self._suggest_flow)
+        self.suggest_box.setVisible(False)
+        v.addWidget(self.suggest_box)
         row = QHBoxLayout()
         self.btn = QPushButton("Analyze this page")
         self.btn.setObjectName("Primary")
@@ -123,6 +130,7 @@ class OverviewTab(QWidget):
         page.setdefault("url", url)
         page.setdefault("https", url.startswith("https"))
         self.summary.setText("Checking headers, cookies, TLS, technologies, JavaScript…")
+        self._page_info = page   # kept so _done can suggest tools from the page's forms/scripts/iframes
         eng = self.win.engagement
         in_scope = (lambda h: bool(eng.in_scope(h))) if eng and eng.scope else \
             (lambda h, base=urlparse(url).hostname: h == base)  # personal mode: same host only
@@ -176,6 +184,38 @@ class OverviewTab(QWidget):
             g.setText(1, worst)
             g.setForeground(1, QBrush(QColor(SEV_COLOR.get(worst, "#888"))))
             g.setExpanded(analyzer.SEV_ORDER.get(worst, 9) <= 2 and g.childCount() < 25)
+        self._build_suggestions(r)
+
+    def _build_suggestions(self, result):
+        """Fill the 'Suggested next steps' chip row from the page info + analysis result."""
+        from ..security import suggest
+        flow = self._suggest_flow
+        while flow.count():                     # clear old chips
+            w = flow.takeAt(0).widget()
+            if w is not None:
+                w.deleteLater()
+        tips = suggest.suggest_tools(getattr(self, "_page_info", {}) or {}, result)
+        if not tips:
+            self.suggest_box.setVisible(False)
+            return
+        cap = QLabel("Suggested next steps:")
+        cap.setObjectName("Muted")
+        flow.addWidget(cap)
+        for t in tips:
+            label = t["tool"] + (f" · {t['sub']}" if t["sub"] else "")
+            b = QPushButton(label.replace("&", "&&"))
+            b.setObjectName("ToolChip")
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setToolTip(t["reason"])
+            b.clicked.connect(lambda _c=False, tip=t: self._open_suggestion(tip))
+            flow.addWidget(b)
+        self.suggest_box.setVisible(True)
+
+    def _open_suggestion(self, tip):
+        self.win.security.show_tab(tip["tool"])
+        sub = tip.get("sub")
+        if sub and tip["tool"] == "Tools":
+            self.win.security.tools_tab._select_tool(sub)
 
     def _issue(self) -> dict | None:
         it = self.tree.currentItem()
