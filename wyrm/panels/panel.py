@@ -128,11 +128,9 @@ class SecurityPanel(QDockWidget):
             if lay is not None:
                 lay.setContentsMargins(16, 14, 16, 12)
                 lay.setSpacing(10)
-        from ..widgets import make_rows_wrap
-        make_rows_wrap(self.stack)  # button / filter rows wrap instead of forcing pages wider than the panel
-        for lab in self.stack.findChildren(QLabel):  # long explanatory labels wrap with the panel width
-            if not lab.wordWrap() and len(lab.text()) > 40:
-                lab.setWordWrap(True)
+        # The responsive-row/label-wrap pass scans the whole widget tree of every tab. Doing it for all 18 tabs
+        # up front cost ~0.5s per window (slow tab tear-off / Ctrl+N). Do it per tab, the first time it's shown.
+        self._polished: set = set()
         self._render_nav()
         h.addWidget(col)
         h.addWidget(self.stack, 1)
@@ -143,6 +141,21 @@ class SecurityPanel(QDockWidget):
         """The visible tab widget (pages are wrapped in scroll areas)."""
         w = self.stack.currentWidget()
         return w.widget() if isinstance(w, QScrollArea) else w
+
+    def _polish_page(self, idx):
+        """Make one tab's button rows wrap and its long labels word-wrap. Run lazily on first show so building a
+        window doesn't scan all 18 tabs' widget trees up front."""
+        if idx in self._polished or idx < 0:
+            return
+        self._polished.add(idx)
+        page = self.stack.widget(idx)
+        if page is None:
+            return
+        from ..widgets import make_rows_wrap
+        make_rows_wrap(page)   # button / filter rows wrap instead of forcing pages wider than the panel
+        for lab in page.findChildren(QLabel):   # long explanatory labels wrap with the panel width
+            if not lab.wordWrap() and len(lab.text()) > 40:
+                lab.setWordWrap(True)
 
     def _select(self, name):
         btn, idx = self._nav_buttons[name]
@@ -157,6 +170,7 @@ class SecurityPanel(QDockWidget):
             self.nav_search.blockSignals(False)
             self._render_nav()
         btn.setChecked(True)
+        self._polish_page(idx)              # lazy responsive-layout pass, first time this tab is shown
         self.stack.setCurrentIndex(idx)
         self.nav.ensureWidgetVisible(btn)   # QA-U8: scroll the active nav item into view so it looks selected
 
