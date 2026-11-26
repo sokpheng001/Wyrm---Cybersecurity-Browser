@@ -70,7 +70,8 @@ def _run_checks():
     assert p._result_entries and p._result_entries[0]["sub"] == "Repeater", p._result_entries
     p._open_first_result()
     app.processEvents()
-    assert p.current_page() is p.tools_tab and p.tools_tab._sel.currentText() == "Repeater"
+    assert p.current_page() is p.tools_tab and p.tools_tab.current_tool() == "Repeater"
+    assert p.tools_tab._chips["Repeater"].isChecked()
     assert p.nav_search.text() == "", "opening a result clears the search"
     p._toggle_group("SCANNING")
     assert not p._nav_buttons["Audit"][0].isVisibleTo(p)

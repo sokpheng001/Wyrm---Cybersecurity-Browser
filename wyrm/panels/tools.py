@@ -13,11 +13,11 @@ from urllib.parse import urlparse
 
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QStackedWidget, QTabBar, QTextBrowser, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QButtonGroup, QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QStackedWidget, QTabBar, QTextBrowser, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 from .common import HeaderHighlighter, _format_response, _pane, mono
 from ..security import tools
-from ..widgets import SkeletonOverlay
+from ..widgets import SkeletonOverlay, WrapRow
 
 
 # =================================================================== Tools
@@ -29,26 +29,48 @@ class ToolsTab(QWidget):
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(6)
-        row = QHBoxLayout()
-        row.addWidget(QLabel("Tool"))
-        self._sel = QComboBox()  # compact selector instead of overflowing horizontal tabs
-        self._sel.currentIndexChanged.connect(lambda i: self._stack.setCurrentIndex(i))
-        row.addWidget(self._sel, 1)
-        v.addLayout(row)
+        # every sub-tool visible at once as a chip; the row wraps on a narrow panel (a dropdown hid 8 tools, and
+        # plain tabs overflowed). Ordered by how often they're used in a test.
+        from .toolnav import SUBTOOLS
+        chips = QWidget(objectName="ToolChips")
+        flow = WrapRow(hspacing=6, vspacing=6)
+        self._chip_flow = flow   # keep the Python layout alive: Qt calls its overridden methods
+        self._chips: dict[str, QPushButton] = {}
+        self._chip_group = QButtonGroup(self)
+        self._chip_group.setExclusive(True)
         self._stack = QStackedWidget()
-        v.addWidget(self._stack, 1)
         self._tool_names = []
-        for name, builder in (("Decoder", self._decoder), ("JWT", self._jwt), ("Hash", self._hash),
-                              ("Repeater", self._repeater), ("Match & Replace", self._rewrite),
-                              ("Comparer", self._comparer), ("Sequencer", self._sequencer),
-                              ("AI Triage", self._triage)):
+        for name, builder in (("Repeater", self._repeater), ("Decoder", self._decoder), ("JWT", self._jwt),
+                              ("Hash", self._hash), ("Comparer", self._comparer), ("Sequencer", self._sequencer),
+                              ("Match & Replace", self._rewrite), ("AI Triage", self._triage)):
             self._stack.addWidget(builder())
-            self._sel.addItem(name)
             self._tool_names.append(name)
+            b = QPushButton(name.replace("&", "&&"), objectName="ToolChip")
+            b.setCheckable(True)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setToolTip(SUBTOOLS["Tools"].get(name, ("",))[0])
+            b.clicked.connect(lambda _c=False, n=name: self._select_tool(n))
+            self._chip_group.addButton(b)
+            self._chips[name] = b
+            flow.addWidget(b)
+        chips.setLayout(flow)
+        v.addWidget(chips)
+        v.addWidget(self._stack, 1)
+        settings = getattr(win, "settings", None)
+        last = settings.value("tools/last", "Repeater") if settings is not None else "Repeater"
+        self._select_tool(last if last in self._tool_names else "Repeater", remember=False)
 
-    def _select_tool(self, name):
-        if name in self._tool_names:
-            self._sel.setCurrentIndex(self._tool_names.index(name))
+    def current_tool(self) -> str:
+        return self._tool_names[self._stack.currentIndex()]
+
+    def _select_tool(self, name, remember=True):
+        if name not in self._tool_names:
+            return
+        self._stack.setCurrentIndex(self._tool_names.index(name))
+        self._chips[name].setChecked(True)
+        settings = getattr(self.win, "settings", None)
+        if remember and settings is not None:
+            settings.setValue("tools/last", name)   # reopen on the sub-tool used last
 
     # ---------------------------------------------------------------- AI Triage (scope-gated, HITL)
     def _triage(self):

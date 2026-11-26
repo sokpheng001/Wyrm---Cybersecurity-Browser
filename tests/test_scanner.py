@@ -47,3 +47,13 @@ if __name__ == "__main__":
             failed += 1; print(f"FAIL {fn.__name__}"); traceback.print_exc()
     print(f"\n{len(fns) - failed}/{len(fns)} passed")
     sys.exit(1 if failed else 0)
+
+
+def test_pd_summary_says_input_and_whether_target_is_contacted():
+    from wyrm.panels.scanner import pd_summary
+    from wyrm.security import pdtools
+    active = next(t for t in pdtools.TOOLS if t.active)
+    passive = next(t for t in pdtools.TOOLS if not t.active)
+    assert "Contacts the target" in pd_summary(active)
+    assert "Passive" in pd_summary(passive) and "Contacts" not in pd_summary(passive)
+    assert "Enter " in pd_summary(active)

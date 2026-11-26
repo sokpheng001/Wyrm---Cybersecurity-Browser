@@ -30,6 +30,19 @@ from ..security import jsrecon, pdtools, portscan, severity as _sev, techdetect,
 from ..widgets import SkeletonOverlay
 
 
+_TAKES = {"domain": "a domain (example.com)", "url": "a URL", "host": "a host name or IP",
+          "cidr": "an IP range (CIDR)", "asn": "an ASN (AS1234)"}
+
+
+def pd_summary(tool) -> str:
+    """One rich-text line for a ProjectDiscovery tool: what it does, what to enter, and whether it contacts
+    the target (scope-gated) or only reads public sources."""
+    badge = ("<span style='color:#da1e28'><b>Contacts the target</b></span> (in-scope targets only)" if tool.active
+             else "<span style='color:#24a148'><b>Passive</b></span> (public sources, target not contacted)")
+    return (f"<b>{escape(tool.name)}</b> — {escape(tool.desc)}<br>"
+            f"Enter {escape(_TAKES.get(tool.takes, tool.takes))} · {badge}")
+
+
 def _same_origin(a: str, b: str) -> bool:
     pa, pb = urlparse(a), urlparse(b)
     return (pa.scheme, pa.hostname, pa.port) == (pb.scheme, pb.hostname, pb.port)
@@ -169,6 +182,14 @@ class ScannerTab(QWidget):
             self.pd_stop.setEnabled(False)
             pd.addWidget(self.pd_stop)
             v.addLayout(pd)
+            # the drop-down truncates; spell out what the chosen tool does, what it needs, and whether it touches
+            # the target, so picking among many tools doesn't depend on hovering
+            self.pd_info = QLabel(objectName="Muted")
+            self.pd_info.setWordWrap(True)
+            self.pd_info.setTextFormat(Qt.TextFormat.RichText)
+            v.addWidget(self.pd_info)
+            self.pd_box.currentIndexChanged.connect(lambda _i: self._pd_describe())
+            self._pd_describe()
 
         split = QSplitter(Qt.Orientation.Vertical)
         self.tree = QTreeWidget()
@@ -310,6 +331,13 @@ class ScannerTab(QWidget):
         self._run("CORS test", lambda: webchecks.cors_test(url, px, verify), render)
 
     # ---------------------------------------------------------------- ProjectDiscovery tools (streamed)
+    def _pd_describe(self):
+        t = pdtools.TOOLS_BY_KEY.get(self.pd_box.currentData())
+        if t is None:
+            self.pd_info.setText("")
+            return
+        self.pd_info.setText(pd_summary(t))
+
     def run_pd(self):
         if self._pd_running:
             return

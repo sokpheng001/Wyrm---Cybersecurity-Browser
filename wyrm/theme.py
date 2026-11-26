@@ -173,6 +173,10 @@ QLineEdit#NavSearch { padding: 5px 6px; font-size: 13px; }
 QPushButton#NavGroup { color: $strong; font-size: 10.5px; font-weight: 700; letter-spacing: 1px; background: transparent;
     border: none; border-radius: 0; text-align: left; padding: 14px 12px 4px 10px; }
 QPushButton#NavGroup:hover { color: $text; }
+QPushButton#ToolChip { background: transparent; color: $muted; border: 1px solid $border; border-radius: 13px;
+    padding: 4px 12px; min-height: 18px; font-size: 13px; }
+QPushButton#ToolChip:hover { color: $text; background: $hover; }
+QPushButton#ToolChip:checked { background: $button; color: #ffffff; border-color: $button; font-weight: 600; }
 QPushButton#NavItem { background: transparent; border: none; border-left: 3px solid transparent; border-radius: 0;
     text-align: left; padding: 8px 12px 8px 14px; color: $muted; font-weight: 400; }
 QPushButton#NavItem:hover { background: $hover; color: $text; }
