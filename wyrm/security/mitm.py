@@ -47,6 +47,11 @@ class CertAuthority:
             _wipe_ca_files(self.dir)
         self._ca_cert, self._ca_key = self._load_or_make_ca()
 
+    @property
+    def cert(self):
+        """The CA certificate object (read-only), e.g. to check whether it's already trusted."""
+        return self._ca_cert
+
     def _load_or_make_ca(self):
         if self.ca_cert_path.exists() and self.ca_key_path.exists():
             try:
@@ -198,9 +203,13 @@ def start_if_enabled(data_dir: Path):
         _wipe_ca_files(mitm_dir)
         return []
     try:
-        ca = CertAuthority(mitm_dir, fresh=True)      # short-lived CA, regenerated for this session
-        uninstall_ca()                                # drop any stale CA from a prior session before trusting ours
-        install_ca(ca.ca_cert_path)                   # keep the trusted CA in sync with the fresh on-disk one
+        # Persistent CA (reused across sessions) so Windows' mandatory "install a root certificate?" prompt is
+        # shown only the first time interception is enabled, not on every launch. It stays short-lived (90 days)
+        # and is removed when the proxy is disabled (below / SEC-8), so the trust window is still bounded.
+        ca = CertAuthority(mitm_dir, fresh=False)
+        if not ca_trusted(ca.cert):                   # already trusted (same cert) → don't re-prompt
+            uninstall_ca()                            # clear any stale/expired Wyrm CA, then trust this one (prompts once)
+            install_ca(ca.ca_cert_path)
         proxy = MitmProxy(ca)
         proxy.http2 = QSettings().value("mitm/http2", True, type=bool)   # on by default (concurrent h2 interception)
         port = proxy.start(0)
@@ -229,6 +238,22 @@ def install_ca(ca_pem: Path) -> bool:
         # Linux: trust stores vary; copy into the user NSS db if certutil (libnss3-tools) is present
         return False
     except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def ca_trusted(cert) -> bool:
+    """True if this exact CA cert is already in the user's trust store (so we can skip re-installing it and avoid
+    Windows' root-trust prompt). Checked by SHA-1 thumbprint. Non-Windows: return False and let install run."""
+    import subprocess
+    import sys
+    if sys.platform != "win32":
+        return False
+    try:
+        tp = cert.fingerprint(hashes.SHA1()).hex()
+        r = subprocess.run(["certutil", "-verifystore", "-user", "Root", tp],
+                           capture_output=True, timeout=30, creationflags=0x08000000)
+        return r.returncode == 0
+    except (OSError, subprocess.SubprocessError, ValueError):
         return False
 
 
