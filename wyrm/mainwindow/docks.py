@@ -34,10 +34,16 @@ class DocksMixin:
         h.setSpacing(2)
         lbl = QLabel(title, objectName="DockTitleLabel")
         h.addWidget(lbl, 1)
+        buttons = []
+        if dock is getattr(self, "security", None):   # the tools panel can pop out into a standalone window
+            b_detach = QToolButton()
+            b_detach.setToolTip("Open the tools in their own window (stays open if you close the browser)")
+            b_detach.clicked.connect(self.detach_tools)
+            buttons.append((b_detach, "win_max"))
         b_float = QToolButton()
         b_float.setToolTip("Detach into its own window / dock back")
         b_float.clicked.connect(lambda: self._toggle_float(dock))
-        buttons = [(b_float, "win_restore")]
+        buttons.append((b_float, "win_restore"))
         b_close = None
         if closable:
             b_close = QToolButton(objectName="DockClose")
@@ -65,6 +71,45 @@ class DocksMixin:
             sc.activated.connect(dock.close)
         # frame the panel whenever it becomes a separate window (button OR dragged out), so the split is obvious
         dock.topLevelChanged.connect(lambda top, d=dock: self._mark_detached(d, top))
+
+    # ------------------------------------------------------------------ detach the tools into their own window
+    def detach_tools(self):
+        """Pop the Security panel's content out into a standalone ToolsWindow that outlives the browser window."""
+        if getattr(self, "_tools_window", None) is not None:
+            self._tools_window.raise_()
+            self._tools_window.activateWindow()
+            return
+        content = self.security.widget()
+        if content is None:
+            return
+        from .toolswindow import ToolsWindow
+        # setCentralWidget reparents `content` out of the dock (a widget has one parent), so the dock is left empty;
+        # hide it. The SecurityPanel dock object itself stays owned by the browser window.
+        self._tools_window = ToolsWindow(self, content)
+        self.security.hide()
+        self._tools_window.show()
+        self._tools_window.raise_()
+        self._tools_window.activateWindow()
+
+    def redock_tools(self, show_browser: bool = False):
+        """Move the tools back into the browser dock and drop the standalone window."""
+        tw = getattr(self, "_tools_window", None)
+        if tw is None:
+            return
+        self._tools_window = None
+        content = tw.centralWidget()
+        if content is not None:
+            content.setParent(None)
+            self.security.setWidget(content)
+        self.security.show()
+        tw.deleteLater()
+        if show_browser and self.isHidden():
+            self.showNormal()
+            self.raise_()
+            self.activateWindow()
+
+    def tools_detached(self) -> bool:
+        return getattr(self, "_tools_window", None) is not None
 
     def _mark_detached(self, dock, floating):
         dock.setProperty("detached", bool(floating))

@@ -83,6 +83,13 @@ class SessionMixin:
         return True
 
     def closeEvent(self, e):
+        # While the tools are popped out into their own window, closing the browser must not quit the app or the
+        # tools would vanish. Hide the browser instead and keep the process alive; the tools window stays open,
+        # and re-docking (or closing that window) brings the browser back.
+        if self.tools_detached() and not self._tools_window.isHidden():
+            e.ignore()
+            self.hide()
+            return
         if not self._confirm_close():
             e.ignore()
             return
