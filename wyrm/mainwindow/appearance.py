@@ -35,16 +35,19 @@ class AppearanceMixin:
         for act in getattr(self, "_theme_actions", {}).values():
             act.setChecked(act.data() == mode)
         app = QApplication.instance()
-        # Re-applying the global stylesheet re-polishes every widget (the costly part of a theme/mode switch).
-        # Freeze repaints on the window while we swap style, palette and icons so Qt repaints once at the end
-        # instead of flashing through intermediate states — a snappier switch.
-        self.setUpdatesEnabled(False)
-        try:
-            app.setStyle(theme.AppStyle())
-            app.setPalette(theme.palette(name, self.mode))
-            app.setStyleSheet(theme.stylesheet(name, self.data_dir / "ui", self.mode))
-        finally:
-            self.setUpdatesEnabled(True)
+        # The stylesheet/palette are application-global, so they only need to be (re)applied when they actually
+        # change. Skipping an unchanged re-apply avoids re-polishing EVERY widget in the app — the 2–3s cost that
+        # made opening a second window / tearing off a tab lag, since those windows share the already-set style.
+        qss = theme.stylesheet(name, self.data_dir / "ui", self.mode)
+        if app.styleSheet() != qss:
+            # Freeze repaints while style/palette swap so Qt repaints once instead of flashing intermediate states.
+            self.setUpdatesEnabled(False)
+            try:
+                app.setStyle(theme.AppStyle())
+                app.setPalette(theme.palette(name, self.mode))
+                app.setStyleSheet(qss)
+            finally:
+                self.setUpdatesEnabled(True)
         p = theme.resolve_palette(name, self.mode)
         pages.THEME = "dark" if name == "hacker" else name  # internal pages: dark styling
         pages.MODE = self.mode
