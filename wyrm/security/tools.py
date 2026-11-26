@@ -295,6 +295,34 @@ def diff_stats(a: str, b: str) -> dict:
     return {"ratio": round(sm.ratio() * 100, 1), "len_a": len(a), "len_b": len(b)}
 
 
+def line_diff(a: str, b: str) -> list[dict]:
+    """Aligned, line-level diff for a side-by-side view. Each row is
+    {"kind", "lno_a", "left", "lno_b", "right"} where kind is equal | replace | insert | delete and a line
+    number is None where that side has no line. Line numbers are 1-based."""
+    import difflib
+    la, lb = a.splitlines(), b.splitlines()
+    sm = difflib.SequenceMatcher(None, la, lb, autojunk=False)
+    rows: list[dict] = []
+    for op, i1, i2, j1, j2 in sm.get_opcodes():
+        if op == "equal":
+            for k in range(i2 - i1):
+                rows.append({"kind": "equal", "lno_a": i1 + k + 1, "left": la[i1 + k],
+                             "lno_b": j1 + k + 1, "right": lb[j1 + k]})
+        elif op == "replace":
+            for k in range(max(i2 - i1, j2 - j1)):   # pair changed lines, padding the shorter side
+                has_l, has_r = i1 + k < i2, j1 + k < j2
+                rows.append({"kind": "replace",
+                             "lno_a": i1 + k + 1 if has_l else None, "left": la[i1 + k] if has_l else None,
+                             "lno_b": j1 + k + 1 if has_r else None, "right": lb[j1 + k] if has_r else None})
+        elif op == "delete":
+            for k in range(i1, i2):
+                rows.append({"kind": "delete", "lno_a": k + 1, "left": la[k], "lno_b": None, "right": None})
+        else:  # insert
+            for k in range(j1, j2):
+                rows.append({"kind": "insert", "lno_a": None, "left": None, "lno_b": k + 1, "right": lb[k]})
+    return rows
+
+
 # ------------------------------------------------------------------ Sequencer (token randomness)
 def analyze_tokens(tokens: list[str]) -> dict:
     """Estimate the randomness/predictability of a set of session/CSRF/reset tokens.

@@ -149,26 +149,58 @@ class ToolsTab(QWidget):
         b.setObjectName("Primary")
         b.clicked.connect(self._do_compare)
         row.addWidget(b)
+        row.addWidget(QLabel("View"))
+        self.cmp_mode = QComboBox()
+        self.cmp_mode.addItems(["Side by side (lines)", "Inline (words)"])
+        self.cmp_mode.currentIndexChanged.connect(lambda _i: self._do_compare())
+        row.addWidget(self.cmp_mode)
         row.addStretch(1)
         v.addLayout(row)
         self.cmp_out = QTextBrowser()
         v.addWidget(self.cmp_out, 1)
         return w
 
+    _DEL_BG = "rgba(218,30,40,.28)"
+    _INS_BG = "rgba(36,161,72,.28)"
+
     def _do_compare(self):
         a, b = self.cmp_a.toPlainText(), self.cmp_b.toPlainText()
         st = tools.diff_stats(a, b)
-        parts = [f"<p class='meta' style='color:#8d8d8d'>Similarity {st['ratio']}% · A {st['len_a']} chars · B {st['len_b']} chars</p><pre style='white-space:pre-wrap;margin:0'>"]
+        head = (f"<p style='color:#8d8d8d;margin:0 0 6px'>Similarity {st['ratio']}% · "
+                f"A {st['len_a']} chars · B {st['len_b']} chars</p>")
+        if self.cmp_mode.currentIndex() == 0:
+            self.cmp_out.setHtml(head + self._side_by_side_html(a, b))
+        else:
+            self.cmp_out.setHtml(head + self._inline_html(a, b))
+
+    def _inline_html(self, a, b):
+        parts = ["<pre style='white-space:pre-wrap;margin:0'>"]
         for op, text in tools.word_diff(a, b):
             t = escape(text)
             if op == "equal":
                 parts.append(t)
             elif op == "insert":
-                parts.append(f"<span style='background:rgba(36,161,72,.28)'>{t}</span>")
+                parts.append(f"<span style='background:{self._INS_BG}'>{t}</span>")
             else:  # delete
-                parts.append(f"<span style='background:rgba(218,30,40,.28);text-decoration:line-through'>{t}</span>")
+                parts.append(f"<span style='background:{self._DEL_BG};text-decoration:line-through'>{t}</span>")
         parts.append("</pre>")
-        self.cmp_out.setHtml("".join(parts))
+        return "".join(parts)
+
+    def _side_by_side_html(self, a, b):
+        def cell(no, text, bg):
+            n = "" if no is None else str(no)
+            body = "" if text is None else escape(text).replace(" ", "&nbsp;")
+            style = f"background:{bg};" if bg else ""
+            return (f"<td style='color:#8d8d8d;text-align:right;padding:0 6px;user-select:none'>{n}</td>"
+                    f"<td style='{style}white-space:pre-wrap;padding:0 6px;width:50%'>{body}</td>")
+        rows = ["<table style='border-collapse:collapse;width:100%;font-family:monospace;font-size:12.5px'>"]
+        bg = {"delete": (self._DEL_BG, ""), "insert": ("", self._INS_BG),
+              "replace": (self._DEL_BG, self._INS_BG), "equal": ("", "")}
+        for r in tools.line_diff(a, b):
+            lb, rb = bg[r["kind"]]
+            rows.append("<tr>" + cell(r["lno_a"], r["left"], lb) + cell(r["lno_b"], r["right"], rb) + "</tr>")
+        rows.append("</table>")
+        return "".join(rows)
 
     # ---------------------------------------------------------------- Sequencer
     def _sequencer(self):
