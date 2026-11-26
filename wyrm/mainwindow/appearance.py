@@ -35,9 +35,16 @@ class AppearanceMixin:
         for act in getattr(self, "_theme_actions", {}).values():
             act.setChecked(act.data() == mode)
         app = QApplication.instance()
-        app.setStyle(theme.AppStyle())
-        app.setPalette(theme.palette(name, self.mode))
-        app.setStyleSheet(theme.stylesheet(name, self.data_dir / "ui", self.mode))
+        # Re-applying the global stylesheet re-polishes every widget (the costly part of a theme/mode switch).
+        # Freeze repaints on the window while we swap style, palette and icons so Qt repaints once at the end
+        # instead of flashing through intermediate states — a snappier switch.
+        self.setUpdatesEnabled(False)
+        try:
+            app.setStyle(theme.AppStyle())
+            app.setPalette(theme.palette(name, self.mode))
+            app.setStyleSheet(theme.stylesheet(name, self.data_dir / "ui", self.mode))
+        finally:
+            self.setUpdatesEnabled(True)
         p = theme.resolve_palette(name, self.mode)
         pages.THEME = "dark" if name == "hacker" else name  # internal pages: dark styling
         pages.MODE = self.mode
@@ -52,13 +59,20 @@ class AppearanceMixin:
         if hasattr(self, "_refresh_bookmarks_bar"):
             self._refresh_bookmarks_bar()   # recolour generic/fallback bookmark icons for the new theme
         self._sync_chrome()
+        cur = self.current_view()
         for i in range(self.tabbar.count()):  # internal pages follow the theme/mode
             view = self.tabbar.tabData(i)
             if hasattr(view, "_sync_page_bg"):
                 view._sync_page_bg(view.url())   # W2: repaint background in the new theme, no flash
             if view.url().scheme() == "wyrm":
-                # bypass cache: wyrm:// pages are dynamic (theme/mode), a soft reload serves a stale copy
-                view.page().triggerAction(QWebEnginePage.WebAction.ReloadAndBypassCache)
+                # bypass cache: wyrm:// pages are dynamic (theme/mode), a soft reload serves a stale copy.
+                # Only reload the visible tab now — reloading every background wyrm:// tab (the start page
+                # re-fetches news/weather/favicons) is what made a red↔blue switch lag. Background tabs are
+                # marked and refreshed lazily the next time they're shown.
+                if view is cur:
+                    view.page().triggerAction(QWebEnginePage.WebAction.ReloadAndBypassCache)
+                else:
+                    self._theme_dirty_views.add(view)
 
     def apply_mode(self, mode: str):
         """Red (offensive/elite) ↔ Blue (defensive/standard): swaps the accent and start-page emphasis."""

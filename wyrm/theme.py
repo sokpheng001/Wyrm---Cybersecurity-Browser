@@ -310,7 +310,13 @@ def app_font() -> QFont:
 def _write_svg(cache_dir: Path, name: str, body: str) -> str:
     cache_dir.mkdir(parents=True, exist_ok=True)
     p = cache_dir / name
-    p.write_text(f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'>{body}</svg>", encoding="utf-8")
+    svg = f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'>{body}</svg>"
+    try:   # skip the write when unchanged (a red↔blue switch keeps the same theme SVGs) — avoids needless disk I/O
+        if p.read_text(encoding="utf-8") == svg:
+            return p.as_posix()
+    except OSError:
+        pass
+    p.write_text(svg, encoding="utf-8")
     return p.as_posix()
 
 

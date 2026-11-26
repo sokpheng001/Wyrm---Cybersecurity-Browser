@@ -123,6 +123,7 @@ class MainWindow(
         self.profiles: dict[str, QWebEngineProfile] = {}
         self._loading_views: set = set()
         self._failed: dict = {}
+        self._theme_dirty_views: set = set()   # background wyrm:// tabs awaiting a theme/mode refresh on next show
         self._closed_tabs: list[dict] = []   # recently closed tabs {url, title} (Ctrl+Shift+T / History page)
         self._current_key: str | None = None
         self.block_reasons: dict[str, tuple] = {}  # url -> (category, linkguard verdict) for blocked navigations

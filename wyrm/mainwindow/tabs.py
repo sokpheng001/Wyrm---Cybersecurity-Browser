@@ -139,6 +139,7 @@ class TabsMixin:
         view = self.tabbar.tabData(i)
         self._failed.pop(view, None)
         self._loading_views.discard(view)
+        self._theme_dirty_views.discard(view)
         self.tabbar.removeTab(i)
         self.stack.removeWidget(view)
         view.deleteLater()
@@ -248,6 +249,11 @@ class TabsMixin:
         v = self.current_view()
         if not v:
             return
+        if v in self._theme_dirty_views:   # a theme/mode changed while this tab was in the background: refresh now
+            self._theme_dirty_views.discard(v)
+            if v.url().scheme() == "wyrm":
+                from PySide6.QtWebEngineCore import QWebEnginePage
+                v.page().triggerAction(QWebEnginePage.WebAction.ReloadAndBypassCache)
         self.stack.setCurrentWidget(v)
         self._vtab_update_current()   # highlight the active row in the left tab list
         self._sync_chrome()
