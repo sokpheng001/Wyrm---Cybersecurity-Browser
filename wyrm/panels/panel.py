@@ -116,20 +116,16 @@ class SecurityPanel(QDockWidget):
         self._empty.setWordWrap(True)
         self._empty.hide()
         self.stack = QStackedWidget()
-        self._nav_buttons: dict[str, tuple] = {}   # name -> (button, stack index)
+        self._nav_buttons: dict[str, tuple] = {}   # name -> (button, content widget)
+        self._pages: dict[str, QScrollArea] = {}   # name -> stack page, created lazily on first show
         for _title, items in self._groups:
             for name in items:
                 self._make_nav_item(name, tabs[name])
         self.nav.setWidget(navbody)
         navbody.setMinimumWidth(0)
-        # one consistent outer margin + row spacing for every panel page (alignment & rhythm across tabs)
-        for _n, (_b, idx) in self._nav_buttons.items():
-            lay = self.stack.widget(idx).widget().layout()
-            if lay is not None:
-                lay.setContentsMargins(16, 14, 16, 12)
-                lay.setSpacing(10)
-        # The responsive-row/label-wrap pass scans the whole widget tree of every tab. Doing it for all 18 tabs
-        # up front cost ~0.5s per window (slow tab tear-off / Ctrl+N). Do it per tab, the first time it's shown.
+        # Pages are wrapped in a scroll area and added to the stack lazily (see _ensure_page): wrapping/adding
+        # all 18 tabs up front, plus the responsive-layout scan, cost ~0.4s per window (slow tab tear-off /
+        # Ctrl+N). Only the tab actually shown is realized; the rest build on first view.
         self._polished: set = set()
         self._render_nav()
         h.addWidget(col)
@@ -142,13 +138,13 @@ class SecurityPanel(QDockWidget):
         w = self.stack.currentWidget()
         return w.widget() if isinstance(w, QScrollArea) else w
 
-    def _polish_page(self, idx):
+    def _polish_page(self, name):
         """Make one tab's button rows wrap and its long labels word-wrap. Run lazily on first show so building a
         window doesn't scan all 18 tabs' widget trees up front."""
-        if idx in self._polished or idx < 0:
+        if name in self._polished:
             return
-        self._polished.add(idx)
-        page = self.stack.widget(idx)
+        self._polished.add(name)
+        page = self._pages.get(name)
         if page is None:
             return
         from ..widgets import make_rows_wrap
@@ -166,7 +162,7 @@ class SecurityPanel(QDockWidget):
                 bar.setSingleStep(16)   # a gentler wheel step than the default big jumps
 
     def _select(self, name):
-        btn, idx = self._nav_buttons[name]
+        btn = self._nav_buttons[name][0]
         folded = [t for t, names, f in toolnav.sections(self._groups, self._pinned, self._collapsed)
                   if f and name in names]
         if folded or self.nav_search.text():   # make sure the chosen tool is visible in the nav
@@ -178,8 +174,8 @@ class SecurityPanel(QDockWidget):
             self.nav_search.blockSignals(False)
             self._render_nav()
         btn.setChecked(True)
-        self._polish_page(idx)              # lazy responsive-layout pass, first time this tab is shown
-        self.stack.setCurrentIndex(idx)
+        page = self._ensure_page(name)      # build this tab's stack page the first time it's shown (lazy)
+        self.stack.setCurrentWidget(page)
         self.nav.ensureWidgetVisible(btn)   # QA-U8: scroll the active nav item into view so it looks selected
 
     def show_tab(self, name):
@@ -219,13 +215,29 @@ class SecurityPanel(QDockWidget):
         btn.customContextMenuRequested.connect(lambda pos, n=name, b=btn: self._nav_menu(n, b.mapToGlobal(pos)))
         btn.clicked.connect(lambda _c=False, n=name: self._select(n))
         btn.hide()
+        widget.setParent(None)                 # held off the stack until first shown (lazy realization)
+        self._nav_buttons[name] = (btn, widget)
+        return btn
+
+    def _ensure_page(self, name):
+        """Wrap this tab's widget in a scroll area and add it to the stack the first time it's shown, then run the
+        one-off per-tab layout pass. Returns the stack page (QScrollArea)."""
+        page = self._pages.get(name)
+        if page is not None:
+            return page
+        widget = self._nav_buttons[name][1]
         page = QScrollArea()  # tall pages scroll instead of squashing; width follows the panel
         page.setWidgetResizable(True)
         page.setFrameShape(QScrollArea.Shape.NoFrame)
         page.setWidget(widget)
-        idx = self.stack.addWidget(page)
-        self._nav_buttons[name] = (btn, idx)
-        return btn
+        lay = widget.layout()
+        if lay is not None:                    # one consistent outer margin + row spacing for every panel page
+            lay.setContentsMargins(16, 14, 16, 12)
+            lay.setSpacing(10)
+        self.stack.addWidget(page)
+        self._pages[name] = page
+        self._polish_page(name)
+        return page
 
     @staticmethod
     def _fit(w):
