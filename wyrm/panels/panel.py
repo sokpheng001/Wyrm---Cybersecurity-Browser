@@ -156,6 +156,14 @@ class SecurityPanel(QDockWidget):
         for lab in page.findChildren(QLabel):   # long explanatory labels wrap with the panel width
             if not lab.wordWrap() and len(lab.text()) > 40:
                 lab.setWordWrap(True)
+        from PySide6.QtWidgets import QAbstractItemView, QAbstractScrollArea
+        for view in page.findChildren(QAbstractItemView):   # smooth per-pixel wheel scrolling (not per-row jumps)
+            view.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+            view.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        for sa in page.findChildren(QAbstractScrollArea):
+            bar = sa.verticalScrollBar()
+            if bar is not None:
+                bar.setSingleStep(16)   # a gentler wheel step than the default big jumps
 
     def _select(self, name):
         btn, idx = self._nav_buttons[name]

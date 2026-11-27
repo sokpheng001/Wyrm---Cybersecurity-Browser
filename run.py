@@ -108,9 +108,20 @@ def _migrate_secrets():
         pass
 
 
+def _apply_base_engine_flags():
+    """Engine flags that apply to every window: smoother scrolling and compositing. Chromium reads these from
+    QTWEBENGINE_CHROMIUM_FLAGS at startup (before QApplication exists)."""
+    base = ["--enable-smooth-scrolling",
+            "--enable-features=SmoothScrolling,OverlayScrollbar",
+            "--disable-features=TouchpadOverscrollHistoryNavigation"]
+    os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
+        os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "") + " " + " ".join(base)).strip()
+
+
 def main():
     QCoreApplication.setOrganizationName("HackPi")
     QCoreApplication.setApplicationName("Wyrm")
+    _apply_base_engine_flags()
     _migrate_secrets()
     try:   # crash logging: Python-level faults go to a log with the Wyrm version (H-4)
         import faulthandler
