@@ -161,7 +161,7 @@ class HomeMixin:
         pages.BG_ROTATE_MS = mins * 60 * 1000  # read by the start page timer and the wyrm://bg cache
         return mins
 
-    def _set_background(self, params: dict):
+    def _set_background(self, params: dict, refresh: bool = True):
         mode = params.get("mode", "")
         if mode not in ("random", "color", "image", "animated", "video_local", "weather", "none"):
             return
@@ -177,7 +177,10 @@ class HomeMixin:
         self.settings.setValue("home/bg_mode", mode)
         self.settings.setValue("home/background", mode != "none")
         self.settings.sync()
-        QTimer.singleShot(0, lambda: self._refresh_home_pages(full=True))
+        # `refresh=False` when the caller already re-navigates the page (the wyrm://do?a=bg handler redirects to
+        # #customize), so the wallpaper doesn't reload twice.
+        if refresh:
+            QTimer.singleShot(0, lambda: self._refresh_home_pages(full=True))
 
     def _pick_background_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "Choose a background image", str(Path.home() / "Pictures"),
@@ -651,7 +654,7 @@ class HomeMixin:
                 self.security.show_tab("Recon")
                 QTimer.singleShot(50, self.security.recon.use_current)
             elif do == "bg" and not self.tor:
-                self._set_background(params)
+                self._set_background(params, refresh=False)   # the scheme handler redirects to #customize (reloads)
             elif do == "bg-interval" and not self.tor:
                 try:
                     mins = int(params.get("min", ""))
