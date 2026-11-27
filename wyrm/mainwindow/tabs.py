@@ -215,6 +215,9 @@ class TabsMixin:
                 for w in targets:
                     title = (w.windowTitle() or "Wyrm")[:40]
                     sub.addAction(title, lambda _c=False, j=i, tw=w: self.move_tab_to_window(j, tw))
+                tot = sum(t.tabbar.count() for t in targets)
+                m.addAction(f"Merge all windows here ({tot} tab{'s' if tot != 1 else ''})",
+                            self.merge_all_windows)
             m.addSeparator()
             m.addAction("Close tab", lambda _c=False, j=i: self.close_tab(j))
             a_other = m.addAction("Close other tabs", lambda _c=False, j=i: self.close_other_tabs(j))
@@ -289,6 +292,21 @@ class TabsMixin:
         target.activateWindow()
         if last:
             self.new_tab(QUrl(HOME))   # never leave this window with zero tabs
+        self._sync_chrome()
+
+    def merge_all_windows(self):
+        """Pull every tab from the other same-profile windows into this one, then those windows close — the
+        'combine all my windows into one' gesture."""
+        for other in self._merge_targets():
+            for j in range(other.tabbar.count() - 1, -1, -1):   # high → low so indices stay valid
+                view = other.tabbar.tabData(j)
+                title = other.tabbar.tabText(j)
+                v = other._detach_tab(j)
+                if v is not None:
+                    self._adopt_tab(v, title)
+            other.close()   # emptied window closes
+        self.raise_()
+        self.activateWindow()
         self._sync_chrome()
 
     def move_tab_to_new_window(self, i: int):
