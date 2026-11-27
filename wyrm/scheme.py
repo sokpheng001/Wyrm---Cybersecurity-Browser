@@ -19,6 +19,10 @@ from PySide6.QtWebEngineCore import QWebEngineUrlRequestJob, QWebEngineUrlScheme
 from . import engines, pages, scholar
 from .security import secsearch
 
+# start-page actions the page already applies itself (client-side tile removal, in-place toggle): aborting the
+# wyrm://do request keeps the current page — no reload, no extra history entry.
+_STAY_ACTIONS = {"sc-del-url", "topsite-hide", "weather-toggle", "location-toggle", "topsites-toggle"}
+
 SCHEME = b"wyrm"
 ASSETS = Path(__file__).parent / "assets"
 
@@ -142,9 +146,16 @@ class HiddenSchemeHandler(QWebEngineUrlSchemeHandler):
             if getattr(self, "actions", None):
                 self.actions("do:" + (params.get("a") or [""])[0], {k: v[0] for k, v in params.items()})
             a = (params.get("a") or [""])[0]
-            # background choices return with the Customize panel still open
-            job.redirect(QUrl("wyrm://home#customize" if a.startswith("bg") else
-                              "wyrm://history" if a.startswith("hist") else "wyrm://home"))
+            # Actions the start page already reflects on its own (a tile removed client-side, a toggle flipped in
+            # place) must NOT navigate — redirecting to wyrm://home reloads the whole page (the "deleting a shortcut
+            # refreshes too much" complaint) and piles up history entries so Back stops working. Abort the request
+            # so the current page simply stays as it is.
+            if a in _STAY_ACTIONS:
+                job.fail(QWebEngineUrlRequestJob.Error.RequestAborted)
+            else:
+                # background choices return with the Customize panel still open
+                job.redirect(QUrl("wyrm://home#customize" if a.startswith("bg") else
+                                  "wyrm://history" if a.startswith("hist") else "wyrm://home"))
         elif host == "bgimg":  # the user's own start-page background (Customize → Upload)
             img = self.custom_bg() if getattr(self, "custom_bg", None) else None
             if img:
