@@ -159,6 +159,13 @@ QLabel#UrlIcon { background: transparent; }
 LoadingBar { background: $layer; }
 #OfflineBanner { background: $banner; border-left: 3px solid $banner_border; }
 #OfflineBanner QLabel { color: $banner_text; }
+#TabSearchPopup { background: $bg; border: 1px solid $border; border-radius: 10px; }
+#TabSearchPopup QLineEdit#TabSearchInput { padding: 8px 10px; font-size: 14px; border: 1px solid $border;
+    border-radius: 8px; background: $field; color: $text; }
+#TabSearchPopup QListWidget#TabSearchList { background: transparent; border: none; outline: none; font-size: 13.5px; }
+#TabSearchPopup QListWidget#TabSearchList::item { padding: 8px 10px; border-radius: 6px; color: $text; }
+#TabSearchPopup QListWidget#TabSearchList::item:selected,
+#TabSearchPopup QListWidget#TabSearchList::item:hover { background: $hover; color: $text; }
 #DownloadsPopup { background: $bg; border: 1px solid $border; }
 #DownloadsPopup QFrame#DlRow { background: $layer; border: 1px solid $border; }
 #DownloadsPopup QLabel#DlName { font-weight: 600; color: $text; }

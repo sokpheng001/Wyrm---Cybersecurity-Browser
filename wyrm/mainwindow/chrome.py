@@ -414,6 +414,7 @@ class ChromeMixin:
             (["Ctrl+8"], lambda: self._goto_tab(7)),
             (["Ctrl+9"], lambda: self._goto_tab(self.tabbar.count() - 1)),
             (["Ctrl+Shift+R", "Ctrl+F5"], self._hard_reload),
+            (["Ctrl+Shift+A"], self._open_tab_search),
             (["F11"], self._toggle_fullscreen),
             (["F1"], self.open_help),
             (["Ctrl+Shift+N"], self.open_private_window),

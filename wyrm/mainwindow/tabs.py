@@ -355,6 +355,14 @@ class TabsMixin:
     def _toggle_fullscreen(self):
         self.showNormal() if self.isFullScreen() else self.showFullScreen()
 
+    def _open_tab_search(self):
+        """Ctrl+Shift+A: quick switcher across all open tabs (this window + same-profile windows)."""
+        pop = getattr(self, "_tab_search_popup", None)
+        if pop is None:
+            from .tabsearch import TabSearchPopup
+            pop = self._tab_search_popup = TabSearchPopup(self)
+        pop.popup()
+
     def _print_page(self):
         v = self.current_view()
         if not v:
