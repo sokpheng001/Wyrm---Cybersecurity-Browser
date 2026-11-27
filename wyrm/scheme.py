@@ -21,7 +21,8 @@ from .security import secsearch
 
 # start-page actions the page already applies itself (client-side tile removal, in-place toggle): aborting the
 # wyrm://do request keeps the current page — no reload, no extra history entry.
-_STAY_ACTIONS = {"sc-del-url", "topsite-hide", "weather-toggle", "location-toggle", "topsites-toggle"}
+_STAY_ACTIONS = {"sc-del-url", "sc-edit-url", "topsite-hide",
+                 "weather-toggle", "location-toggle", "topsites-toggle"}
 
 SCHEME = b"wyrm"
 ASSETS = Path(__file__).parent / "assets"

@@ -431,6 +431,26 @@ class HomeMixin:
             lst.pop(i)
             self._save_shortcuts(lst, refresh_page=False)   # no visible page reload on delete
 
+    def _edit_shortcut_url(self, url: str):
+        """Edit a top-level start-page shortcut (name + address) found by its URL, then reflect it on the page."""
+        if not url:
+            return
+        lst = self._shortcuts()
+        for s in lst:
+            if not isinstance(s.get("items"), list) and s.get("url") == url:
+                from PySide6.QtWidgets import QInputDialog
+                title, ok = QInputDialog.getText(self, "Edit shortcut", "Name:", text=s.get("title", ""))
+                if not ok:
+                    return
+                new_url, ok = QInputDialog.getText(self, "Edit shortcut", "Address:", text=s.get("url", ""))
+                if not ok or not new_url.strip():
+                    return
+                u = new_url.strip()
+                s["title"] = title.strip() or s.get("title", "")
+                s["url"] = u if "://" in u else "https://" + u
+                self._save_shortcuts(lst)   # reload so the tile shows the new name/address (edits are infrequent)
+                return
+
     def _del_shortcut_url(self, url: str):
         """Delete a top-level bookmark by URL (used by the start-page grid × so it stays correct without a
         reload — the tile is removed client-side)."""
@@ -694,6 +714,8 @@ class HomeMixin:
                     pass
             elif do == "sc-del-url" and not self.tor:
                 self._del_shortcut_url(params.get("u", ""))
+            elif do == "sc-edit-url" and not self.tor:
+                QTimer.singleShot(0, lambda u=params.get("u", ""): self._edit_shortcut_url(u))
             elif do == "topsite-hide" and not self.tor:
                 self._hide_topsite(params.get("u", ""))
             elif do == "topsites-toggle" and not self.tor:

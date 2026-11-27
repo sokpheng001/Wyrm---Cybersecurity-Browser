@@ -335,6 +335,9 @@ body.hasbg .scgrid .scpop{color:var(--fg)}
 .scgrid .scdel{position:absolute;top:0;right:4px;width:20px;height:20px;border-radius:50%;background:var(--layer2);color:var(--muted);display:none;align-items:center;justify-content:center;font-size:15px;line-height:1}
 .scgrid .sc:hover .scdel{display:flex}
 .scgrid .scdel:hover{background:var(--error);color:#fff;text-decoration:none}
+.scgrid .scedit{position:absolute;top:0;right:28px;width:20px;height:20px;border-radius:50%;background:var(--layer2);color:var(--muted);display:none;align-items:center;justify-content:center;font-size:12px;line-height:1}
+.scgrid .sc:hover .scedit{display:flex}
+.scgrid .scedit:hover{background:var(--btn);color:#fff;text-decoration:none}
 body.hasbg .scgrid .sclink,body.hasbg .scgrid .scadd,body.hasbg .scgrid .sct{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
 body.hasbg .scgrid .sclink:hover,body.hasbg .scgrid .scadd:hover{background:rgba(255,255,255,.14)}
 .feed{margin:44px 0 0;text-align:left}
@@ -624,6 +627,8 @@ def render_home(ctx: dict) -> str:
             title = s.get("title") or _sc_domain(u) or u
             sc_tiles += (f"<div class='sc'><a class='sclink' href='{escape(u, quote=True)}' title='{escape(u, quote=True)}'>"
                          f"{_sc_tile_icon(s)}<span class='sct'>{escape(title)}</span></a>"
+                         f"<a class='scedit' href='wyrm://do?a=sc-edit-url&amp;u={quote(u, safe='')}' "
+                         f"title='Edit shortcut'>&#9998;</a>"
                          f"<a class='scdel' href='wyrm://do?a=sc-del-url&amp;u={quote(u, safe='')}' "
                          f"onclick=\"this.closest('.sc').remove()\" title='Remove shortcut'>&times;</a></div>")
         shortcuts_html = ("<div class='scgrid'>" + sc_tiles
