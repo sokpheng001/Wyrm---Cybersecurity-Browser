@@ -396,6 +396,9 @@ details.cust[open]::before{content:"";position:fixed;inset:0;background:rgba(0,0
 .cmodal .cbody{flex:1;min-width:0;overflow:auto;padding:24px 28px;position:relative}
 .cmodal .x{position:absolute;right:16px;top:14px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:50%;color:var(--fg);cursor:pointer}
 .cmodal .x:hover{background:var(--hover)}
+.cmodal .cdone{display:flex;justify-content:flex-end;margin:26px 0 2px;position:sticky;bottom:0}
+.cmodal .cbtn{background:var(--btn);color:#fff;border-radius:8px;padding:9px 22px;font-size:14px;font-weight:600;cursor:pointer}
+.cmodal .cbtn:hover{filter:brightness(1.08)}
 .cmodal h2{font-size:17px;font-weight:600;margin:2px 0 8px}
 .cmodal h4{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.3px;margin:22px 0 10px}
 .csec{display:none}
@@ -877,18 +880,22 @@ def _customize_panel(bgc: dict, weather_on: bool = True, location_on: bool = Tru
     start_sec = (f"<div class='csec' data-sec='start'><h2>Start page</h2>{wx_toggle}"
                  "<p style='color:var(--muted);font-size:13px;margin:16px 2px'>"
                  "Tip: click the clock on the start page to switch between 24-hour and AM/PM.</p></div>")
+    done = "<div class='cdone'><a class='cbtn' role='button'>Done</a></div>"
+    # Close only on the X / Done button or Escape — NOT on an outside click. Picking a wallpaper reloads and
+    # reopens the panel (via #customize), so changes apply while the panel stays open; a stray click on the page
+    # must not throw away the panel the user is working in.
     js = ("<script>(function(){var d=document.querySelector('details.cust');if(!d)return;"
           "if(location.hash==='#customize'){d.open=true;history.replaceState(null,'',location.pathname+location.search);}"
           "d.querySelectorAll('.cnavitem').forEach(function(it){it.addEventListener('click',function(e){e.preventDefault();"
           "var s=it.getAttribute('data-sec');"
           "d.querySelectorAll('.cnavitem').forEach(function(x){x.classList.toggle('on',x===it);});"
           "d.querySelectorAll('.csec').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-sec')===s);});});});"
-          "var x=d.querySelector('.x');if(x)x.addEventListener('click',function(e){e.preventDefault();d.open=false;});"
-          "document.addEventListener('keydown',function(e){if(e.key==='Escape')d.open=false;});"
-          "document.addEventListener('click',function(e){if(d.open&&!e.target.closest('.cmodal')"
-          "&&!e.target.closest('summary'))d.open=false;});})();</script>")
+          "function leave(e){if(e)e.preventDefault();d.open=false;}"
+          "d.querySelectorAll('.x,.cbtn').forEach(function(b){b.addEventListener('click',leave);});"
+          "d.querySelector('.cmodal').addEventListener('click',function(e){e.stopPropagation();});"
+          "document.addEventListener('keydown',function(e){if(e.key==='Escape')leave();});})();</script>")
     return (f"<details class='cust'><summary>{pencil}Customize</summary>"
-            f"<div class='cmodal'>{nav}<div class='cbody'>{close}{bg_sec}{start_sec}</div></div></details>{js}")
+            f"<div class='cmodal'>{nav}<div class='cbody'>{close}{bg_sec}{start_sec}{done}</div></div></details>{js}")
 
 
 # ====================================================================== paper search results
